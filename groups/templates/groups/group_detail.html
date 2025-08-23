@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ group.name }}</title>
+</head>
+<body>
+<h1>Group: {{ group.name }}</h1>
+
+<h2>Students</h2>
+<ul>
+{% for student in students %}
+    <li>{{ student.username }}</li>
+{% empty %}
+    <li>No students yet.</li>
+{% endfor %}
+</ul>
+
+<h2>Active Invitation Codes</h2>
+<ul>
+{% for code in codes %}
+    <li>{{ code.code }}</li>
+{% empty %}
+    <li>No active codes.</li>
+{% endfor %}
+</ul>
+
+<form method="post" action="{% url 'groups:generate_code' group.pk %}">
+    {% csrf_token %}
+    <button type="submit">Generate new code</button>
+</form>
+</body>
+</html>
