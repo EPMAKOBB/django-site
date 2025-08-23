@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Dashboard</title>
+</head>
+<body>
+    <h1>Student Dashboard</h1>
+    {% for course in course_data %}
+        <h2>{{ course.course.title }} ({{ course.completed }}/{{ course.total }})</h2>
+        <ul>
+        {% for item in course.assignments %}
+            <li>
+                {{ item.assignment.title }} - {% if item.submitted %}Submitted{% else %}Pending{% endif %}
+            </li>
+        {% endfor %}
+        </ul>
+    {% empty %}
+        <p>No courses available.</p>
+    {% endfor %}
+</body>
+</html>
