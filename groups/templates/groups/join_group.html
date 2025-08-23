@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Join Group</title>
+</head>
+<body>
+<h1>Join a group</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Join</button>
+</form>
+
+<h2>Your groups</h2>
+<ul>
+{% for group in groups %}
+    <li>{{ group.name }}</li>
+{% empty %}
+    <li>You are not in any groups.</li>
+{% endfor %}
+</ul>
+</body>
+</html>
