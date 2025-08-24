@@ -1,19 +1,150 @@
 {% extends 'base.html' %}
 
-{% block title %}Fractal School{% endblock %}
-
-{% block hero %}
-<section id="hero-block" class="py-5 text-center bg-light border-bottom">
-    <div class="container">
-        <p class="lead mb-0">Наша образовательная система использует только что вошедшие в нашу жизнь технологии, позволяющие индивидуально подбирать задания под каждого ученика</p>
-    </div>
-</section>
-{% endblock %}
+{% block title %}Fractal School — главная{% endblock %}
 
 {% block content %}
-<section>
-    <h2>Кто мы и что даём</h2>
-    <p>Мы рассказываем о фракталах и предлагаем обучение для всех желающих.</p>
-</section>
-<a href="{% url 'admin:login' %}" class="btn btn-primary">Вход в личный кабинет</a>
+  <section class="hero">
+    <div class="container">
+      <h1>Нейросети + технологии 2025 → персональный курс для каждого</h1>
+      <p>Мы используем нейросетевые алгоритмы, чтобы программа обучения подстраивалась под ваш темп, уровень и цели. Гибко, прозрачно, результативно.</p>
+      <div class="cta">
+        <a href="#signup" class="btn">Начать обучение</a>
+        <a href="#grades" class="btn btn-secondary">Выбрать класс</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="grades" class="section">
+    <div class="container">
+
+      <!-- 9 класс -->
+      <details class="accordion" open>
+        <summary>
+          <div class="summary-left">
+            <h3 style="margin:0">9 класс</h3>
+            <span class="badge">ОГЭ</span>
+          </div>
+          <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <div class="panel">
+          <div class="subjects">
+            <!-- Solo subjects -->
+            <div class="card">
+              <h4>Физика</h4>
+              <p class="muted">Теория + задачи ОГЭ. Диагностика и персональный план.</p>
+              <div class="formats">
+                <button class="pill" data-offer="9-физика-инд">Индивидуально</button>
+                <button class="pill" data-offer="9-физика-групп">Групповой</button>
+                <button class="pill" data-offer="9-физика-курс">Курс</button>
+              </div>
+            </div>
+            <div class="card">
+              <h4>Математика</h4>
+              <p class="muted">Алгебра и геометрия. Тренажёры, варианты, срезы.</p>
+              <div class="formats">
+                <button class="pill" data-offer="9-мат-инд">Индивидуально</button>
+                <button class="pill" data-offer="9-мат-групп">Групповой</button>
+                <button class="pill" data-offer="9-мат-курс">Курс</button>
+              </div>
+            </div>
+            <div class="card">
+              <h4>Информатика</h4>
+              <p class="muted">Алгоритмы, программирование, логика. Практика на задачах.</p>
+              <div class="formats">
+                <button class="pill" data-offer="9-инф-инд">Индивидуально</button>
+                <button class="pill" data-offer="9-инф-групп">Групповой</button>
+                <button class="pill" data-offer="9-инф-курс">Курс</button>
+              </div>
+            </div>
+
+            <!-- Combos -->
+            <div class="card">
+              <h4>Физика + Математика</h4>
+              <p class="muted">Синхронизированные темы и общий план подготовки.</p>
+              <div class="formats">
+                <button class="pill" data-offer="9-физ+мат-инд">Индивидуально</button>
+                <button class="pill" data-offer="9-физ+мат-групп">Групповой</button>
+                <button class="pill" data-offer="9-физ+мат-курс">Курс</button>
+              </div>
+            </div>
+            <div class="card">
+              <h4>Математика + Информатика</h4>
+              <p class="muted">Задачи на логику, графы, вычисления и программирование.</p>
+              <div class="formats">
+                <button class="pill" data-offer="9-мат+инф-инд">Индивидуально</button>
+                <button class="pill" data-offer="9-мат+инф-групп">Групповой</button>
+                <button class="pill" data-offer="9-мат+инф-курс">Курс</button>
+              </div>
+            </div>
+            <div class="card">
+              <h4>Физика + Информатика</h4>
+              <p class="muted">Моделирование процессов и вычислительные эксперименты.</p>
+              <div class="formats">
+                <button class="pill" data-offer="9-физ+инф-инд">Индивидуально</button>
+                <button class="pill" data-offer="9-физ+инф-групп">Групповой</button>
+                <button class="pill" data-offer="9-физ+инф-курс">Курс</button>
+              </div>
+            </div>
+            <div class="card">
+              <h4>Физика + Математика + Информатика</h4>
+              <p class="muted">Полный пакет: общий план, единый трекинг прогресса.</p>
+              <div class="formats">
+                <button class="pill" data-offer="9-физ+мат+инф-инд">Индивидуально</button>
+                <button class="pill" data-offer="9-физ+мат+инф-групп">Групповой</button>
+                <button class="pill" data-offer="9-физ+мат+инф-курс">Курс</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- 10 класс -->
+      <details class="accordion">
+        <summary>
+          <div class="summary-left">
+            <h3 style="margin:0">10 класс</h3>
+            <span class="badge">База для ЕГЭ</span>
+          </div>
+          <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <div class="panel">
+          <p class="muted">Сильная база и ранняя диагностика — быстрее к высоким баллам в 11 классе. Структура предметов и форматов аналогична 9 классу.</p>
+        </div>
+      </details>
+
+      <!-- 11 класс -->
+      <details class="accordion">
+        <summary>
+          <div class="summary-left">
+            <h3 style="margin:0">11 класс</h3>
+            <span class="badge">ЕГЭ</span>
+          </div>
+          <svg class="chev" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <div class="panel">
+          <p class="muted">Интенсивная подготовка, реальные варианты, индивидуальные разборы. Структура предметов и форматов аналогична 9 классу.</p>
+        </div>
+      </details>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h3 style="margin-top:0">Отзывы</h3>
+      <div class="testimonials">
+        <div class="quote">«За 3 месяца подтянули логику и задачи по информатике. Нейросетка на платформе чётко подбирала темы. Итог — +18 баллов».<br><strong>— Мария, 9 класс</strong></div>
+        <div class="quote">«Комбо физика+математика оказалось прям топ: темы синхронизированы, домашки удобные. Сдаю спокойно».<br><strong>— Илья, 9 класс</strong></div>
+        <div class="quote">«Групповой формат и соревновательные треки мотивировали. Видно прогресс каждую неделю».<br><strong>— Артём, 10 класс</strong></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="signup" class="cta-block">
+    <div class="container">
+      <h3 style="margin:0 0 8px">Готовы начать?</h3>
+      <p class="muted" style="margin:0 0 16px">Оставьте заявку — подберём программу и формат под ваши цели.</p>
+      <a class="btn" href="#">Записаться</a>
+    </div>
+  </section>
 {% endblock %}
