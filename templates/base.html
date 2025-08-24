@@ -2,42 +2,26 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Fractal School{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'bootstrap/bootstrap.min.css' %}">
-    <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Fractal School{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
 </head>
 <body>
-<header>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{% url 'home' %}">[Ф]рактал – физика, математика, информатика</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <!--
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'admin:login' %}">Личный кабинет</a>
-                    </li>
-                    -->
-                    <li class="nav-item">
-                        <button id="theme-toggle" class="nav-link btn btn-link" type="button">
-                            <span class="icon">🌞</span><span class="fallback">дневная</span>
-                        </button>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-</header>
-{% block hero %}{% endblock %}
-<main class="container mt-4">
+  <header>
+    <div class="container">
+      <div class="row">
+        <a href="{% url 'home' %}" class="brand">
+          <div class="brand-badge" aria-hidden="true"></div>
+          <span>Fractal School</span>
+        </a>
+        <a href="#signup" class="btn">Записаться</a>
+      </div>
+    </div>
+  </header>
+  <main>
     {% block content %}{% endblock %}
-</main>
-    <script src="{% static 'bootstrap/bootstrap.bundle.min.js' %}"></script>
-    <script src="{% static 'js/theme.js' %}"></script>
+  </main>
+  <script src="{% static 'js/main.js' %}"></script>
 </body>
 </html>
