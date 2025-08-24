@@ -23,3 +23,19 @@
 #theme-toggle .icon:empty + .fallback {
     display: inline;
 }
+
+.hero {
+    border-bottom: 1px solid;
+}
+
+.theme-light .hero {
+    background-color: #f8f9fa;
+    color: #212529;
+    border-color: #dee2e6;
+}
+
+.theme-dark .hero {
+    background-color: #212529;
+    color: #f8f9fa;
+    border-color: #343a40;
+}
