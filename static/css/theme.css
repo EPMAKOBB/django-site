@@ -1,0 +1,25 @@
+.theme-dark {
+    background-color: #121212;
+    color: #f8f9fa;
+}
+
+.theme-dark a {
+    color: #9ecbff;
+}
+
+.theme-light {
+    background-color: #ffffff;
+    color: #212529;
+}
+
+.theme-light a {
+    color: #0d6efd;
+}
+
+#theme-toggle .fallback {
+    display: none;
+}
+
+#theme-toggle .icon:empty + .fallback {
+    display: inline;
+}
