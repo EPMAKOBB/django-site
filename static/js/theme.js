@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const icon = toggle.querySelector('.icon');
     const fallback = toggle.querySelector('.fallback');
     const navbar = document.querySelector('nav.navbar');
+    const hero = document.getElementById('hero-block');
 
     let theme = localStorage.getItem('theme') || 'dark';
     applyTheme(theme);
@@ -24,6 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
             navbar.classList.toggle('bg-dark', isDark);
             navbar.classList.toggle('navbar-light', !isDark);
             navbar.classList.toggle('bg-light', !isDark);
+        }
+        if (hero) {
+            hero.classList.toggle('bg-dark', isDark);
+            hero.classList.toggle('bg-light', !isDark);
         }
         if (isDark) {
             icon.textContent = '🌞';
