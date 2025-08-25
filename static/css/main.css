@@ -11,7 +11,18 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
 .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; }
 .brand { display: flex; gap: 10px; align-items: center; font-weight: 700; letter-spacing: 0.3px; }
-.brand-badge { width: 28px; height: 28px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 40%, transparent); }
+.brand-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 40%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #001420;
+}
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--accent); color: #001420; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent) 70%, black); font-weight: 600; cursor: pointer; transition: transform .08s ease, box-shadow .2s ease; }
 .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent); }
 
