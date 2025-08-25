@@ -28,9 +28,11 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 
 /* Hero */
 .hero { padding: 56px 0 28px; border-bottom: 1px solid var(--border); background: radial-gradient(1200px 600px at 70% -100px, color-mix(in srgb, var(--accent) 20%, transparent), transparent); }
-.hero h1 { font-size: clamp(28px, 5vw, 44px); margin: 0 0 12px; line-height: 1.1; }
+.hero .title { font-size: clamp(28px, 5vw, 44px); margin: 0; line-height: 1.1; }
 .hero p { margin: 0 0 20px; color: var(--muted); max-width: 720px; }
-.hero .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.hero details summary { padding: 0; }
+.hero details .learn-more { color: var(--accent); text-decoration: underline; font-weight: 600; }
+.hero details p { margin-top: 12px; }
 .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
 
 /* Accordion */
