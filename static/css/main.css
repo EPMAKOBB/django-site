@@ -31,7 +31,9 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .hero .title { font-size: clamp(28px, 5vw, 44px); margin: 0; line-height: 1.1; }
 .hero p { margin: 0 0 20px; color: var(--muted); max-width: 720px; }
 .hero details summary { padding: 0; }
+
 .hero details summary .chev { color: var(--accent); }
+
 .hero details p { margin-top: 12px; }
 .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
 
