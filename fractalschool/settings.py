@@ -30,6 +30,13 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = ALLOWED_HOSTS.split(",") if ALLOWED_HOSTS else []
 
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    "CSRF_TRUSTED_ORIGINS", "https://web-production-d6aee.up.railway.app"
+)
+CSRF_TRUSTED_ORIGINS = (
+    CSRF_TRUSTED_ORIGINS.split(",") if CSRF_TRUSTED_ORIGINS else []
+)
+
 
 # Application definition
 
