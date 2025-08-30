@@ -16,6 +16,7 @@
           <span>Фрактал: школа будущего</span>
         </a>
         <a href="#signup" class="btn">Записаться</a>
+        <a href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}" class="btn">Логин/Личный кабинет</a>
       </div>
     </div>
   </header>
