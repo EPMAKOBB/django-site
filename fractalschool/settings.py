@@ -50,7 +50,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'accounts',
     'apps.recsys',
-    'rest_framework',
 ]
 
 MIDDLEWARE = [
