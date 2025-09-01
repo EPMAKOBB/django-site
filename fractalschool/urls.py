@@ -23,4 +23,7 @@ urlpatterns = [
     path('', home, name='home'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
+    path('api/', include('apps.recsys.api.urls')),
+    path('api-auth/', include('rest_framework.urls')),
+
 ]
