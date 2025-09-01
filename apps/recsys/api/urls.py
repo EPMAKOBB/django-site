@@ -1,5 +1,6 @@
 from django.urls import path
 
+
 from .views import (
     AttemptCreateView,
     NextTaskView,
@@ -16,4 +17,5 @@ urlpatterns = [
     path("api/next-task/", NextTaskView.as_view(), name="next-task"),
     path("api/progress/", ProgressView.as_view(), name="progress"),
 ]
+
 

@@ -70,6 +70,7 @@ class Attempt(TimeStampedModel):
     )
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attempts")
     is_correct = models.BooleanField(default=False)
+    attempts_count = models.PositiveIntegerField(default=1)
 
     class Meta:
         indexes = [models.Index(fields=["user", "task"])]
@@ -85,6 +86,7 @@ class SkillMastery(TimeStampedModel):
     )
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name="masteries")
     mastery = models.FloatField(default=0.0)
+    confidence = models.FloatField(default=0.0)
 
     class Meta:
         unique_together = ("user", "skill")
@@ -102,6 +104,7 @@ class TypeMastery(TimeStampedModel):
         TaskType, on_delete=models.CASCADE, related_name="masteries"
     )
     mastery = models.FloatField(default=0.0)
+    confidence = models.FloatField(default=0.0)
 
     class Meta:
         unique_together = ("user", "task_type")
