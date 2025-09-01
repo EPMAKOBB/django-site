@@ -1,3 +1,4 @@
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
@@ -32,3 +33,4 @@ def teacher_user(request, user_id):
     )
     context = {"student": student, "skill_masteries": masteries}
     return render(request, "recsys/teacher_user.html", context)
+
