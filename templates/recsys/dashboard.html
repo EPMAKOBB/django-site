@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Прогресс{% endblock %}
+{% block content %}
+<h1>Прогресс пользователя</h1>
+<ul>
+  {% for mastery in skill_masteries %}
+    <li>{{ mastery.skill.name }}: {{ mastery.mastery|floatformat:2 }}</li>
+  {% empty %}
+    <li>Прогресс отсутствует.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

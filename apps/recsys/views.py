@@ -1,44 +1,36 @@
-import json
+
 from django.contrib.auth import get_user_model
-from django.http import JsonResponse, Http404
-from django.shortcuts import get_object_or_404
-from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404, render
 
-from .models import Attempt, Task, SkillMastery
-from .recommendation import recommend_tasks
+from .models import SkillMastery
 
 
-@require_http_methods(["POST"])
-def attempts_view(request):
-    data = json.loads(request.body)
-    user = get_object_or_404(get_user_model(), id=data["user"])
-    task = get_object_or_404(Task, id=data["task"])
-    attempt = Attempt.objects.create(user=user, task=task, is_correct=data.get("is_correct", False))
-    return JsonResponse({"id": attempt.id}, status=201)
+@login_required
+def dashboard(request):
+    """Display progress for the current user."""
+    masteries = (
+        SkillMastery.objects.filter(user=request.user)
+        .select_related("skill")
+        .order_by("skill__name")
+    )
+    return render(
+        request,
+        "recsys/dashboard.html",
+        {"skill_masteries": masteries},
+    )
 
 
-@require_http_methods(["GET"])
-def next_task_view(request):
-    user_id = request.GET.get("user")
-    if not user_id:
-        raise Http404("user parameter is required")
-    user = get_object_or_404(get_user_model(), id=user_id)
-    tasks = recommend_tasks(user)
-    if not tasks:
-        return JsonResponse({}, status=404)
-    task = tasks[0]
-    return JsonResponse({"id": task.id, "title": task.title})
+@login_required
+def teacher_user(request, user_id):
+    """Display progress for a specific student."""
+    user_model = get_user_model()
+    student = get_object_or_404(user_model, pk=user_id)
+    masteries = (
+        SkillMastery.objects.filter(user=student)
+        .select_related("skill")
+        .order_by("skill__name")
+    )
+    context = {"student": student, "skill_masteries": masteries}
+    return render(request, "recsys/teacher_user.html", context)
 
-
-@require_http_methods(["GET"])
-def progress_view(request):
-    user_id = request.GET.get("user")
-    if not user_id:
-        raise Http404("user parameter is required")
-    user = get_object_or_404(get_user_model(), id=user_id)
-    masteries = SkillMastery.objects.filter(user=user).order_by("skill__name")
-    skills = [
-        {"skill": sm.skill.name, "mastery": sm.mastery, "confidence": sm.confidence}
-        for sm in masteries
-    ]
-    return JsonResponse({"skills": skills})

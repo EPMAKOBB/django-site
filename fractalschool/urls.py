@@ -17,13 +17,15 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from apps.recsys import views as recsys_views
 from .views import home
 
 urlpatterns = [
     path('', home, name='home'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
-    path('api/', include('apps.recsys.api.urls')),
-    path('api-auth/', include('rest_framework.urls')),
+
+    path('recsys/dashboard/', recsys_views.dashboard, name='recsys_dashboard'),
+    path('recsys/user/<int:user_id>/', recsys_views.teacher_user, name='recsys_teacher_user'),
 
 ]
