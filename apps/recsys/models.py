@@ -70,6 +70,7 @@ class Attempt(TimeStampedModel):
     )
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attempts")
     is_correct = models.BooleanField(default=False)
+    attempts_count = models.PositiveIntegerField(default=1)
 
     class Meta:
         indexes = [models.Index(fields=["user", "task"])]
