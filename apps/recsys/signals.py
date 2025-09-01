@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -39,3 +40,4 @@ def handle_attempt_post_save(sender, instance: Attempt, created: bool, **kwargs)
 
     with transaction.atomic():
         update_mastery(attempt_for_mastery)
+
