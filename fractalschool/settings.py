@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'accounts',
     'apps.recsys',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
