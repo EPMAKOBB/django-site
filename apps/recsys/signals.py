@@ -1,21 +1,43 @@
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Attempt, SkillMastery, TypeMastery, TaskSkill
+from django.utils import timezone
+
+from .models import Attempt
+from .services import update_mastery
+
 
 @receiver(post_save, sender=Attempt)
-def update_mastery_on_attempt(sender, instance, created, **kwargs):
+def handle_attempt_post_save(sender, instance: Attempt, created: bool, **kwargs) -> None:
+    """Aggregate quick repeated attempts and update mastery."""
     if not created:
         return
-    user = instance.user
-    task = instance.task
-    for task_skill in TaskSkill.objects.filter(task=task):
-        skill_mastery, _ = SkillMastery.objects.get_or_create(user=user, skill=task_skill.skill)
-        if instance.is_correct:
-            skill_mastery.mastery += task_skill.weight
-        skill_mastery.confidence += 1
-        skill_mastery.save()
-    type_mastery, _ = TypeMastery.objects.get_or_create(user=user, task_type=task.type)
-    if instance.is_correct:
-        type_mastery.mastery += 1
-    type_mastery.confidence += 1
-    type_mastery.save()
+
+    five_minutes_ago = timezone.now() - timedelta(minutes=5)
+    previous = (
+        Attempt.objects.filter(
+            user=instance.user,
+            task=instance.task,
+            created_at__gte=five_minutes_ago,
+        )
+        .exclude(pk=instance.pk)
+        .order_by("-created_at")
+        .first()
+    )
+
+    attempt_for_mastery = instance
+    if previous:
+        previous.attempts_count += instance.attempts_count
+        previous.is_correct = instance.is_correct
+        previous.save(update_fields=["attempts_count", "is_correct", "updated_at"])
+        instance.delete()
+        attempt_for_mastery = previous
+
+    with transaction.atomic():
+        update_mastery(attempt_for_mastery)
+
