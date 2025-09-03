@@ -7,6 +7,23 @@ from apps.recsys.models import SkillMastery
 from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
 
 
+def _get_dashboard_role(request):
+    """Return the current dashboard role stored in the session.
+
+    If no role is stored, infer it from the user's profiles and store it.
+    """
+    role = request.session.get("dashboard_role")
+    if role not in {"student", "teacher"}:
+        if hasattr(request.user, "teacherprofile") and not hasattr(
+            request.user, "studentprofile"
+        ):
+            role = "teacher"
+        else:
+            role = "student"
+        request.session["dashboard_role"] = role
+    return role
+
+
 def signup(request):
     """Register a new user and log them in."""
     if request.method == "POST":
@@ -28,26 +45,34 @@ def progress(request):
         .select_related("skill")
         .order_by("skill__name")
     )
-    context = {"skill_masteries": masteries, "active_tab": "progress"}
+    role = _get_dashboard_role(request)
+    context = {
+        "skill_masteries": masteries,
+        "active_tab": "progress",
+        "role": role,
+    }
     return render(request, "accounts/dashboard.html", context)
 
 
 @login_required
 def dashboard_teachers(request):
     """Display a placeholder teachers dashboard."""
-    context = {"active_tab": "teachers"}
+    role = _get_dashboard_role(request)
+    context = {"active_tab": "teachers", "role": role}
     return render(request, "accounts/dashboard/teachers.html", context)
 
 
 @login_required
 def dashboard_classes(request):
     """Display a placeholder classes dashboard."""
-    context = {"active_tab": "classes"}
+    role = _get_dashboard_role(request)
+    context = {"active_tab": "classes", "role": role}
     return render(request, "accounts/dashboard/classes.html", context)
 
 
 @login_required
 def dashboard_settings(request):
+    role = _get_dashboard_role(request)
     if request.method == "POST":
         if "user_submit" in request.POST:
             u_form = UserUpdateForm(request.POST, instance=request.user)
@@ -62,12 +87,22 @@ def dashboard_settings(request):
                 user = p_form.save()
                 update_session_auth_hash(request, user)
                 return redirect("accounts:dashboard-settings")
+        elif "role_submit" in request.POST:
+            new_role = request.POST.get("role")
+            if new_role in {"student", "teacher"}:
+                request.session["dashboard_role"] = new_role
+            return redirect("accounts:dashboard-settings")
         else:
             u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user)
     else:
         u_form = UserUpdateForm(instance=request.user)
         p_form = PasswordChangeForm(request.user)
-    context = {"u_form": u_form, "p_form": p_form, "active_tab": "settings"}
+    context = {
+        "u_form": u_form,
+        "p_form": p_form,
+        "active_tab": "settings",
+        "role": role,
+    }
     return render(request, "accounts/dashboard/settings.html", context)
 
