@@ -17,13 +17,13 @@ from ..models import (
 class SkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill
-        fields = ["id", "name", "description"]
+        fields = ["id", "subject", "name", "description"]
 
 
 class TaskTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskType
-        fields = ["id", "name", "description"]
+        fields = ["id", "subject", "name", "description"]
 
 
 class TaskSkillSerializer(serializers.ModelSerializer):
@@ -35,10 +35,20 @@ class TaskSkillSerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     type = TaskTypeSerializer(read_only=True)
     skills = SkillSerializer(many=True, read_only=True)
+    subject = serializers.PrimaryKeyRelatedField(read_only=True)
+    exam_version = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Task
-        fields = ["id", "type", "title", "description", "skills"]
+        fields = [
+            "id",
+            "subject",
+            "exam_version",
+            "type",
+            "title",
+            "description",
+            "skills",
+        ]
 
 
 class AttemptSerializer(serializers.ModelSerializer):
@@ -89,10 +99,11 @@ class SkillGroupItemSerializer(serializers.ModelSerializer):
 
 class SkillGroupSerializer(serializers.ModelSerializer):
     items = SkillGroupItemSerializer(many=True, read_only=True)
+    exam_version = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = SkillGroup
-        fields = ["id", "title", "items"]
+        fields = ["id", "exam_version", "title", "items"]
 
 
 __all__ = [
