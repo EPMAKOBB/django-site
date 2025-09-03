@@ -1,7 +1,11 @@
 {% extends 'accounts/dashboard/base.html' %}
 
-{% block dashboard_title %}Мои учителя{% endblock %}
+{% block dashboard_title %}{% if role == 'teacher' %}Мои ученики{% else %}Мои учителя{% endif %}{% endblock %}
 
 {% block dashboard_content %}
+{% if role == 'teacher' %}
+<p>Здесь будет список учеников.</p>
+{% else %}
 <p>Здесь будет список учителей.</p>
+{% endif %}
 {% endblock %}
