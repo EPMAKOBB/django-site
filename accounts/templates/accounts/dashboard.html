@@ -1,17 +1,14 @@
-{% extends 'base.html' %}
+{% extends 'accounts/dashboard/base.html' %}
 
-{% block title %}Личный кабинет{% endblock %}
+{% block dashboard_title %}Прогресс{% endblock %}
 
-{% block content %}
-<h1>Личный кабинет</h1>
-<form method="post">
-    {% csrf_token %}
-    {{ u_form.as_p }}
-    <button type="submit" name="username_submit" class="btn">Изменить логин</button>
-</form>
-<form method="post">
-    {% csrf_token %}
-    {{ p_form.as_p }}
-    <button type="submit" name="password_submit" class="btn">Изменить пароль</button>
-</form>
+{% block dashboard_content %}
+<h1>Прогресс пользователя</h1>
+<ul>
+  {% for mastery in skill_masteries %}
+    <li>{{ mastery.skill.name }}: {{ mastery.mastery|floatformat:2 }}</li>
+  {% empty %}
+    <li>Прогресс отсутствует.</li>
+  {% endfor %}
+</ul>
 {% endblock %}
