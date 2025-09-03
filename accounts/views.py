@@ -1,11 +1,10 @@
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import PasswordChangeForm
 from django.shortcuts import render, redirect
 
 from apps.recsys.models import SkillMastery
 
-from .forms import SignupForm, UserUpdateForm
+from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
 
 
 def signup(request):
