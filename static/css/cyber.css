@@ -16,7 +16,6 @@ body{
   background: radial-gradient(1200px 600px at 10% 0%, #0b1310 0%, var(--bg) 45%) fixed;
   color:var(--text);
 }
-.wrap{max-width:1100px; margin-inline:auto; padding:24px;}
 header{
   position:sticky; top:0; z-index:10; backdrop-filter: blur(8px);
   background: linear-gradient(180deg, rgba(10,15,13,0.85), rgba(10,15,13,0.55));
