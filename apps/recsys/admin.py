@@ -5,6 +5,7 @@ from .models import (
     RecommendationLog,
     Skill,
     SkillMastery,
+    Subject,
     Task,
     TaskSkill,
     TaskType,
@@ -25,8 +26,26 @@ class TaskAdmin(admin.ModelAdmin):
     list_filter = ("type",)
 
 
-admin.site.register(Skill)
-admin.site.register(TaskType)
+@admin.register(Subject)
+class SubjectAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug")
+    search_fields = ("name",)
+
+
+@admin.register(Skill)
+class SkillAdmin(admin.ModelAdmin):
+    list_display = ("name", "subject")
+    search_fields = ("name",)
+    list_filter = ("subject",)
+
+
+@admin.register(TaskType)
+class TaskTypeAdmin(admin.ModelAdmin):
+    list_display = ("name", "subject")
+    search_fields = ("name",)
+    list_filter = ("subject",)
+
+
 admin.site.register(TaskSkill)
 admin.site.register(Attempt)
 admin.site.register(SkillMastery)

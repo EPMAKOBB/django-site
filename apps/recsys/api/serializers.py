@@ -5,6 +5,7 @@ from ..models import (
     RecommendationLog,
     Skill,
     SkillMastery,
+    Subject,
     Task,
     TaskSkill,
     TaskType,
@@ -12,16 +13,26 @@ from ..models import (
 )
 
 
+class SubjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subject
+        fields = ["id", "name", "slug"]
+
+
 class SkillSerializer(serializers.ModelSerializer):
+    subject = SubjectSerializer(read_only=True)
+
     class Meta:
         model = Skill
-        fields = ["id", "name", "description"]
+        fields = ["id", "name", "description", "subject"]
 
 
 class TaskTypeSerializer(serializers.ModelSerializer):
+    subject = SubjectSerializer(read_only=True)
+
     class Meta:
         model = TaskType
-        fields = ["id", "name", "description"]
+        fields = ["id", "name", "description", "subject"]
 
 
 class TaskSkillSerializer(serializers.ModelSerializer):
@@ -33,10 +44,11 @@ class TaskSkillSerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     type = TaskTypeSerializer(read_only=True)
     skills = SkillSerializer(many=True, read_only=True)
+    subject = SubjectSerializer(source="type.subject", read_only=True)
 
     class Meta:
         model = Task
-        fields = ["id", "type", "title", "description", "skills"]
+        fields = ["id", "subject", "type", "title", "description", "skills"]
 
 
 class AttemptSerializer(serializers.ModelSerializer):
@@ -82,6 +94,7 @@ __all__ = [
     "RecommendationLogSerializer",
     "SkillSerializer",
     "SkillMasterySerializer",
+    "SubjectSerializer",
     "TaskSerializer",
     "TaskSkillSerializer",
     "TaskTypeSerializer",
