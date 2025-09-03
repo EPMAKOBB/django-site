@@ -28,20 +28,20 @@ class SubjectAdmin(admin.ModelAdmin):
 
 @admin.register(Skill)
 class SkillAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("name", "subject")
 
 
 @admin.register(TaskType)
 class TaskTypeAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("name", "subject")
 
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
     inlines = [TaskSkillInline]
-    list_display = ("title", "type")
+    list_display = ("title", "type", "subject", "exam_version")
     search_fields = ("title",)
-    list_filter = ("type",)
+    list_filter = ("type", "subject", "exam_version")
 
 
 class SkillGroupItemInline(admin.TabularInline):
@@ -64,7 +64,7 @@ class SkillGroupInline(admin.TabularInline):
 @admin.register(ExamVersion)
 class ExamVersionAdmin(admin.ModelAdmin):
     inlines = [SkillGroupInline]
-    list_display = ("name",)
+    list_display = ("name", "subject")
 
 
 admin.site.register(TaskSkill)
