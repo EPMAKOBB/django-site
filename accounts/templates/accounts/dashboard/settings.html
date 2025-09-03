@@ -1,17 +1,36 @@
 {% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
 
-{% block dashboard_title %}Настройки{% endblock %}
+{% block dashboard_title %}{% trans "Настройки" %}{% endblock %}
 
 {% block dashboard_content %}
-<h1>Настройки</h1>
+<h1>{% trans "Настройки" %}</h1>
 <form method="post">
     {% csrf_token %}
-    {{ u_form.as_p }}
-    <button type="submit" name="user_submit" class="btn">Сохранить изменения</button>
+    {{ u_form.non_field_errors }}
+    {% for field in u_form %}
+        <div class="mb-3">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}
+                <div class="errorlist">{{ field.errors }}</div>
+            {% endif %}
+        </div>
+    {% endfor %}
+    <button type="submit" name="user_submit" class="btn">{% trans "Сохранить изменения" %}</button>
 </form>
 <form method="post">
     {% csrf_token %}
-    {{ p_form.as_p }}
-    <button type="submit" name="password_submit" class="btn">Изменить пароль</button>
+    {{ p_form.non_field_errors }}
+    {% for field in p_form %}
+        <div class="mb-3">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}
+                <div class="errorlist">{{ field.errors }}</div>
+            {% endif %}
+        </div>
+    {% endfor %}
+    <button type="submit" name="password_submit" class="btn">{% trans "Изменить пароль" %}</button>
 </form>
 {% endblock %}
