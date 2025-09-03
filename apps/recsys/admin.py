@@ -1,23 +1,39 @@
 from django.contrib import admin
 
 from .models import (
-    Attempt,
-    ExamVersion,
-    RecommendationLog,
+    Subject,
     Skill,
-    SkillMastery,
+    TaskType,
     Task,
     TaskSkill,
-    TaskType,
+    ExamVersion,
     SkillGroup,
     SkillGroupItem,
+    Attempt,
+    SkillMastery,
     TypeMastery,
+    RecommendationLog,
 )
 
 
 class TaskSkillInline(admin.TabularInline):
     model = TaskSkill
     extra = 1
+
+
+@admin.register(Subject)
+class SubjectAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+
+
+@admin.register(Skill)
+class SkillAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+
+
+@admin.register(TaskType)
+class TaskTypeAdmin(admin.ModelAdmin):
+    list_display = ("name",)
 
 
 @admin.register(Task)
@@ -51,8 +67,6 @@ class ExamVersionAdmin(admin.ModelAdmin):
     list_display = ("name",)
 
 
-admin.site.register(Skill)
-admin.site.register(TaskType)
 admin.site.register(TaskSkill)
 admin.site.register(Attempt)
 admin.site.register(SkillMastery)
