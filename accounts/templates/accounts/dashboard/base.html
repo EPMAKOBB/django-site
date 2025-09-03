@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block title %}{% block dashboard_title %}{% endblock %}{% endblock %}
+
+{% block content %}
+<div class="dashboard-container" style="display:flex; gap:2rem;">
+  <aside class="dashboard-sidebar" style="width:200px;">
+    <nav>
+      <ul>
+        <li class="{% if active_tab == 'progress' %}active{% endif %}"><a href="{% url 'accounts:dashboard' %}">Прогресс</a></li>
+        <li class="{% if active_tab == 'teachers' %}active{% endif %}"><a href="#">Мои учителя</a></li>
+        <li class="{% if active_tab == 'classes' %}active{% endif %}"><a href="#">Мои классы</a></li>
+        <li class="{% if active_tab == 'settings' %}active{% endif %}"><a href="#">Настройки</a></li>
+      </ul>
+    </nav>
+  </aside>
+  <section class="dashboard-content" style="flex:1;">
+    {% block dashboard_content %}{% endblock %}
+  </section>
+</div>
+{% endblock %}
