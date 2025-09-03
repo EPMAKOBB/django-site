@@ -3,6 +3,7 @@ from django.urls import path
 
 from .views import (
     AttemptCreateView,
+    ExamVersionListView,
     NextTaskView,
     ProgressView,
     SkillListView,
@@ -11,6 +12,7 @@ from .views import (
 
 
 urlpatterns = [
+    path("api/exam-versions/", ExamVersionListView.as_view(), name="exam-version-list"),
     path("api/skills/", SkillListView.as_view(), name="skill-list"),
     path("api/task-types/", TaskTypeListView.as_view(), name="task-type-list"),
     path("api/attempts/", AttemptCreateView.as_view(), name="attempt-create"),

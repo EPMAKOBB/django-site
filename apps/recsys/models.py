@@ -10,7 +10,43 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
+class Subject(TimeStampedModel):
+    name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        ordering = ["name"]
+        indexes = [models.Index(fields=["name"])]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class ExamVersion(TimeStampedModel):
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="exam_versions"
+    )
+    exam_type = models.CharField(max_length=100)
+    year = models.PositiveIntegerField()
+    label = models.CharField(max_length=255)
+
+    class Meta:
+        unique_together = ("subject", "exam_type", "year")
+        indexes = [
+            models.Index(fields=["subject", "exam_type", "year"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.label
+
+
 class Skill(TimeStampedModel):
+    exam_version = models.ForeignKey(
+        ExamVersion,
+        on_delete=models.CASCADE,
+        related_name="skills",
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
 
@@ -23,6 +59,13 @@ class Skill(TimeStampedModel):
 
 
 class TaskType(TimeStampedModel):
+    exam_version = models.ForeignKey(
+        ExamVersion,
+        on_delete=models.CASCADE,
+        related_name="task_types",
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
 
