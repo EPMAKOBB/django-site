@@ -47,12 +47,22 @@ class Skill(TimeStampedModel):
         null=True,
         blank=True,
     )
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
 
     class Meta:
         ordering = ["name"]
-        indexes = [models.Index(fields=["name"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["exam_version", "name"],
+                name="recsys_skill_exam_version_name_unique",
+                condition=models.Q(exam_version__isnull=False),
+            )
+        ]
+        indexes = [
+            models.Index(fields=["exam_version"]),
+            models.Index(fields=["name"]),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -66,12 +76,22 @@ class TaskType(TimeStampedModel):
         null=True,
         blank=True,
     )
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
 
     class Meta:
         ordering = ["name"]
-        indexes = [models.Index(fields=["name"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["exam_version", "name"],
+                name="recsys_tasktype_exam_version_name_unique",
+                condition=models.Q(exam_version__isnull=False),
+            )
+        ]
+        indexes = [
+            models.Index(fields=["exam_version"]),
+            models.Index(fields=["name"]),
+        ]
 
     def __str__(self) -> str:
         return self.name
