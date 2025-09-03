@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from ..models import (
     Attempt,
+    ExamVersion,
     RecommendationLog,
     Skill,
     SkillMastery,
@@ -12,16 +13,22 @@ from ..models import (
 )
 
 
+class ExamVersionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExamVersion
+        fields = ["id", "subject", "exam_type", "year", "label"]
+
+
 class SkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill
-        fields = ["id", "name", "description"]
+        fields = ["id", "exam_version", "name", "description"]
 
 
 class TaskTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskType
-        fields = ["id", "name", "description"]
+        fields = ["id", "exam_version", "name", "description"]
 
 
 class TaskSkillSerializer(serializers.ModelSerializer):
@@ -79,6 +86,7 @@ class RecommendationLogSerializer(serializers.ModelSerializer):
 
 __all__ = [
     "AttemptSerializer",
+    "ExamVersionSerializer",
     "RecommendationLogSerializer",
     "SkillSerializer",
     "SkillMasterySerializer",

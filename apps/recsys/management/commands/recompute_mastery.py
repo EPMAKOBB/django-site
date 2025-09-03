@@ -21,6 +21,12 @@ class Command(BaseCommand):
             dest="user",
             help="Recompute mastery for a single user (id or username)",
         )
+        parser.add_argument(
+            "--exam-version",
+            dest="exam_version",
+            type=int,
+            help="Limit recomputation to a specific exam version",
+        )
 
     def handle(self, *args, **options):
         User = get_user_model()
@@ -36,8 +42,16 @@ class Command(BaseCommand):
         else:
             users = User.objects.all()
 
+        exam_version = options.get("exam_version")
+
         for user in users:
-            for skill in Skill.objects.all():
+            skills = Skill.objects.all()
+            task_types = TaskType.objects.all()
+            if exam_version:
+                skills = skills.filter(exam_version_id=exam_version)
+                task_types = task_types.filter(exam_version_id=exam_version)
+
+            for skill in skills:
                 counts = Attempt.objects.filter(user=user, task__skills=skill).aggregate(
                     total=Count("id"),
                     correct=Count("id", filter=Q(is_correct=True)),
@@ -48,7 +62,7 @@ class Command(BaseCommand):
                     user=user, skill=skill, defaults={"mastery": mastery}
                 )
 
-            for task_type in TaskType.objects.all():
+            for task_type in task_types:
                 counts = Attempt.objects.filter(user=user, task__type=task_type).aggregate(
                     total=Count("id"),
                     correct=Count("id", filter=Q(is_correct=True)),

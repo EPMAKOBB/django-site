@@ -1,9 +1,15 @@
 from .models import Task, SkillMastery
 
 
-def recommend_tasks(user):
-    """Return tasks sorted by user's mastery (ascending)."""
+def recommend_tasks(user, exam_version=None):
+    """Return tasks sorted by user's mastery (ascending).
+
+    If ``exam_version`` is provided, only tasks for that exam version
+    are considered.
+    """
     tasks = Task.objects.all()
+    if exam_version is not None:
+        tasks = tasks.filter(type__exam_version=exam_version)
     def score(task):
         total = 0
         count = 0
