@@ -18,7 +18,7 @@ urlpatterns = [
     path("api/next-task/", NextTaskView.as_view(), name="next-task"),
     path("api/progress/", ProgressView.as_view(), name="progress"),
     path(
-        "api/skill-groups/<int:exam_version_id>/",
+        "api/exam-versions/<int:exam_version_id>/skill-groups/",
         SkillGroupListView.as_view(),
         name="skill-group-list",
     ),
