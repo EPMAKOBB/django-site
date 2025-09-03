@@ -3,8 +3,8 @@
 {% block title %}{% block dashboard_title %}{% endblock %}{% endblock %}
 
 {% block content %}
-<div class="dashboard-container" style="display:flex; gap:2rem;">
-  <aside class="dashboard-sidebar" style="width:200px;">
+<div class="dashboard-container container">
+  <aside class="dashboard-sidebar">
     <nav>
       <ul>
         <li class="{% if active_tab == 'progress' %}active{% endif %}"><a href="{% url 'accounts:dashboard' %}">Прогресс</a></li>
@@ -14,7 +14,7 @@
       </ul>
     </nav>
   </aside>
-  <section class="dashboard-content" style="flex:1;">
+  <section class="dashboard-content">
     {% block dashboard_content %}{% endblock %}
   </section>
 </div>
