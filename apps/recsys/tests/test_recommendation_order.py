@@ -1,16 +1,17 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from apps.recsys.models import Skill, TaskType, Task, TaskSkill, SkillMastery
+from apps.recsys.models import Subject, Skill, TaskType, Task, TaskSkill, SkillMastery
 from apps.recsys.recommendation import recommend_tasks
 
 
 class RecommendationOrderTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(username="user")
-        self.skill1 = Skill.objects.create(name="A")
-        self.skill2 = Skill.objects.create(name="B")
-        ttype = TaskType.objects.create(name="T")
+        subject = Subject.objects.create(name="Subject")
+        self.skill1 = Skill.objects.create(name="A", subject=subject)
+        self.skill2 = Skill.objects.create(name="B", subject=subject)
+        ttype = TaskType.objects.create(name="T", subject=subject)
         self.task1 = Task.objects.create(type=ttype, title="Task1")
         self.task2 = Task.objects.create(type=ttype, title="Task2")
         TaskSkill.objects.create(task=self.task1, skill=self.skill1, weight=1.0)

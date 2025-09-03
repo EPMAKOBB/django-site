@@ -10,9 +10,24 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
+class Subject(TimeStampedModel):
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
+
+    class Meta:
+        ordering = ["name"]
+        indexes = [models.Index(fields=["name"])]
+
+    def __str__(self) -> str:  # pragma: no cover - simple representation
+        return self.name
+
+
 class Skill(TimeStampedModel):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="skills"
+    )
 
     class Meta:
         ordering = ["name"]
@@ -25,6 +40,9 @@ class Skill(TimeStampedModel):
 class TaskType(TimeStampedModel):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="task_types"
+    )
 
     class Meta:
         ordering = ["name"]
@@ -46,6 +64,11 @@ class Task(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.title
+
+    @property
+    def subject(self) -> Subject:
+        """Return the subject derived from the task type."""
+        return self.type.subject
 
 
 class TaskSkill(TimeStampedModel):

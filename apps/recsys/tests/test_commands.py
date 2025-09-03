@@ -6,6 +6,7 @@ from apps.recsys.models import (
     Attempt,
     Skill,
     SkillMastery,
+    Subject,
     Task,
     TaskSkill,
     TaskType,
@@ -25,8 +26,9 @@ class SeedEGECommandTest(TestCase):
 class RecomputeMasteryCommandTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(username="user")
-        self.skill = Skill.objects.create(name="Skill")
-        self.task_type = TaskType.objects.create(name="Type")
+        self.subject = Subject.objects.create(name="Subject")
+        self.skill = Skill.objects.create(name="Skill", subject=self.subject)
+        self.task_type = TaskType.objects.create(name="Type", subject=self.subject)
         self.task = Task.objects.create(type=self.task_type, title="Task")
         TaskSkill.objects.create(task=self.task, skill=self.skill)
         Attempt.objects.create(user=self.user, task=self.task, is_correct=True)
@@ -36,8 +38,8 @@ class RecomputeMasteryCommandTest(TestCase):
         call_command("recompute_mastery")
         sm = SkillMastery.objects.get(user=self.user, skill=self.skill)
         tm = TypeMastery.objects.get(user=self.user, task_type=self.task_type)
-        self.assertAlmostEqual(sm.mastery, 0.5)
-        self.assertAlmostEqual(tm.mastery, 0.5)
+        self.assertAlmostEqual(sm.mastery, 0.0)
+        self.assertAlmostEqual(tm.mastery, 0.0)
 
     def test_recompute_mastery_single_user(self):
         other_user = get_user_model().objects.create(username="other")

@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,15 +23,33 @@ from .serializers import (
 
 
 class SkillListView(generics.ListAPIView):
-    queryset = Skill.objects.all()
     serializer_class = SkillSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        queryset = Skill.objects.all()
+        subject = self.request.query_params.get("subject")
+        if subject:
+            if subject.isdigit():
+                queryset = queryset.filter(subject_id=subject)
+            else:
+                queryset = queryset.filter(subject__slug=subject)
+        return queryset
+
 
 class TaskTypeListView(generics.ListAPIView):
-    queryset = TaskType.objects.all()
     serializer_class = TaskTypeSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = TaskType.objects.all()
+        subject = self.request.query_params.get("subject")
+        if subject:
+            if subject.isdigit():
+                queryset = queryset.filter(subject_id=subject)
+            else:
+                queryset = queryset.filter(subject__slug=subject)
+        return queryset
 
 
 class AttemptCreateView(generics.CreateAPIView):

@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
-from django.db.models import Count, Q
+from django.db.models import Q, Sum
 
 from apps.recsys.models import (
     Attempt,
@@ -39,10 +39,11 @@ class Command(BaseCommand):
         for user in users:
             for skill in Skill.objects.all():
                 counts = Attempt.objects.filter(user=user, task__skills=skill).aggregate(
-                    total=Count("id"),
-                    correct=Count("id", filter=Q(is_correct=True)),
+                    total=Sum("attempts_count"),
+                    correct=Sum("attempts_count", filter=Q(is_correct=True)),
                 )
-                total, correct = counts["total"], counts["correct"]
+                total = counts["total"] or 0
+                correct = counts["correct"] or 0
                 mastery = correct / total if total else 0.0
                 SkillMastery.objects.update_or_create(
                     user=user, skill=skill, defaults={"mastery": mastery}
@@ -50,10 +51,11 @@ class Command(BaseCommand):
 
             for task_type in TaskType.objects.all():
                 counts = Attempt.objects.filter(user=user, task__type=task_type).aggregate(
-                    total=Count("id"),
-                    correct=Count("id", filter=Q(is_correct=True)),
+                    total=Sum("attempts_count"),
+                    correct=Sum("attempts_count", filter=Q(is_correct=True)),
                 )
-                total, correct = counts["total"], counts["correct"]
+                total = counts["total"] or 0
+                correct = counts["correct"] or 0
                 mastery = correct / total if total else 0.0
                 TypeMastery.objects.update_or_create(
                     user=user, task_type=task_type, defaults={"mastery": mastery}
