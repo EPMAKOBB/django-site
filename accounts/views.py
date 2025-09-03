@@ -1,9 +1,10 @@
-from django.contrib.auth import login, update_session_auth_hash
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import PasswordChangeForm
-from django.shortcuts import redirect, render
+from django.shortcuts import render, redirect
 
-from .forms import SignupForm, UsernameChangeForm
+from apps.recsys.models import SkillMastery
+
+from .forms import SignupForm
 
 
 def signup(request):
@@ -20,26 +21,12 @@ def signup(request):
 
 
 @login_required
-def dashboard(request):
-    if request.method == "POST":
-        if "username_submit" in request.POST:
-            u_form = UsernameChangeForm(request.POST, instance=request.user)
-            p_form = PasswordChangeForm(request.user)
-            if u_form.is_valid():
-                u_form.save()
-                return redirect("accounts:dashboard")
-        elif "password_submit" in request.POST:
-            u_form = UsernameChangeForm(instance=request.user)
-            p_form = PasswordChangeForm(request.user, request.POST)
-            if p_form.is_valid():
-                user = p_form.save()
-                update_session_auth_hash(request, user)
-                return redirect("accounts:dashboard")
-    else:
-        u_form = UsernameChangeForm(instance=request.user)
-        p_form = PasswordChangeForm(request.user)
-    return render(
-        request,
-        "accounts/dashboard.html",
-        {"u_form": u_form, "p_form": p_form},
+def progress(request):
+    """Display progress for the current user."""
+    masteries = (
+        SkillMastery.objects.filter(user=request.user)
+        .select_related("skill")
+        .order_by("skill__name")
     )
+    context = {"skill_masteries": masteries, "active_tab": "progress"}
+    return render(request, "accounts/dashboard.html", context)
