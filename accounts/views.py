@@ -5,7 +5,7 @@ from django.shortcuts import render, redirect
 
 from apps.recsys.models import SkillMastery
 
-from .forms import SignupForm, UsernameChangeForm
+from .forms import SignupForm, UserUpdateForm
 
 
 def signup(request):
@@ -50,24 +50,24 @@ def dashboard_classes(request):
 @login_required
 def dashboard_settings(request):
     if request.method == "POST":
-        if "username_submit" in request.POST:
-            u_form = UsernameChangeForm(request.POST, instance=request.user)
+        if "user_submit" in request.POST:
+            u_form = UserUpdateForm(request.POST, instance=request.user)
             p_form = PasswordChangeForm(request.user)
             if u_form.is_valid():
                 u_form.save()
                 return redirect("accounts:dashboard-settings")
         elif "password_submit" in request.POST:
-            u_form = UsernameChangeForm(instance=request.user)
+            u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user, request.POST)
             if p_form.is_valid():
                 user = p_form.save()
                 update_session_auth_hash(request, user)
                 return redirect("accounts:dashboard-settings")
         else:
-            u_form = UsernameChangeForm(instance=request.user)
+            u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user)
     else:
-        u_form = UsernameChangeForm(instance=request.user)
+        u_form = UserUpdateForm(instance=request.user)
         p_form = PasswordChangeForm(request.user)
     context = {"u_form": u_form, "p_form": p_form, "active_tab": "settings"}
     return render(request, "accounts/dashboard/settings.html", context)
