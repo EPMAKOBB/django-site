@@ -7,12 +7,14 @@ from ..models import (
     RecommendationLog,
     Skill,
     SkillMastery,
+    SkillGroup,
     Task,
     TaskType,
     TypeMastery,
 )
 from .serializers import (
     AttemptSerializer,
+    SkillGroupSerializer,
     SkillMasterySerializer,
     SkillSerializer,
     TaskSerializer,
@@ -82,4 +84,15 @@ class ProgressView(APIView):
             "type_masteries": type_masteries,
         }
         return Response(data)
+
+
+class SkillGroupListView(generics.ListAPIView):
+    serializer_class = SkillGroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        exam_version_id = self.kwargs["exam_version_id"]
+        return SkillGroup.objects.filter(
+            exam_version_id=exam_version_id
+        ).prefetch_related("items__skill").order_by("id")
 

@@ -64,6 +64,52 @@ class TaskSkill(TimeStampedModel):
         return f"{self.task} - {self.skill}"
 
 
+class ExamVersion(TimeStampedModel):
+    name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class SkillGroup(TimeStampedModel):
+    exam_version = models.ForeignKey(
+        ExamVersion, on_delete=models.CASCADE, related_name="skill_groups"
+    )
+    title = models.CharField(max_length=255)
+
+    class Meta:
+        unique_together = ("exam_version", "title")
+        ordering = ["exam_version", "id"]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class SkillGroupItem(TimeStampedModel):
+    group = models.ForeignKey(
+        SkillGroup, on_delete=models.CASCADE, related_name="items"
+    )
+    skill = models.ForeignKey(
+        Skill, on_delete=models.CASCADE, related_name="group_items"
+    )
+    label = models.CharField(max_length=255)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("group", "skill")
+        ordering = ["order"]
+        indexes = [
+            models.Index(fields=["group"]),
+            models.Index(fields=["skill"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.group} - {self.label}"
+
+
 class Attempt(TimeStampedModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="attempts"

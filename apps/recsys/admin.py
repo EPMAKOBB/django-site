@@ -2,12 +2,15 @@ from django.contrib import admin
 
 from .models import (
     Attempt,
+    ExamVersion,
     RecommendationLog,
     Skill,
     SkillMastery,
     Task,
     TaskSkill,
     TaskType,
+    SkillGroup,
+    SkillGroupItem,
     TypeMastery,
 )
 
@@ -23,6 +26,29 @@ class TaskAdmin(admin.ModelAdmin):
     list_display = ("title", "type")
     search_fields = ("title",)
     list_filter = ("type",)
+
+
+class SkillGroupItemInline(admin.TabularInline):
+    model = SkillGroupItem
+    extra = 1
+
+
+@admin.register(SkillGroup)
+class SkillGroupAdmin(admin.ModelAdmin):
+    inlines = [SkillGroupItemInline]
+    list_display = ("title", "exam_version")
+    list_filter = ("exam_version",)
+
+
+class SkillGroupInline(admin.TabularInline):
+    model = SkillGroup
+    extra = 1
+
+
+@admin.register(ExamVersion)
+class ExamVersionAdmin(admin.ModelAdmin):
+    inlines = [SkillGroupInline]
+    list_display = ("name",)
 
 
 admin.site.register(Skill)
