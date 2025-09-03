@@ -1,11 +1,14 @@
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
+from django.utils import timezone
+from datetime import timedelta
 
 from apps.recsys.models import (
     Attempt,
     Skill,
     SkillMastery,
+    Subject,
     Task,
     TaskSkill,
     TaskType,
@@ -25,11 +28,16 @@ class SeedEGECommandTest(TestCase):
 class RecomputeMasteryCommandTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(username="user")
-        self.skill = Skill.objects.create(name="Skill")
-        self.task_type = TaskType.objects.create(name="Type")
-        self.task = Task.objects.create(type=self.task_type, title="Task")
+        self.subject = Subject.objects.create(name="Subject")
+        self.skill = Skill.objects.create(name="Skill", subject=self.subject)
+        self.task_type = TaskType.objects.create(name="Type", subject=self.subject)
+        self.task = Task.objects.create(
+            type=self.task_type, title="Task", subject=self.subject
+        )
         TaskSkill.objects.create(task=self.task, skill=self.skill)
-        Attempt.objects.create(user=self.user, task=self.task, is_correct=True)
+        first = Attempt.objects.create(user=self.user, task=self.task, is_correct=True)
+        first.created_at = timezone.now() - timedelta(minutes=10)
+        first.save(update_fields=["created_at"])
         Attempt.objects.create(user=self.user, task=self.task, is_correct=False)
 
     def test_recompute_mastery_all_users(self):

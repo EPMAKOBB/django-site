@@ -23,7 +23,8 @@ class Command(BaseCommand):
             task, _ = Task.objects.get_or_create(
                 type=task_type,
                 title=f"Demo Task {i}",
-                defaults={"description": f"Demo task for type {i}", "subject": subject},
+                subject=subject,
+                defaults={"description": f"Demo task for type {i}"},
             )
             TaskSkill.objects.get_or_create(task=task, skill=skill)
         exam_version, _ = ExamVersion.objects.get_or_create(
