@@ -9,7 +9,7 @@
       <ul>
         <li class="{% if active_tab == 'progress' %}active{% endif %}"><a href="{% url 'accounts:dashboard' %}">Прогресс</a></li>
         <li class="{% if active_tab == 'teachers' %}active{% endif %}"><a href="{% url 'accounts:dashboard-teachers' %}">Мои учителя</a></li>
-        <li class="{% if active_tab == 'classes' %}active{% endif %}"><a href="#">Мои классы</a></li>
+        <li class="{% if active_tab == 'classes' %}active{% endif %}"><a href="{% url 'accounts:dashboard-classes' %}">Мои классы</a></li>
         <li class="{% if active_tab == 'settings' %}active{% endif %}"><a href="#">Настройки</a></li>
       </ul>
     </nav>
