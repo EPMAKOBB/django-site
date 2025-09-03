@@ -5,6 +5,19 @@
 
 {% block dashboard_content %}
 <h1>{% trans "Настройки" %}</h1>
+{% if request.user.teacherprofile and request.user.studentprofile %}
+<form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label for="id_role">{% trans "Режим кабинета" %}</label>
+        <select name="role" id="id_role">
+            <option value="student" {% if role == 'student' %}selected{% endif %}>{% trans "Ученик" %}</option>
+            <option value="teacher" {% if role == 'teacher' %}selected{% endif %}>{% trans "Учитель" %}</option>
+        </select>
+    </div>
+    <button type="submit" name="role_submit" class="btn">{% trans "Сменить режим" %}</button>
+</form>
+{% endif %}
 <form method="post">
     {% csrf_token %}
     {{ u_form.non_field_errors }}
