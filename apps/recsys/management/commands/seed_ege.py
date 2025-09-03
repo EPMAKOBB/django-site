@@ -1,13 +1,14 @@
 from django.core.management.base import BaseCommand
 
 from apps.recsys.models import (
+    ExamVersion,
     Skill,
+    SkillGroup,
+    SkillGroupItem,
+    Subject,
     Task,
     TaskSkill,
     TaskType,
-    ExamVersion,
-    SkillGroup,
-    SkillGroupItem,
 )
 
 
@@ -15,16 +16,19 @@ class Command(BaseCommand):
     help = "Seed database with EGE task types, skills, and demo tasks"
 
     def handle(self, *args, **options):
+        subject, _ = Subject.objects.get_or_create(name="Математика")
         for i in range(1, 28):
-            task_type, _ = TaskType.objects.get_or_create(name=str(i))
-            skill, _ = Skill.objects.get_or_create(name=f"Skill {i}")
+            task_type, _ = TaskType.objects.get_or_create(name=str(i), subject=subject)
+            skill, _ = Skill.objects.get_or_create(name=f"Skill {i}", subject=subject)
             task, _ = Task.objects.get_or_create(
                 type=task_type,
                 title=f"Demo Task {i}",
-                defaults={"description": f"Demo task for type {i}"},
+                defaults={"description": f"Demo task for type {i}", "subject": subject},
             )
             TaskSkill.objects.get_or_create(task=task, skill=skill)
-        exam_version, _ = ExamVersion.objects.get_or_create(name="ЕГЭ 2026")
+        exam_version, _ = ExamVersion.objects.get_or_create(
+            name="ЕГЭ 2026", subject=subject
+        )
         groups = {
             "Алгебра": [
                 ("Skill 1", "Линейные уравнения"),
