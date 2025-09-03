@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from apps.recsys.models import (
     Attempt,
+    ExamVersion,
     Skill,
     SkillMastery,
     Subject,
@@ -19,9 +20,13 @@ from apps.recsys.models import (
 class SeedEGECommandTest(TestCase):
     def test_seed_ege_populates_data(self):
         call_command("seed_ege")
-        self.assertEqual(TaskType.objects.count(), 27)
-        self.assertEqual(Skill.objects.count(), 27)
-        self.assertEqual(Task.objects.count(), 27)
+        subject = Subject.objects.get(name="Математика")
+        exam_version = ExamVersion.objects.get(name="ЕГЭ 2026", subject=subject)
+        self.assertEqual(TaskType.objects.filter(subject=subject).count(), 27)
+        self.assertEqual(Skill.objects.filter(subject=subject).count(), 27)
+        self.assertEqual(
+            Task.objects.filter(subject=subject, exam_version=exam_version).count(), 27
+        )
         self.assertEqual(TaskSkill.objects.count(), 27)
 
 
@@ -29,10 +34,14 @@ class RecomputeMasteryCommandTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create(username="user")
         self.subject = Subject.objects.create(name="Subject")
+        self.exam_version = ExamVersion.objects.create(name="V1", subject=self.subject)
         self.skill = Skill.objects.create(name="Skill", subject=self.subject)
         self.task_type = TaskType.objects.create(name="Type", subject=self.subject)
         self.task = Task.objects.create(
-            type=self.task_type, title="Task", subject=self.subject
+            type=self.task_type,
+            title="Task",
+            subject=self.subject,
+            exam_version=self.exam_version,
         )
         TaskSkill.objects.create(task=self.task, skill=self.skill)
         first = Attempt.objects.create(user=self.user, task=self.task, is_correct=True)
@@ -46,6 +55,8 @@ class RecomputeMasteryCommandTest(TestCase):
         tm = TypeMastery.objects.get(user=self.user, task_type=self.task_type)
         self.assertAlmostEqual(sm.mastery, 0.5)
         self.assertAlmostEqual(tm.mastery, 0.5)
+        self.assertEqual(sm.skill.subject, self.subject)
+        self.assertEqual(self.task.exam_version.subject, self.subject)
 
     def test_recompute_mastery_single_user(self):
         other_user = get_user_model().objects.create(username="other")

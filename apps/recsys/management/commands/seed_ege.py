@@ -17,6 +17,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         subject, _ = Subject.objects.get_or_create(name="Математика")
+        exam_version, _ = ExamVersion.objects.get_or_create(
+            name="ЕГЭ 2026", subject=subject
+        )
         for i in range(1, 28):
             task_type, _ = TaskType.objects.get_or_create(name=str(i), subject=subject)
             skill, _ = Skill.objects.get_or_create(name=f"Skill {i}", subject=subject)
@@ -24,12 +27,10 @@ class Command(BaseCommand):
                 type=task_type,
                 title=f"Demo Task {i}",
                 subject=subject,
+                exam_version=exam_version,
                 defaults={"description": f"Demo task for type {i}"},
             )
             TaskSkill.objects.get_or_create(task=task, skill=skill)
-        exam_version, _ = ExamVersion.objects.get_or_create(
-            name="ЕГЭ 2026", subject=subject
-        )
         groups = {
             "Алгебра": [
                 ("Skill 1", "Линейные уравнения"),
