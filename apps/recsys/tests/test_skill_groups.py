@@ -30,7 +30,9 @@ class SkillGroupAPITests(TestCase):
 
     def test_api_returns_groups(self):
         self.client.force_login(self.user)
-        resp = self.client.get(f"/api/skill-groups/{self.exam.id}/")
+        resp = self.client.get(
+            f"/api/exam-versions/{self.exam.id}/skill-groups/"
+        )
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(len(data), 2)
