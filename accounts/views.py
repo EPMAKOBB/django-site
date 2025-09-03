@@ -37,3 +37,10 @@ def dashboard_teachers(request):
     """Display a placeholder teachers dashboard."""
     context = {"active_tab": "teachers"}
     return render(request, "accounts/dashboard/teachers.html", context)
+
+
+@login_required
+def dashboard_classes(request):
+    """Display a placeholder classes dashboard."""
+    context = {"active_tab": "classes"}
+    return render(request, "accounts/dashboard/classes.html", context)
