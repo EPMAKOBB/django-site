@@ -1,10 +1,11 @@
-from django.contrib.auth import login
+from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm
 from django.shortcuts import render, redirect
 
 from apps.recsys.models import SkillMastery
 
-from .forms import SignupForm
+from .forms import SignupForm, UsernameChangeForm
 
 
 def signup(request):
@@ -44,3 +45,30 @@ def dashboard_classes(request):
     """Display a placeholder classes dashboard."""
     context = {"active_tab": "classes"}
     return render(request, "accounts/dashboard/classes.html", context)
+
+
+@login_required
+def dashboard_settings(request):
+    if request.method == "POST":
+        if "username_submit" in request.POST:
+            u_form = UsernameChangeForm(request.POST, instance=request.user)
+            p_form = PasswordChangeForm(request.user)
+            if u_form.is_valid():
+                u_form.save()
+                return redirect("accounts:dashboard-settings")
+        elif "password_submit" in request.POST:
+            u_form = UsernameChangeForm(instance=request.user)
+            p_form = PasswordChangeForm(request.user, request.POST)
+            if p_form.is_valid():
+                user = p_form.save()
+                update_session_auth_hash(request, user)
+                return redirect("accounts:dashboard-settings")
+        else:
+            u_form = UsernameChangeForm(instance=request.user)
+            p_form = PasswordChangeForm(request.user)
+    else:
+        u_form = UsernameChangeForm(instance=request.user)
+        p_form = PasswordChangeForm(request.user)
+    context = {"u_form": u_form, "p_form": p_form, "active_tab": "settings"}
+    return render(request, "accounts/dashboard/settings.html", context)
+
