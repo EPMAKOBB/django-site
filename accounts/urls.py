@@ -10,6 +10,7 @@ urlpatterns = [
     path("signup/", views.signup, name="signup"),
     path("dashboard/", views.progress, name="dashboard"),
     path("dashboard/teachers/", views.dashboard_teachers, name="dashboard-teachers"),
+    path("dashboard/classes/", views.dashboard_classes, name="dashboard-classes"),
     path(
         "login/",
         auth_views.LoginView.as_view(
