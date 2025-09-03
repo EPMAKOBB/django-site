@@ -8,6 +8,8 @@ from ..models import (
     Task,
     TaskSkill,
     TaskType,
+    SkillGroup,
+    SkillGroupItem,
     TypeMastery,
 )
 
@@ -77,6 +79,22 @@ class RecommendationLogSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
+class SkillGroupItemSerializer(serializers.ModelSerializer):
+    skill = SkillSerializer(read_only=True)
+
+    class Meta:
+        model = SkillGroupItem
+        fields = ["id", "skill", "label", "order"]
+
+
+class SkillGroupSerializer(serializers.ModelSerializer):
+    items = SkillGroupItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SkillGroup
+        fields = ["id", "title", "items"]
+
+
 __all__ = [
     "AttemptSerializer",
     "RecommendationLogSerializer",
@@ -86,5 +104,7 @@ __all__ = [
     "TaskSkillSerializer",
     "TaskTypeSerializer",
     "TypeMasterySerializer",
+    "SkillGroupItemSerializer",
+    "SkillGroupSerializer",
 ]
 
