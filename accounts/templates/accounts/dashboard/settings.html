@@ -1,0 +1,17 @@
+{% extends 'accounts/dashboard/base.html' %}
+
+{% block dashboard_title %}Настройки{% endblock %}
+
+{% block dashboard_content %}
+<h1>Настройки</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ u_form.as_p }}
+    <button type="submit" name="username_submit" class="btn">Изменить логин</button>
+</form>
+<form method="post">
+    {% csrf_token %}
+    {{ p_form.as_p }}
+    <button type="submit" name="password_submit" class="btn">Изменить пароль</button>
+</form>
+{% endblock %}
