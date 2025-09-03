@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -10,39 +11,71 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
-class Skill(TimeStampedModel):
+class Subject(TimeStampedModel):
     name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
+    slug = models.SlugField(blank=True)
 
     class Meta:
         ordering = ["name"]
         indexes = [models.Index(fields=["name"])]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Skill(TimeStampedModel):
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="skills"
+    )
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        unique_together = ("subject", "name")
+        indexes = [models.Index(fields=["subject", "name"])]
 
     def __str__(self) -> str:
         return self.name
 
 
 class TaskType(TimeStampedModel):
-    name = models.CharField(max_length=100, unique=True)
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="task_types"
+    )
+    name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
 
     class Meta:
         ordering = ["name"]
-        indexes = [models.Index(fields=["name"])]
+        unique_together = ("subject", "name")
+        indexes = [models.Index(fields=["subject", "name"])]
 
     def __str__(self) -> str:
         return self.name
 
 
 class Task(TimeStampedModel):
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="tasks"
+    )
+    exam_version = models.ForeignKey(
+        "ExamVersion",
+        on_delete=models.CASCADE,
+        related_name="tasks",
+        null=True,
+        blank=True,
+    )
     type = models.ForeignKey(TaskType, on_delete=models.CASCADE, related_name="tasks")
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     skills = models.ManyToManyField("Skill", through="TaskSkill", related_name="tasks")
 
     class Meta:
-        unique_together = ("type", "title")
-        indexes = [models.Index(fields=["type", "title"])]
+        unique_together = ("subject", "exam_version", "type", "title")
+        indexes = [
+            models.Index(fields=["subject", "exam_version", "type", "title"])
+        ]
 
     def __str__(self) -> str:
         return self.title
@@ -52,6 +85,14 @@ class TaskSkill(TimeStampedModel):
     task = models.ForeignKey(Task, on_delete=models.CASCADE)
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE)
     weight = models.FloatField(default=1.0)
+
+    def clean(self):
+        if self.task.subject_id != self.skill.subject_id:
+            raise ValidationError("Task and Skill must have the same subject")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     class Meta:
         unique_together = ("task", "skill")
@@ -65,10 +106,15 @@ class TaskSkill(TimeStampedModel):
 
 
 class ExamVersion(TimeStampedModel):
-    name = models.CharField(max_length=100, unique=True)
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="exam_versions"
+    )
+    name = models.CharField(max_length=100)
 
     class Meta:
         ordering = ["name"]
+        unique_together = ("subject", "name")
+        indexes = [models.Index(fields=["subject", "name"])]
 
     def __str__(self) -> str:
         return self.name
