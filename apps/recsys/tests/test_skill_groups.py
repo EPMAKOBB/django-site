@@ -9,6 +9,7 @@ class SkillGroupSeedTests(TestCase):
     def test_seed_creates_groups(self):
         call_command("seed_ege")
         exam = ExamVersion.objects.get(name="ЕГЭ 2026")
+        self.assertEqual(exam.subject.name, "Математика")
         groups = SkillGroup.objects.filter(exam_version=exam).order_by("title")
         self.assertEqual(groups.count(), 2)
 
@@ -20,6 +21,8 @@ class SkillGroupSeedTests(TestCase):
         self.assertEqual(items[0].order, 1)
         self.assertEqual(items[1].skill.name, "Skill 2")
         self.assertEqual(items[1].label, "Квадратные уравнения")
+        for item in items:
+            self.assertEqual(item.skill.subject, exam.subject)
 
 
 class SkillGroupAPITests(TestCase):
@@ -27,6 +30,7 @@ class SkillGroupAPITests(TestCase):
         self.user = get_user_model().objects.create(username="user")
         call_command("seed_ege")
         self.exam = ExamVersion.objects.get(name="ЕГЭ 2026")
+        self.subject = self.exam.subject
 
     def test_api_returns_groups(self):
         self.client.force_login(self.user)
@@ -42,3 +46,4 @@ class SkillGroupAPITests(TestCase):
         self.assertEqual(first_item["label"], "Линейные уравнения")
         self.assertEqual(first_item["order"], 1)
         self.assertEqual(first_item["skill"]["name"], "Skill 1")
+        self.assertEqual(self.exam.subject, self.subject)
