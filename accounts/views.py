@@ -48,7 +48,7 @@ def progress(request):
     role = _get_dashboard_role(request)
     context = {
         "skill_masteries": masteries,
-        "active_tab": "progress",
+        "active_tab": "tasks",
         "role": role,
     }
     return render(request, "accounts/dashboard.html", context)
@@ -105,4 +105,20 @@ def dashboard_settings(request):
         "role": role,
     }
     return render(request, "accounts/dashboard/settings.html", context)
+
+
+@login_required
+def dashboard_subjects(request):
+    """Display a placeholder subjects dashboard."""
+    role = _get_dashboard_role(request)
+    context = {"active_tab": "subjects", "role": role}
+    return render(request, "accounts/dashboard/subjects.html", context)
+
+
+@login_required
+def dashboard_courses(request):
+    """Display a placeholder courses dashboard."""
+    role = _get_dashboard_role(request)
+    context = {"active_tab": "courses", "role": role}
+    return render(request, "accounts/dashboard/courses.html", context)
 
