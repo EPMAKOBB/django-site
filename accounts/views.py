@@ -2,7 +2,6 @@ from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 
-from apps.recsys.models import SkillMastery
 
 from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
 
@@ -39,15 +38,9 @@ def signup(request):
 
 @login_required
 def progress(request):
-    """Display progress for the current user."""
-    masteries = (
-        SkillMastery.objects.filter(user=request.user)
-        .select_related("skill")
-        .order_by("skill__name")
-    )
+    """Temporary placeholder for the dashboard page."""
     role = _get_dashboard_role(request)
     context = {
-        "skill_masteries": masteries,
         "active_tab": "tasks",
         "role": role,
     }

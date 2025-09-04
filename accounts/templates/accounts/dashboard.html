@@ -1,14 +1,7 @@
 {% extends 'accounts/dashboard/base.html' %}
 
-{% block dashboard_title %}Прогресс{% endblock %}
+{% block dashboard_title %}Задания{% endblock %}
 
 {% block dashboard_content %}
-<h1>Прогресс пользователя</h1>
-<ul>
-  {% for mastery in skill_masteries %}
-    <li>{{ mastery.skill.name }}: {{ mastery.mastery|floatformat:2 }}</li>
-  {% empty %}
-    <li>Прогресс отсутствует.</li>
-  {% endfor %}
-</ul>
+<p>тут будут ваши задания</p>
 {% endblock %}
