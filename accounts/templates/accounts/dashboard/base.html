@@ -7,7 +7,7 @@
   <aside class="dashboard-sidebar">
     <nav>
       <ul>
-        <li class="{% if active_tab == 'tasks' %}active{% endif %}"><a href="{% url 'accounts:dashboard' %}">Задачи</a></li>
+        <li class="{% if active_tab == 'tasks' %}active{% endif %}"><a href="{% url 'accounts:dashboard' %}">Задания</a></li>
         <li class="{% if active_tab == 'subjects' %}active{% endif %}"><a href="{% url 'accounts:dashboard-subjects' %}">Предметы</a></li>
         <li class="{% if active_tab == 'courses' %}active{% endif %}"><a href="{% url 'accounts:dashboard-courses' %}">Курсы</a></li>
         <li class="{% if active_tab == 'settings' %}active{% endif %}"><a href="{% url 'accounts:dashboard-settings' %}">Настройки</a></li>
