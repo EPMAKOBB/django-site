@@ -17,12 +17,15 @@
         <h1>Фрактал: школа будущего<span class="cursor">_</span></h1>
       </a>
       <nav class="toolbar">
-        <a href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}" class="btn">
-            {% if user.is_authenticated %}
-                Мой кабинет: 👤 {{ request.user.username }}
-            {% else %}
-                Логин/Регистрация
-            {% endif %}
+        <a
+          href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}"
+          class="btn"
+        >
+          {% if user.is_authenticated %}
+            Мой кабинет: 👤 {{ request.user.username }}
+          {% else %}
+            Логин/Регистрация
+          {% endif %}
         </a>
       </nav>
     </div>
