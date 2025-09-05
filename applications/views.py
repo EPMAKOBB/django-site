@@ -1,0 +1,32 @@
+from typing import Any, Dict, List
+
+from django.urls import reverse_lazy
+from django.views.generic import FormView
+
+from .forms import ApplicationForm
+from .models import Subject
+
+
+class ApplicationCreateView(FormView):
+    template_name = "applications/application_form.html"
+    form_class = ApplicationForm
+    success_url = reverse_lazy("applications:apply")
+
+    def get_initial(self) -> Dict[str, Any]:  # type: ignore[override]
+        initial = super().get_initial()
+        source_offer = self.request.GET.get("source_offer")
+        if source_offer:
+            initial["source_offer"] = source_offer
+            slug, *rest = source_offer.split("-")
+            try:
+                subject = Subject.objects.get(slug=slug)
+                initial["subjects"] = [subject.pk]
+            except Subject.DoesNotExist:
+                pass
+            if rest and rest[0].isdigit():
+                initial["grade"] = int(rest[0])
+        return initial
+
+    def form_valid(self, form: ApplicationForm) -> Any:  # type: ignore[override]
+        form.save()
+        return super().form_valid(form)

@@ -24,6 +24,7 @@ urlpatterns = [
     path('', home, name='home'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
+    path('applications/', include('applications.urls')),
 
     path('', include('apps.recsys.api.urls')),
 
