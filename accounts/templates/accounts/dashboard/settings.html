@@ -48,4 +48,5 @@
     {% endfor %}
     <button type="submit" name="password_submit" class="btn">{% trans "Изменить пароль" %}</button>
 </form>
+<a href="{% url 'accounts:logout' %}" class="btn mt-16">{% trans "Выйти из аккаунта" %}</a>
 {% endblock %}
