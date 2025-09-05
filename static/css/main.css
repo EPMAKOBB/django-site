@@ -66,6 +66,12 @@ details[open] .chev { transform: rotate(180deg); }
 .cta-block { text-align: center; padding: 28px 0 48px; }
 .muted { color: var(--muted); }
 
+/* Auth forms */
+.auth-form { background: var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:400px; }
+.auth-form label { display:block; margin-bottom:4px; }
+.auth-form input { width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
+.auth-form .helptext { display:block; margin-top:4px; color:var(--muted); font-size:14px; }
+
 /* Dashboard */
 .dashboard-container { display:flex; gap:2rem; }
 .dashboard-sidebar { width:200px; }
