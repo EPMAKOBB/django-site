@@ -1,13 +1,47 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
-{% block title %}Регистрация{% endblock %}
+{% block title %}{% trans "Регистрация" %}{% endblock %}
 
 {% block content %}
-<h1>Регистрация</h1>
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn">Зарегистрироваться</button>
-</form>
-<p><a href="{% url 'accounts:login' %}">Войти</a></p>
+<section class="section">
+  <div class="container">
+    <h1 class="mb-16">{% trans "Регистрация" %}</h1>
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+
+      <div class="mb-16">
+        <label for="{{ form.contact.id_for_label }}">{{ form.contact.label }}</label>
+        {{ form.contact }}
+        {% if form.contact.help_text %}
+          <small class="helptext">{{ form.contact.help_text }}</small>
+        {% endif %}
+        {% if form.contact.errors %}
+          <div class="errorlist">{{ form.contact.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-16">
+        <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+        {{ form.username }}
+        {% if form.username.errors %}
+          <div class="errorlist">{{ form.username.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-16">
+        <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+        {{ form.password }}
+        {% if form.password.errors %}
+          <div class="errorlist">{{ form.password.errors }}</div>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="btn">{% trans "Зарегистрироваться" %}</button>
+    </form>
+    <p class="mt-16"><a href="{% url 'accounts:login' %}">{% trans "Войти" %}</a></p>
+  </div>
+</section>
 {% endblock %}
+

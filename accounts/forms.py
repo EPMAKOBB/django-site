@@ -10,7 +10,13 @@ User = get_user_model()
 
 
 class SignupForm(forms.Form):
-    contact = forms.CharField(label=_("Контактные данные"), max_length=255)
+    contact = forms.CharField(
+        label=_("Контактные данные"),
+        max_length=255,
+        help_text=_(
+            "Укажите email или телефон — они понадобятся для восстановления аккаунта"
+        ),
+    )
     username = forms.CharField(label=_("Логин"), max_length=150)
     password = forms.CharField(label=_("Пароль"), widget=forms.PasswordInput)
 
