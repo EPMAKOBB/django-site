@@ -18,10 +18,13 @@
       </a>
       <nav class="toolbar">
         <a href="#signup" class="btn accent">Записаться</a>
-        <a href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}" class="btn">Логин/Личный кабинет</a>
-        {% if request.user.is_authenticated %}
-          <span class="user-login">Вы вошли как {{ request.user.username }}</span>
-        {% endif %}
+        <a href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}" class="btn">
+            {% if user.is_authenticated %}
+                Мой кабинет: 👤 {{ request.user.username }}
+            {% else %}
+                Логин/Регистрация
+            {% endif %}
+        </a>
       </nav>
     </div>
   </header>
