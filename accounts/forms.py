@@ -14,7 +14,7 @@ class SignupForm(forms.Form):
         label=_("Контактные данные"),
         max_length=255,
         help_text=_(
-            "Укажите email или телефон — они понадобятся для восстановления аккаунта"
+            "Укажите email или телефон — они понадобятся в случае восстановления аккаунта"
         ),
     )
     username = forms.CharField(label=_("Логин"), max_length=150)
