@@ -1,6 +1,7 @@
 from django import forms
 
-from .models import Application, Subject
+from .models import Application
+from subjects.models import Subject
 
 
 class ApplicationForm(forms.ModelForm):
