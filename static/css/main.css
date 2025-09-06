@@ -47,12 +47,6 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
   border-radius: 14px;
   padding: 16px;
 }
-
-.block--narrow {
-  max-width:600px;
-  margin:0 auto;
-}
-
 .block--split {
   padding:0;
   overflow:hidden;
@@ -64,6 +58,14 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 
 .block h3 {
   margin-top: 0;
+}
+
+.block--futuristic {
+  background: linear-gradient(135deg, var(--card), color-mix(in srgb, var(--accent) 5%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 25%, transparent),
+    0 0 24px color-mix(in srgb, var(--accent-2) 15%, transparent);
 }
 
 .section-title {
