@@ -1,7 +1,7 @@
-from django.shortcuts import render
+from django.views.generic import TemplateView
 
 
-def home(request):
+class HomeView(TemplateView):
     """Render the main landing page."""
-    return render(request, "home.html")
+    template_name = "home.html"
 
