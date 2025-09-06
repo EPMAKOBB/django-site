@@ -92,7 +92,8 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 /* Signup form */
 .signup-form { display:grid; gap:12px; }
 .signup-form .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:8px; }
-.signup-form input, .signup-form select { width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
+.signup-form input, .signup-form select, .signup-form textarea { width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
+.signup-form textarea { height:44px; resize:vertical; }
 
 /* Dashboard */
 .dashboard-container { display:flex; gap:2rem; }
