@@ -1,15 +1,43 @@
 from django import forms
 
-from .models import Application
+from .models import Application, Subject
 
 
 class ApplicationForm(forms.ModelForm):
+    grade = forms.TypedChoiceField(
+        coerce=int,
+        choices=[(9, "9"), (10, "10"), (11, "11")],
+        label="",
+    )
+    subject1 = forms.ModelChoiceField(
+        queryset=Subject.objects.all(),
+        label="",
+    )
+    subject2 = forms.ModelChoiceField(
+        queryset=Subject.objects.all(),
+        required=False,
+        label="",
+    )
+
+
     class Meta:
         model = Application
         fields = [
             "grade",
-            "subjects",
+            "subject1",
+            "subject2",
             "contact_info",
             "contact_name",
             "lesson_type",
         ]
+
+    def save(self, commit: bool = True) -> Application:  # type: ignore[override]
+        application = super().save(commit=False)
+        if commit:
+            application.save()
+            subjects = [self.cleaned_data["subject1"]]
+            subject2 = self.cleaned_data.get("subject2")
+            if subject2:
+                subjects.append(subject2)
+            application.subjects.set(subjects)
+        return application
