@@ -32,22 +32,26 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .hero p { margin: 0 0 20px; color: var(--muted); max-width: 720px; }
 .hero details summary { padding: 0; }
 
-.hero details summary .chev { color: var(--accent); }
 
 .hero details p { margin-top: 12px; }
 .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
 
-/* Accordion */
+/* Sections */
 .section { padding: 28px 0; border-bottom: 1px solid var(--border); }
-details.accordion { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 0; overflow: hidden; }
-details + details { margin-top: 12px; }
-summary { list-style: none; cursor: pointer; padding: 18px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-summary::-webkit-details-marker { display: none }
-.summary-left { display: flex; align-items: center; gap: 12px; }
 .badge { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: 12px; }
-.chev { transition: transform .2s ease; }
-details[open] .chev { transform: rotate(180deg); }
 .panel { padding: 16px; border-top: 1px solid var(--border); }
+
+.about-school {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.about-school h3 {
+  margin: 0;
+  padding: 18px;
+}
 
 /* Grid of subjects */
 .subjects { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
