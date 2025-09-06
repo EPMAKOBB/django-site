@@ -81,6 +81,7 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .pill:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
 
 /* Testimonials */
+.reviews-block { background: var(--bg); }
 .testimonials { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap: 12px; }
 .quote { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; color: var(--muted); }
 .quote strong { color: var(--text); }
