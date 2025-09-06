@@ -5,10 +5,10 @@
 {% block content %}
   <section id="about" class="section">
     <div class="container">
-      <div class="block">
-        <h3 class="section-title">Запись</h3>
+      <div class="block block--narrow">
         <p class="muted mb-8">ФИЗИКА | МАТЕМАТИКА | ИНФОРМАТИКА | ВПР | ОГЭ | ЕГЭ</p>
         <p class="mb-8">Запишитесь через Telegram <a href="https://t.me/Shydoe" target="_blank">@Shydoe</a> или заполните заявку ниже 👇</p>
+        <h3 class="section-title">Запись</h3>
         <form action="{% url 'applications:apply' %}" method="post" class="signup-form">
           {% csrf_token %}
           <div class="grid">
