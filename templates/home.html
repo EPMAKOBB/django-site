@@ -5,14 +5,44 @@
 {% block content %}
   <section id="about" class="section">
     <div class="container">
-      <h2 style="margin-top:0">Технологии 2025 на службе образования</h2>
       <div style="text-align:center; text-transform:uppercase; font-weight:800; margin:24px 0;">
         <div>ФИЗИКА | МАТЕМАТИКА | ИНФОРМАТИКА</div>
         <div>ВПР | ОГЭ | ЕГЭ</div>
       </div>
-      <p style="text-align:center; margin:0 0 16px;">Запишитесь на занятия прямо сейчас!</p>
-      <div style="text-align:center; margin-bottom:24px;">
-        <a class="btn accent" href="#signup">Записаться</a>
+      <div class="card" style="max-width:600px; margin:0 auto;">
+        <p class="mb-8" style="text-align:center;">
+          Напишите в Telegram <a href="https://t.me/Shydoo" target="_blank">@Shydoo</a> — ответим сегодня
+        </p>
+        <p class="muted" style="text-align:center; margin-top:0;">
+          Или заполните короткую заявку ниже — мы свяжемся с вами
+        </p>
+        <form action="{% url 'applications:apply' %}" method="post" class="signup-form">
+          {% csrf_token %}
+          <div class="grid">
+            <select name="grade" required>
+              <option value="" selected disabled>Выберите класс</option>
+              <option value="9">9 класс</option>
+              <option value="10">10 класс</option>
+              <option value="11">11 класс</option>
+            </select>
+            <select name="subjects" required>
+              <option value="" selected disabled>Выберите предмет</option>
+              <option value="physics">Физика</option>
+              <option value="math">Математика</option>
+              <option value="informatics">Информатика</option>
+            </select>
+          </div>
+          <input type="text" name="contact_info" placeholder="Телеграм, телефон или email — любой удобный способ связи" required>
+          <input type="text" name="contact_name" placeholder="Как к вам обращаться?" required>
+          <div class="role-toggle">
+            <input type="radio" id="lt-ind" name="lesson_type" value="individual" checked>
+            <label for="lt-ind">Индивидуально</label>
+            <input type="radio" id="lt-group" name="lesson_type" value="group">
+            <label for="lt-group">Группа</label>
+          </div>
+          <div class="muted">Цена: ...</div>
+          <button type="submit" class="btn accent">Записаться</button>
+        </form>
       </div>
       <details class="accordion">
         <summary>
