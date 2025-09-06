@@ -1,7 +1,6 @@
 from django.contrib import admin
 
 from .models import (
-    Subject,
     Skill,
     TaskType,
     Task,
@@ -19,12 +18,6 @@ from .models import (
 class TaskSkillInline(admin.TabularInline):
     model = TaskSkill
     extra = 1
-
-
-@admin.register(Subject)
-class SubjectAdmin(admin.ModelAdmin):
-    list_display = ("name",)
-
 
 @admin.register(Skill)
 class SkillAdmin(admin.ModelAdmin):
