@@ -1,0 +1,23 @@
+name: DB migrate (Railway)
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}   # можно запустить вручную из вкладки Actions
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -U pip
+      - run: pip install -r requirements.txt 
+      - run: pip install "psycopg[binary]>=3.1"   # драйвер к Postgres
+      - name: Run Django migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+        run: |
+          python manage.py migrate --noinput
+          python manage.py showmigrations
