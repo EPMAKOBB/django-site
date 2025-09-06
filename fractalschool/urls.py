@@ -18,10 +18,10 @@ from django.contrib import admin
 from django.urls import include, path
 
 from apps.recsys import views as recsys_views
-from .views import home
+from .views import HomeView
 
 urlpatterns = [
-    path('', home, name='home'),
+    path('', HomeView.as_view(), name='home'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path('applications/', include('applications.urls')),
