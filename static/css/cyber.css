@@ -55,10 +55,6 @@ section{margin:28px 0;}
 .fill{position:absolute; inset:0 auto 0 0; width:0%; background:linear-gradient(90deg, rgba(0,255,156,.9), rgba(156,107,255,.85)); box-shadow: inset 0 0 12px rgba(0,0,0,.35), 0 0 18px rgba(0,255,156,.35);
   transition:width .35s ease;}
 
-.panel{
-  border:1px solid var(--outline); border-radius:16px; background:linear-gradient(180deg,#0b1210,#09110e);
-  padding:16px; box-shadow: var(--shadow);
-}
 .controls{display:grid; gap:10px; grid-template-columns:repeat(1, minmax(0,1fr));}
 @media (min-width:820px){ .controls{ grid-template-columns:repeat(3, minmax(0,1fr)); }}
 .ctrl{display:flex; align-items:center; gap:10px; border:1px dashed var(--outline); padding:10px; border-radius:12px;}
