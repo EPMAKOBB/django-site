@@ -48,6 +48,11 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
   padding: 16px;
 }
 
+.block--narrow {
+  max-width:600px;
+  margin:0 auto;
+}
+
 .block h3 {
   margin-top: 0;
 }
