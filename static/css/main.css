@@ -72,6 +72,11 @@ details[open] .chev { transform: rotate(180deg); }
 .auth-form input { width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
 .auth-form .helptext { display:block; margin-top:4px; color:var(--muted); font-size:14px; }
 
+/* Signup form */
+.signup-form { display:grid; gap:12px; }
+.signup-form .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:8px; }
+.signup-form input, .signup-form select { width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
+
 /* Dashboard */
 .dashboard-container { display:flex; gap:2rem; }
 .dashboard-sidebar { width:200px; }
