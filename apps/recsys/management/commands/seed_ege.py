@@ -5,11 +5,11 @@ from apps.recsys.models import (
     Skill,
     SkillGroup,
     SkillGroupItem,
-    Subject,
     Task,
     TaskSkill,
     TaskType,
 )
+from subjects.models import Subject
 
 
 class Command(BaseCommand):

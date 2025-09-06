@@ -2,7 +2,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Application, Subject
+from .models import Application
+from subjects.models import Subject
 
 
 class ApplicationTests(TestCase):
