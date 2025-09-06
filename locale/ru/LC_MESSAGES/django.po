@@ -1,0 +1,276 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-06 17:47+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=4; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<12 || n%100>14) ? 1 : n%10==0 || (n%10>=5 && n%10<=9) || "
+"(n%100>=11 && n%100<=14)? 2 : 3);\n"
+#: accounts/forms.py:14
+msgid "Контактные данные"
+msgstr ""
+
+#: accounts/forms.py:17
+msgid ""
+"Укажите email или телефон — они понадобятся в случае восстановления аккаунта"
+msgstr ""
+
+#: accounts/forms.py:20 accounts/forms.py:60
+msgid "Логин"
+msgstr ""
+
+#: accounts/forms.py:21
+msgid "Пароль"
+msgstr ""
+
+#: accounts/forms.py:26 accounts/forms.py:49 accounts/forms.py:78
+msgid "Этот логин уже занят"
+msgstr ""
+
+#: accounts/forms.py:61
+msgid "Имя"
+msgstr ""
+
+#: accounts/forms.py:62
+msgid "Фамилия"
+msgstr ""
+
+#: accounts/forms.py:63
+msgid "Электронная почта"
+msgstr ""
+
+#: accounts/forms.py:66
+msgid "Укажите логин"
+msgstr ""
+
+#: accounts/forms.py:67
+msgid "Укажите имя"
+msgstr ""
+
+#: accounts/forms.py:68
+msgid "Укажите фамилию"
+msgstr ""
+
+#: accounts/forms.py:70
+msgid "Укажите адрес электронной почты"
+msgstr ""
+
+#: accounts/forms.py:71
+msgid "Введите правильный адрес электронной почты"
+msgstr ""
+
+#: accounts/forms.py:87
+msgid "Старый пароль"
+msgstr ""
+
+#: accounts/forms.py:88
+msgid "Новый пароль"
+msgstr ""
+
+#: accounts/forms.py:89
+msgid "Подтверждение нового пароля"
+msgstr ""
+
+#: accounts/templates/accounts/dashboard/settings.html:4
+#: accounts/templates/accounts/dashboard/settings.html:7
+msgid "Настройки"
+msgstr ""
+
+#: accounts/templates/accounts/dashboard/settings.html:11
+msgid "Режим кабинета"
+msgstr ""
+
+#: accounts/templates/accounts/dashboard/settings.html:14
+msgid "Ученик"
+msgstr ""
+
+#: accounts/templates/accounts/dashboard/settings.html:16
+msgid "Учитель"
+msgstr ""
+
+#: accounts/templates/accounts/dashboard/settings.html:18
+msgid "Сменить режим"
+msgstr ""
+
+#: accounts/templates/accounts/dashboard/settings.html:23
+msgid "Личная информация"
+msgstr ""
+
+#: accounts/templates/accounts/dashboard/settings.html:34
+msgid "Сохранить изменения"
+msgstr ""
+
+#: accounts/templates/accounts/dashboard/settings.html:38
+#: accounts/templates/accounts/dashboard/settings.html:49
+msgid "Изменить пароль"
+msgstr ""
+
+#: accounts/templates/accounts/dashboard/settings.html:53
+msgid "Выйти из аккаунта"
+msgstr ""
+
+#: accounts/templates/accounts/signup.html:4
+#: accounts/templates/accounts/signup.html:9
+msgid "Регистрация"
+msgstr ""
+
+#: accounts/templates/accounts/signup.html:41
+msgid "Зарегистрироваться"
+msgstr ""
+
+#: accounts/templates/accounts/signup.html:43
+msgid "Войти"
+msgstr ""
+
+#: templates/home.html:4
+msgid "Fractal School — главная"
+msgstr ""
+
+#: templates/home.html:10
+msgid "ФИЗИКА | МАТЕМАТИКА | ИНФОРМАТИКА | ВПР | ОГЭ | ЕГЭ"
+msgstr ""
+
+#: templates/home.html:11
+msgid ""
+"Запишитесь через Telegram <a href=\"https://t.me/Shydoe\" "
+"target=\"_blank\">@Shydoe</a> или заполните заявку ниже 👇"
+msgstr ""
+
+#: templates/home.html:12
+msgid "Запись"
+msgstr ""
+
+#: templates/home.html:41
+msgid "Цена: ..."
+msgstr ""
+
+#: templates/home.html:42 templates/home.html:104
+msgid "Записаться"
+msgstr ""
+
+#: templates/home.html:51
+msgid "О школе «Фрактал»"
+msgstr ""
+
+#: templates/home.html:54
+msgid ""
+"Школа «Фрактал» — семейный проект репетиторов, сочетающий опыт преподавания "
+"и технологии 2025 года."
+msgstr ""
+
+#: templates/home.html:58
+msgid "Ермаков Вадим Александрович"
+msgstr ""
+
+#: templates/home.html:59
+msgid ""
+"МГТУ им. Баумана (1980), инженер. Учитель и репетитор с 40-летним стажем."
+msgstr ""
+
+#: templates/home.html:62
+msgid "Ермаков Виктор Вадимович"
+msgstr ""
+
+#: templates/home.html:63
+msgid ""
+"МГТУ им. Баумана (2013), инженер; МГТУ СТАНКИН (2025), программист машинного "
+"обучения. Репетитор с 15-летним стажем."
+msgstr ""
+
+#: templates/home.html:66
+msgid "Ермакова Мария Вадимовна"
+msgstr ""
+
+#: templates/home.html:67
+msgid ""
+"МГОУ (2018), физик; РУДН (2020), инженер. Школьный учитель и репетитор с 10-"
+"летним стажем."
+msgstr ""
+
+#: templates/home.html:72
+msgid "Наша система обучения"
+msgstr ""
+
+#: templates/home.html:73
+msgid ""
+"С 2024 года мы строим процесс обучения, который использует всю мощь "
+"современных технологий. С сентября 2025 представляем новую образовательную "
+"систему:"
+msgstr ""
+
+#: templates/home.html:75
+msgid ""
+"<strong>Уникальные задачи:</strong> задания генерируются автоматически по "
+"правилам. У каждого ученика — свои условия (их нет в интернете и у других "
+"учеников), при строгом соответствии кодификаторам ФИПИ."
+msgstr ""
+
+#: templates/home.html:76
+msgid ""
+"<strong>Умный уровень нагрузки:</strong> сложность и объём домашки "
+"подбираются алгоритмами в зависимости от прогресса."
+msgstr ""
+
+#: templates/home.html:77
+msgid ""
+"<strong>Геймификация прогресса:</strong> достижения оформлены как "
+"увлекательная игра, поддерживающая фокус и мотивацию."
+msgstr ""
+
+#: templates/home.html:78
+msgid ""
+"<strong>Нейропомощник:</strong> для быстрых вопросов — ассистент на базе "
+"нейросетей, настроенный на учебную программу РФ."
+msgstr ""
+
+#: templates/home.html:80
+msgid ""
+"<strong>И главное:</strong> в основе остаются занятия с живым преподавателем "
+"— гарантия качества и уверенности на экзамене!"
+msgstr ""
+
+#: templates/home.html:90
+msgid "Отзывы"
+msgstr ""
+
+#: templates/home.html:92
+msgid ""
+"«Виктор, спасибо Вам огромное!!! Я вообще в шоке!!! Я Вам бесконечно "
+"благодарен!!!».<br><strong>— Дмитрий, 100 баллов на ЕГЭ по информатике</"
+"strong>"
+msgstr ""
+
+#: templates/home.html:93
+msgid ""
+"«Было относительно просто, если честно. Вполне себе мог получить 100 баллов, "
+"но у меня 99. Тоже неплохо, думаю».<br><strong>— Матвей, 99 баллов на ЕГЭ по "
+"математике</strong>"
+msgstr ""
+
+#: templates/home.html:94
+msgid ""
+"«Сдал ЕГЭ на высочайший балл, после чего знаний хватило на то, чтобы "
+"самостоятельно подготовиться к ДВИ МГУ по физике на 90+».<br><strong>— "
+"Андрей, 97 баллов на ЕГЭ по физике</strong>"
+msgstr ""
+
+#: templates/home.html:102
+msgid "Готовы начать?"
+msgstr ""
+
+#: templates/home.html:103
+msgid "Оставьте заявку — подберём программу и формат под ваши цели."
+msgstr ""
