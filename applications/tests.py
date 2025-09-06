@@ -14,11 +14,12 @@ class ApplicationTests(TestCase):
         data = {
             "contact_name": "Parent",
             "student_name": "Student",
-            "grade": 5,
-            "subjects": [self.subject_math.id, self.subject_physics.id],
+            "grade": 9,
+            "subject1": self.subject_math.id,
+            "subject2": self.subject_physics.id,
             "contact_info": "email@example.com",
             "lesson_type": "individual",
-            "source_offer": "math-5",
+            "source_offer": "math-9",
         }
         response = self.client.post(reverse("applications:apply"), data)
         self.assertEqual(response.status_code, 302)

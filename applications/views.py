@@ -20,7 +20,7 @@ class ApplicationCreateView(FormView):
             slug, *rest = source_offer.split("-")
             try:
                 subject = Subject.objects.get(slug=slug)
-                initial["subjects"] = [subject.pk]
+                initial["subject1"] = subject.pk
             except Subject.DoesNotExist:
                 pass
             if rest and rest[0].isdigit():
