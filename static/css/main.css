@@ -39,21 +39,12 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 /* Sections */
 .section { padding: 28px 0; border-bottom: 1px solid var(--border); }
 .badge { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: 12px; }
-.panel { padding: 16px; border-top: 1px solid var(--border); }
 
 .block {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px;
-}
-.block--split {
-  padding:0;
-  overflow:hidden;
-}
-
-.block--split .panel:first-child {
-  border-top:0;
 }
 
 .block h3 {
