@@ -1,11 +1,6 @@
 from django.contrib import admin
 
-from .models import Application, Subject
-
-
-@admin.register(Subject)
-class SubjectAdmin(admin.ModelAdmin):
-    prepopulated_fields = {"slug": ("name",)}
+from .models import Application
 
 
 @admin.register(Application)

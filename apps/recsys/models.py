@@ -2,6 +2,8 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from subjects.models import Subject
+
 
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -9,18 +11,6 @@ class TimeStampedModel(models.Model):
 
     class Meta:
         abstract = True
-
-
-class Subject(TimeStampedModel):
-    name = models.CharField(max_length=100, unique=True)
-    slug = models.SlugField(blank=True)
-
-    class Meta:
-        ordering = ["name"]
-        indexes = [models.Index(fields=["name"])]
-
-    def __str__(self) -> str:
-        return self.name
 
 
 class Skill(TimeStampedModel):

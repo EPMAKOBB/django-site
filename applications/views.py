@@ -4,7 +4,7 @@ from django.urls import reverse_lazy
 from django.views.generic import FormView
 
 from .forms import ApplicationForm
-from .models import Subject
+from subjects.models import Subject
 
 
 class ApplicationCreateView(FormView):
