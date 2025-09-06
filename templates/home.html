@@ -11,28 +11,8 @@
         <h3 class="section-title">Запись</h3>
         <form action="{% url 'applications:apply' %}" method="post" class="signup-form">
           {% csrf_token %}
-          <div class="grid">
-            <select name="grade" required>
-              <option value="" selected disabled>Выберите класс</option>
-              <option value="9">9 класс</option>
-              <option value="10">10 класс</option>
-              <option value="11">11 класс</option>
-            </select>
-            <select name="subjects" required>
-              <option value="" selected disabled>Выберите предмет</option>
-              <option value="physics">Физика</option>
-              <option value="math">Математика</option>
-              <option value="informatics">Информатика</option>
-            </select>
-          </div>
-          <input type="text" name="contact_info" placeholder="Телеграм, телефон или email — любой удобный способ связи" required>
-          <input type="text" name="contact_name" placeholder="Как к вам обращаться?" required>
-          <div class="role-toggle">
-            <input type="radio" id="lt-ind" name="lesson_type" value="individual" checked>
-            <label for="lt-ind">Индивидуально</label>
-            <input type="radio" id="lt-group" name="lesson_type" value="group">
-            <label for="lt-group">Группа</label>
-          </div>
+          {{ form.non_field_errors }}
+          {{ form.as_p }}
           <div class="muted">Цена: ...</div>
           <button type="submit" class="btn accent">Записаться</button>
         </form>
