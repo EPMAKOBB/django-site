@@ -3,65 +3,57 @@ from __future__ import annotations
 from datetime import date
 from typing import TypedDict
 
-INDIVIDUAL_PRICE_PER_SUBJECT = 4000
-INDIVIDUAL_ORIGINAL_PRICE_PER_SUBJECT = 5000
-INDIVIDUAL_DISCOUNT_PRICE_PER_SUBJECT = 2500
-GROUP_ORIGINAL_PRICE_PER_SUBJECT = 5000
-GROUP_DISCOUNT_PRICE_PER_SUBJECT = 3000
-GROUP_TWO_SUBJECTS_PRICE = 2000
+# Pricing variants
+VARIANT1_CURRENT = 3000
+VARIANT1_ORIGINAL = 5000
+VARIANT2_CURRENT = 5000
+VARIANT2_ORIGINAL = 10000
+VARIANT3_PRICE = 2000
+
+VARIANT3_UNIT = "₽ за занятие (60 минут)"
+DEFAULT_UNIT = "₽/мес"
 
 
 class ApplicationPrice(TypedDict):
     current: int
     original: int | None
     promo_until: date | None
+    unit: str
 
 
 def get_application_price(
     lesson_type: str,
     subjects_count: int,
     *,
-    with_discount: bool = False,
     promo_until: date | None = None,
 ) -> ApplicationPrice | None:
-    """Calculate price details for the application.
+    """Return application price based on lesson type and subjects count."""
 
-    Returns ``None`` if ``lesson_type`` is unknown or ``subjects_count`` is not
-    positive. Otherwise returns a dictionary with ``current`` price, optional
-    ``original`` price and ``promo_until`` date when a discount applies.
-    """
-    if subjects_count <= 0:
+    if subjects_count < 0:
         return None
 
-    if lesson_type == "individual":
-        if with_discount and subjects_count == 2:
-            current_total = INDIVIDUAL_DISCOUNT_PRICE_PER_SUBJECT * subjects_count
-            original_total: int | None = (
-                INDIVIDUAL_ORIGINAL_PRICE_PER_SUBJECT * subjects_count
-            )
-            promo = promo_until
-        else:
-            current_total = INDIVIDUAL_PRICE_PER_SUBJECT * subjects_count
-            original_total = None
-            promo = None
-    elif lesson_type == "group":
-        if subjects_count == 2:
-            current_total = GROUP_TWO_SUBJECTS_PRICE
-            original_total = None
-            promo = None
-        elif with_discount:
-            current_total = GROUP_DISCOUNT_PRICE_PER_SUBJECT * subjects_count
-            original_total = GROUP_ORIGINAL_PRICE_PER_SUBJECT * subjects_count
-            promo = promo_until
-        else:
-            current_total = GROUP_ORIGINAL_PRICE_PER_SUBJECT * subjects_count
-            original_total = None
-            promo = None
-    else:
+    if subjects_count == 0:
+        return {
+            "current": VARIANT1_CURRENT,
+            "original": VARIANT1_ORIGINAL,
+            "promo_until": promo_until,
+            "unit": DEFAULT_UNIT,
+        }
+
+    if lesson_type not in {"individual", "group"}:
         return None
+
+    if lesson_type == "group" and subjects_count == 2:
+        return {
+            "current": VARIANT3_PRICE,
+            "original": None,
+            "promo_until": None,
+            "unit": VARIANT3_UNIT,
+        }
 
     return {
-        "current": current_total,
-        "original": original_total,
-        "promo_until": promo,
+        "current": VARIANT2_CURRENT,
+        "original": VARIANT2_ORIGINAL,
+        "promo_until": promo_until,
+        "unit": DEFAULT_UNIT,
     }
