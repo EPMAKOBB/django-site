@@ -48,27 +48,20 @@
           {{ form.contact_name }}
           {{ form.contact_name.errors }}
         </p>
-        {% with current=form.lesson_type.value|default:form.fields.lesson_type.choices.0.0 %}
-        <p class="lesson-type-field">
-          <div class="switch">
-            <span class="muted">{{ form.lesson_type.label }}:</span>
-            <div class="seg" role="tablist" aria-label="{{ form.lesson_type.label }}">
-              {% for value, label in form.fields.lesson_type.choices %}
-              <button
-                type="button"
-                id="mode-{{ value }}"
-                data-mode="{{ value }}"
-                role="tab"
-                aria-selected="{% if current == value %}true{% else %}false{% endif %}"
-                class="{% if current == value %}active{% endif %}"
-              >{{ label }}</button>
-              {% endfor %}
+        <div class="lesson-type-field">
+          <div>
+            <label class="sr-only">Формат занятий</label>
+            <div class="switch">
+              <span class="muted">Формат:</span>
+              <div class="seg" role="tablist" aria-label="Формат занятий">
+                <button type="button" id="mode-individual" class="active" role="tab" aria-selected="false" onclick="setMode('individual')">Индивидуальный</button>
+                <button type="button" id="mode-group" role="tab" aria-selected="true" onclick="setMode('group')">Групповой</button>
+              </div>
             </div>
           </div>
-          <input type="hidden" name="{{ form.lesson_type.html_name }}" id="{{ form.lesson_type.id_for_label }}" value="{{ current }}" />
+          <input type="hidden" name="{{ form.lesson_type.html_name }}" id="{{ form.lesson_type.id_for_label }}" value="group" />
           {{ form.lesson_type.errors }}
-        </p>
-        {% endwith %}
+        </div>
         <div class="muted">{% trans "Цена: ..." %}</div>
         <button type="submit" class="btn accent">{% trans "Записаться" %}</button>
       </form>
