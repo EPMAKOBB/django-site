@@ -152,3 +152,18 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .mb-8 { margin-bottom: 8px; }
 .mb-16 { margin-bottom: 16px; }
 .mt-12 { margin-top: 12px; }
+
+/* Price display */
+.price-old {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.price-new {
+  font-weight: 700;
+}
+
+.price-note {
+  font-size: 0.9rem;
+  color: #555;
+}

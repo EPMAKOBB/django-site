@@ -7,7 +7,15 @@
     {{ form.as_p }}
     <button type="submit">Записаться</button>
     {% if application_price %}
-      <p class="application-price">{{ application_price }}</p>
+      <div class="application-price">
+        {% if application_price.old %}
+          <span class="price-old">{{ application_price.old }}</span>
+        {% endif %}
+        <span class="price-new">{{ application_price.new }}</span>
+        {% if application_price.note %}
+          <div class="price-note">{{ application_price.note }}</div>
+        {% endif %}
+      </div>
     {% endif %}
   </form>
 {% endblock %}
