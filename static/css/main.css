@@ -95,6 +95,10 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .signup-form input, .signup-form select, .signup-form textarea { width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
 .signup-form textarea { height:44px; resize:vertical; }
 
+/* Name and format row */
+.name-format-row { display:flex; align-items:center; gap:12px; }
+.name-format-row .name-field { flex:1; }
+
 /* Dashboard */
 .dashboard-container { display:flex; gap:2rem; }
 .dashboard-sidebar { width:200px; }
