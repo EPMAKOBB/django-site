@@ -24,14 +24,16 @@ function setMode(mode) {
   }
 
   input.value = mode;
+  updatePrice();
 }
 
-const INDIVIDUAL_PRICE_PER_SUBJECT = 4000;
-const INDIVIDUAL_ORIGINAL_PRICE_PER_SUBJECT = 5000;
-const INDIVIDUAL_DISCOUNT_PRICE_PER_SUBJECT = 2500;
-const GROUP_ORIGINAL_PRICE_PER_SUBJECT = 5000;
-const GROUP_DISCOUNT_PRICE_PER_SUBJECT = 3000;
-const GROUP_TWO_SUBJECTS_PRICE = 2000;
+const VARIANT1_CURRENT = 3000;
+const VARIANT1_ORIGINAL = 5000;
+const VARIANT2_CURRENT = 5000;
+const VARIANT2_ORIGINAL = 10000;
+const VARIANT3_PRICE = 2000;
+const VARIANT3_UNIT = '₽ за занятие (60 минут)';
+const DEFAULT_UNIT = '₽/мес';
 
 function updatePrice() {
   const lessonTypeEl = document.getElementById('id_lesson_type');
@@ -42,38 +44,25 @@ function updatePrice() {
   const priceNoteEl = document.querySelector('.price-note');
   if (!lessonTypeEl || !subject1El || !subject2El || !priceNewEl) return;
 
-  const lessonType = lessonTypeEl.value;
+  const lessonType = lessonTypeEl.value || 'group';
   let subjectsCount = 0;
   if (subject1El.value) subjectsCount += 1;
   if (subject2El.value) subjectsCount += 1;
 
-  if (!lessonType || subjectsCount === 0) {
-    priceNewEl.textContent = '';
-    if (priceOldEl) priceOldEl.textContent = '';
-    if (priceNoteEl) priceNoteEl.textContent = '';
-    return;
-  }
-
   const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
   let currentTotal;
   let originalTotal = null;
-  let unit = '₽/мес';
+  let unit = DEFAULT_UNIT;
 
-  if (lessonType === 'individual') {
-    if (subjectsCount === 2) {
-      currentTotal = INDIVIDUAL_DISCOUNT_PRICE_PER_SUBJECT * subjectsCount;
-      originalTotal = INDIVIDUAL_ORIGINAL_PRICE_PER_SUBJECT * subjectsCount;
-    } else {
-      currentTotal = INDIVIDUAL_PRICE_PER_SUBJECT * subjectsCount;
-    }
-  } else if (lessonType === 'group') {
-    if (subjectsCount === 2) {
-      currentTotal = GROUP_TWO_SUBJECTS_PRICE;
-      unit = '₽ за занятие';
-    } else {
-      currentTotal = GROUP_DISCOUNT_PRICE_PER_SUBJECT * subjectsCount;
-      originalTotal = GROUP_ORIGINAL_PRICE_PER_SUBJECT * subjectsCount;
-    }
+  if (subjectsCount === 0) {
+    currentTotal = VARIANT1_CURRENT;
+    originalTotal = VARIANT1_ORIGINAL;
+  } else if (lessonType === 'group' && subjectsCount === 2) {
+    currentTotal = VARIANT3_PRICE;
+    unit = VARIANT3_UNIT;
+  } else {
+    currentTotal = VARIANT2_CURRENT;
+    originalTotal = VARIANT2_ORIGINAL;
   }
 
   priceNewEl.textContent = `${format(currentTotal)} ${unit}`;
@@ -87,7 +76,6 @@ function updatePrice() {
 
 document.addEventListener('DOMContentLoaded', () => {
   setMode('group');
-  updatePrice();
   ['id_grade', 'id_subject1', 'id_subject2', 'id_lesson_type'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
