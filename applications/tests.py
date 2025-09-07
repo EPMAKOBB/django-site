@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .models import Application
+from .utils import get_application_price
 from subjects.models import Subject
 
 
@@ -63,12 +64,104 @@ class ApplicationPriceTests(TestCase):
         response = self.client.get(reverse("applications:apply"))
         self.assertEqual(response.status_code, 200)
         price = response.context.get("application_price")
+        self.assertIsNone(price)
+
+    def test_get_price_individual_two_subjects_variant2(self) -> None:
         expected_date = date(date.today().year, 9, 30)
+        price = get_application_price(
+            "individual", 2, with_discount=True, promo_until=expected_date
+        )
+        self.assertEqual(
+            price,
+            {
+                "original": 10000,
+                "current": 5000,
+                "promo_until": expected_date,
+            },
+        )
+
+    def test_get_price_group_one_subject_variant2(self) -> None:
+        expected_date = date(date.today().year, 9, 30)
+        price = get_application_price(
+            "group", 1, with_discount=True, promo_until=expected_date
+        )
         self.assertEqual(
             price,
             {
                 "original": 5000,
                 "current": 3000,
                 "promo_until": expected_date,
+            },
+        )
+
+    def test_get_price_group_two_subjects_variant3(self) -> None:
+        price = get_application_price("group", 2)
+        self.assertEqual(
+            price,
+            {
+                "original": None,
+                "current": 2000,
+                "promo_until": None,
+            },
+        )
+
+    def _run_js(self, lesson_type: str, subject_count: int):
+        import json
+        import subprocess
+        from pathlib import Path
+
+        subject1 = "1" if subject_count >= 1 else ""
+        subject2 = "1" if subject_count >= 2 else ""
+        script = f"""
+        global.alert = () => {{}};
+        const inputs = {{
+          id_lesson_type: {{ value: {json.dumps(lesson_type)}, addEventListener: () => {{}} }},
+          id_subject1: {{ value: {json.dumps(subject1)}, addEventListener: () => {{}} }},
+          id_subject2: {{ value: {json.dumps(subject2)}, addEventListener: () => {{}} }},
+        }};
+        const priceOld = {{ textContent: '' }};
+        const priceNew = {{ textContent: '' }};
+        const priceNote = {{ textContent: '' }};
+        global.document = {{
+          getElementById: (id) => inputs[id],
+          querySelector: (sel) => sel === '.price-old' ? priceOld : sel === '.price-new' ? priceNew : priceNote,
+          addEventListener: () => {{}},
+        }};
+        const {{ updatePrice }} = require('./static/js/main.js');
+        updatePrice();
+        console.log(JSON.stringify({{old: priceOld.textContent, current: priceNew.textContent, note: priceNote.textContent}}));
+        """
+        result = subprocess.run(
+            ["node", "-e", script], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_js_group_one_subject_variant2(self) -> None:
+        data = self._run_js("group", 1)
+        self.assertEqual(
+            data,
+            {
+                "old": "5 000 ₽/мес",
+                "current": "3 000 ₽/мес",
+                "note": "до 30 сентября",
+            },
+        )
+
+    def test_js_group_two_subjects_variant3(self) -> None:
+        data = self._run_js("group", 2)
+        self.assertEqual(
+            data,
+            {"old": "", "current": "2 000 ₽ за занятие", "note": ""},
+        )
+
+    def test_js_individual_two_subjects_variant2(self) -> None:
+        data = self._run_js("individual", 2)
+        self.assertEqual(
+            data,
+            {
+                "old": "10 000 ₽/мес",
+                "current": "5 000 ₽/мес",
+                "note": "до 30 сентября",
             },
         )

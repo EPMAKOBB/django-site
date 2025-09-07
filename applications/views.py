@@ -45,8 +45,6 @@ class ApplicationCreateView(FormView):
             if data.get("subject2"):
                 subjects_count += 1
             lesson_type = data.get("lesson_type", "")
-        if subjects_count == 0:
-            subjects_count = 1
         if not lesson_type:
             lesson_type = "group"
         context["application_price"] = get_application_price(
