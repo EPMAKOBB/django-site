@@ -6,16 +6,10 @@
     {% csrf_token %}
     {{ form.as_p }}
     <button type="submit">Записаться</button>
-    {% if application_price %}
-      <div class="application-price">
-        {% if application_price.old %}
-          <span class="price-old">{{ application_price.old }}</span>
-        {% endif %}
-        <span class="price-new">{{ application_price.new }}</span>
-        {% if application_price.note %}
-          <div class="price-note">{{ application_price.note }}</div>
-        {% endif %}
-      </div>
-    {% endif %}
+    <p class="application-price">
+      <span class="price-old">{{ application_price.original|default:"" }}</span>
+      <span class="price-new">{{ application_price.current|default:"" }}</span>
+      <span class="price-note">до 30 сентября</span>
+    </p>
   </form>
 {% endblock %}
