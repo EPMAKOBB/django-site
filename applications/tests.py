@@ -71,7 +71,7 @@ class ApplicationPriceTests(TestCase):
                 "original": 5000,
                 "current": 3000,
                 "promo_until": expected_date,
-                "unit": "₽/мес",
+                "per_lesson": False,
             },
         )
 
@@ -84,7 +84,7 @@ class ApplicationPriceTests(TestCase):
                 "original": 10000,
                 "current": 5000,
                 "promo_until": expected_date,
-                "unit": "₽/мес",
+                "per_lesson": False,
             },
         )
 
@@ -97,7 +97,7 @@ class ApplicationPriceTests(TestCase):
                 "original": 10000,
                 "current": 5000,
                 "promo_until": expected_date,
-                "unit": "₽/мес",
+                "per_lesson": False,
             },
         )
 
@@ -109,7 +109,7 @@ class ApplicationPriceTests(TestCase):
                 "original": None,
                 "current": 2000,
                 "promo_until": None,
-                "unit": "₽ за занятие (60 минут)",
+                "per_lesson": True,
             },
         )
 
@@ -122,7 +122,7 @@ class ApplicationPriceTests(TestCase):
                 "original": 5000,
                 "current": 3000,
                 "promo_until": expected_date,
-                "unit": "₽/мес",
+                "per_lesson": False,
             },
         )
 
@@ -140,9 +140,9 @@ class ApplicationPriceTests(TestCase):
           id_subject1: {{ value: {json.dumps(subject1)}, addEventListener: () => {{}} }},
           id_subject2: {{ value: {json.dumps(subject2)}, addEventListener: () => {{}} }},
         }};
-        const priceOld = {{ textContent: '' }};
-        const priceNew = {{ textContent: '' }};
-        const priceNote = {{ textContent: '' }};
+        const priceOld = {{ textContent: '', style: {{ display: '' }} }};
+        const priceNew = {{ textContent: '', style: {{ display: '' }} }};
+        const priceNote = {{ textContent: '', style: {{ display: '' }} }};
         global.document = {{
           getElementById: (id) => inputs[id],
           querySelector: (sel) => sel === '.price-old' ? priceOld : sel === '.price-new' ? priceNew : priceNote,
@@ -150,7 +150,13 @@ class ApplicationPriceTests(TestCase):
         }};
         const {{ updatePrice }} = require('./static/js/main.js');
         updatePrice();
-        console.log(JSON.stringify({{old: priceOld.textContent, current: priceNew.textContent, note: priceNote.textContent}}));
+        console.log(JSON.stringify({{
+          old: priceOld.textContent,
+          current: priceNew.textContent,
+          note: priceNote.textContent,
+          oldDisplay: priceOld.style.display,
+          noteDisplay: priceNote.style.display,
+        }}));
         """
         result = subprocess.run(
             ["node", "-e", script], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True
@@ -166,6 +172,8 @@ class ApplicationPriceTests(TestCase):
                 "old": "5 000 ₽/мес",
                 "current": "3 000 ₽/мес",
                 "note": "до 30 сентября",
+                "oldDisplay": "",
+                "noteDisplay": "",
             },
         )
 
@@ -177,6 +185,8 @@ class ApplicationPriceTests(TestCase):
                 "old": "10 000 ₽/мес",
                 "current": "5 000 ₽/мес",
                 "note": "до 30 сентября",
+                "oldDisplay": "",
+                "noteDisplay": "",
             },
         )
 
@@ -184,7 +194,13 @@ class ApplicationPriceTests(TestCase):
         data = self._run_js("group", 2)
         self.assertEqual(
             data,
-            {"old": "", "current": "2 000 ₽ за занятие (60 минут)", "note": ""},
+            {
+                "old": "",
+                "current": "2 000 ₽ за занятие (60 минут)",
+                "note": "",
+                "oldDisplay": "none",
+                "noteDisplay": "none",
+            },
         )
 
     def test_js_individual_two_subjects_variant2(self) -> None:
@@ -195,5 +211,7 @@ class ApplicationPriceTests(TestCase):
                 "old": "10 000 ₽/мес",
                 "current": "5 000 ₽/мес",
                 "note": "до 30 сентября",
+                "oldDisplay": "",
+                "noteDisplay": "",
             },
         )

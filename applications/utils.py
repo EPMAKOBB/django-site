@@ -10,15 +10,11 @@ VARIANT2_CURRENT = 5000
 VARIANT2_ORIGINAL = 10000
 VARIANT3_PRICE = 2000
 
-VARIANT3_UNIT = "₽ за занятие (60 минут)"
-DEFAULT_UNIT = "₽/мес"
-
-
 class ApplicationPrice(TypedDict):
     current: int
     original: int | None
     promo_until: date | None
-    unit: str
+    per_lesson: bool
 
 
 def get_application_price(
@@ -37,7 +33,7 @@ def get_application_price(
             "current": VARIANT1_CURRENT,
             "original": VARIANT1_ORIGINAL,
             "promo_until": promo_until,
-            "unit": DEFAULT_UNIT,
+            "per_lesson": False,
         }
 
     if lesson_type not in {"individual", "group"}:
@@ -48,12 +44,12 @@ def get_application_price(
             "current": VARIANT3_PRICE,
             "original": None,
             "promo_until": None,
-            "unit": VARIANT3_UNIT,
+            "per_lesson": True,
         }
 
     return {
         "current": VARIANT2_CURRENT,
         "original": VARIANT2_ORIGINAL,
         "promo_until": promo_until,
-        "unit": DEFAULT_UNIT,
+        "per_lesson": False,
     }
