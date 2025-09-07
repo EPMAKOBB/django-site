@@ -52,25 +52,38 @@ function updatePrice() {
   const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
   let currentTotal;
   let originalTotal = null;
-  let unit = DEFAULT_UNIT;
+  let perLesson = false;
 
   if (subjectsCount === 0) {
     currentTotal = VARIANT1_CURRENT;
     originalTotal = VARIANT1_ORIGINAL;
   } else if (lessonType === 'group' && subjectsCount === 2) {
     currentTotal = VARIANT3_PRICE;
-    unit = VARIANT3_UNIT;
+    perLesson = true;
   } else {
     currentTotal = VARIANT2_CURRENT;
     originalTotal = VARIANT2_ORIGINAL;
   }
 
+  const unit = perLesson ? VARIANT3_UNIT : DEFAULT_UNIT;
   priceNewEl.textContent = `${format(currentTotal)} ${unit}`;
   if (priceOldEl) {
-    priceOldEl.textContent = originalTotal ? `${format(originalTotal)} ₽/мес` : '';
+    if (originalTotal) {
+      priceOldEl.textContent = `${format(originalTotal)} ₽/мес`;
+      priceOldEl.style.display = '';
+    } else {
+      priceOldEl.textContent = '';
+      priceOldEl.style.display = 'none';
+    }
   }
   if (priceNoteEl) {
-    priceNoteEl.textContent = originalTotal ? 'до 30 сентября' : '';
+    if (originalTotal) {
+      priceNoteEl.textContent = 'до 30 сентября';
+      priceNoteEl.style.display = '';
+    } else {
+      priceNoteEl.textContent = '';
+      priceNoteEl.style.display = 'none';
+    }
   }
 }
 
