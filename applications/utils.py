@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 INDIVIDUAL_PRICE_PER_SUBJECT = 4000
+INDIVIDUAL_ORIGINAL_PRICE_PER_SUBJECT = 5000
+INDIVIDUAL_DISCOUNT_PRICE_PER_SUBJECT = 2500
 GROUP_ORIGINAL_PRICE_PER_SUBJECT = 5000
 GROUP_DISCOUNT_PRICE_PER_SUBJECT = 3000
+GROUP_TWO_SUBJECTS_PRICE = 2000
 
 
 class ApplicationPrice(TypedDict):
@@ -31,24 +34,34 @@ def get_application_price(
         return None
 
     if lesson_type == "individual":
-        current_per_subject = INDIVIDUAL_PRICE_PER_SUBJECT
-        original_per_subject: int | None = None
-    elif lesson_type == "group":
-        if with_discount:
-            current_per_subject = GROUP_DISCOUNT_PRICE_PER_SUBJECT
-            original_per_subject = GROUP_ORIGINAL_PRICE_PER_SUBJECT
+        if with_discount and subjects_count == 2:
+            current_total = INDIVIDUAL_DISCOUNT_PRICE_PER_SUBJECT * subjects_count
+            original_total: int | None = (
+                INDIVIDUAL_ORIGINAL_PRICE_PER_SUBJECT * subjects_count
+            )
+            promo = promo_until
         else:
-            current_per_subject = GROUP_ORIGINAL_PRICE_PER_SUBJECT
-            original_per_subject = None
+            current_total = INDIVIDUAL_PRICE_PER_SUBJECT * subjects_count
+            original_total = None
+            promo = None
+    elif lesson_type == "group":
+        if subjects_count == 2:
+            current_total = GROUP_TWO_SUBJECTS_PRICE
+            original_total = None
+            promo = None
+        elif with_discount:
+            current_total = GROUP_DISCOUNT_PRICE_PER_SUBJECT * subjects_count
+            original_total = GROUP_ORIGINAL_PRICE_PER_SUBJECT * subjects_count
+            promo = promo_until
+        else:
+            current_total = GROUP_ORIGINAL_PRICE_PER_SUBJECT * subjects_count
+            original_total = None
+            promo = None
     else:
         return None
 
-    current_total = current_per_subject * subjects_count
-    original_total = (
-        original_per_subject * subjects_count if original_per_subject else None
-    )
     return {
         "current": current_total,
         "original": original_total,
-        "promo_until": promo_until if original_total is not None else None,
+        "promo_until": promo,
     }
