@@ -115,28 +115,25 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .role-toggle input:checked + label { background:var(--accent); color:#001420; border-color:color-mix(in srgb, var(--accent) 70%, black); }
 
 .lesson-type-field { display:flex; align-items:center; gap:8px; }
-.format-toggle {
+.switch .seg {
   display: inline-flex;
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
-.format-toggle input {
-  display: none;
-}
-.format-toggle input + label {
+.switch .seg button {
   padding: 8px 12px;
   background: var(--card);
   cursor: pointer;
+  border: none;
   border-right: 1px solid var(--border);
 }
-.format-toggle input:last-of-type + label {
+.switch .seg button:last-child {
   border-right: none;
 }
-.format-toggle input:checked + label {
+.switch .seg button.active {
   background: var(--accent);
   color: #001420;
-  border-color: color-mix(in srgb, var(--accent) 70%, black);
 }
 
 /* Utility */
