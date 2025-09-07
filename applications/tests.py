@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -54,3 +56,19 @@ class ApplicationTests(TestCase):
         if cl:
             self.assertEqual(cl.queryset.count(), 1)
             self.assertEqual(cl.queryset.first().contact_name, "Processed")
+
+
+class ApplicationPriceTests(TestCase):
+    def test_default_price_in_context(self) -> None:
+        response = self.client.get(reverse("applications:apply"))
+        self.assertEqual(response.status_code, 200)
+        price = response.context.get("application_price")
+        expected_note = f"до 30.09.{date.today().year}"
+        self.assertEqual(
+            price,
+            {
+                "original": "3 000 ₽/мес",
+                "current": "2 500 ₽/мес",
+                "note": expected_note,
+            },
+        )
