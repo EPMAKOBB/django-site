@@ -1,4 +1,5 @@
 from typing import Any, Dict
+from datetime import date
 
 from django.urls import reverse_lazy
 from django.views.generic import FormView
@@ -44,7 +45,14 @@ class ApplicationCreateView(FormView):
             if data.get("subject2"):
                 subjects_count += 1
             lesson_type = data.get("lesson_type", "")
+        if subjects_count == 0:
+            subjects_count = 1
+        if not lesson_type:
+            lesson_type = "group"
         context["application_price"] = get_application_price(
-            lesson_type, subjects_count
+            lesson_type,
+            subjects_count,
+            with_discount=True,
+            promo_until=date(date.today().year, 9, 30),
         )
         return context
