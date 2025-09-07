@@ -50,7 +50,6 @@ class ApplicationCreateView(FormView):
         context["application_price"] = get_application_price(
             lesson_type,
             subjects_count,
-            with_discount=True,
             promo_until=date(date.today().year, 9, 30),
         )
         return context

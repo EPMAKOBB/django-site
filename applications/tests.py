@@ -64,33 +64,40 @@ class ApplicationPriceTests(TestCase):
         response = self.client.get(reverse("applications:apply"))
         self.assertEqual(response.status_code, 200)
         price = response.context.get("application_price")
-        self.assertIsNone(price)
-
-    def test_get_price_individual_two_subjects_variant2(self) -> None:
         expected_date = date(date.today().year, 9, 30)
-        price = get_application_price(
-            "individual", 2, with_discount=True, promo_until=expected_date
-        )
-        self.assertEqual(
-            price,
-            {
-                "original": 10000,
-                "current": 5000,
-                "promo_until": expected_date,
-            },
-        )
-
-    def test_get_price_group_one_subject_variant2(self) -> None:
-        expected_date = date(date.today().year, 9, 30)
-        price = get_application_price(
-            "group", 1, with_discount=True, promo_until=expected_date
-        )
         self.assertEqual(
             price,
             {
                 "original": 5000,
                 "current": 3000,
                 "promo_until": expected_date,
+                "unit": "₽/мес",
+            },
+        )
+
+    def test_get_price_individual_two_subjects_variant2(self) -> None:
+        expected_date = date(date.today().year, 9, 30)
+        price = get_application_price("individual", 2, promo_until=expected_date)
+        self.assertEqual(
+            price,
+            {
+                "original": 10000,
+                "current": 5000,
+                "promo_until": expected_date,
+                "unit": "₽/мес",
+            },
+        )
+
+    def test_get_price_group_one_subject_variant2(self) -> None:
+        expected_date = date(date.today().year, 9, 30)
+        price = get_application_price("group", 1, promo_until=expected_date)
+        self.assertEqual(
+            price,
+            {
+                "original": 10000,
+                "current": 5000,
+                "promo_until": expected_date,
+                "unit": "₽/мес",
             },
         )
 
@@ -102,6 +109,20 @@ class ApplicationPriceTests(TestCase):
                 "original": None,
                 "current": 2000,
                 "promo_until": None,
+                "unit": "₽ за занятие (60 минут)",
+            },
+        )
+
+    def test_get_price_no_subjects_variant1(self) -> None:
+        expected_date = date(date.today().year, 9, 30)
+        price = get_application_price("group", 0, promo_until=expected_date)
+        self.assertEqual(
+            price,
+            {
+                "original": 5000,
+                "current": 3000,
+                "promo_until": expected_date,
+                "unit": "₽/мес",
             },
         )
 
@@ -137,8 +158,8 @@ class ApplicationPriceTests(TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
-    def test_js_group_one_subject_variant2(self) -> None:
-        data = self._run_js("group", 1)
+    def test_js_no_subjects_variant1(self) -> None:
+        data = self._run_js("group", 0)
         self.assertEqual(
             data,
             {
@@ -148,11 +169,22 @@ class ApplicationPriceTests(TestCase):
             },
         )
 
+    def test_js_group_one_subject_variant2(self) -> None:
+        data = self._run_js("group", 1)
+        self.assertEqual(
+            data,
+            {
+                "old": "10 000 ₽/мес",
+                "current": "5 000 ₽/мес",
+                "note": "до 30 сентября",
+            },
+        )
+
     def test_js_group_two_subjects_variant3(self) -> None:
         data = self._run_js("group", 2)
         self.assertEqual(
             data,
-            {"old": "", "current": "2 000 ₽ за занятие", "note": ""},
+            {"old": "", "current": "2 000 ₽ за занятие (60 минут)", "note": ""},
         )
 
     def test_js_individual_two_subjects_variant2(self) -> None:

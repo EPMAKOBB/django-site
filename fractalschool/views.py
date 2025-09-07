@@ -12,7 +12,7 @@ class HomeView(TemplateView):
         context = super().get_context_data(**kwargs)
         context["form"] = ApplicationForm()
         context["application_price"] = get_application_price(
-            "group", 1, with_discount=True, promo_until=date(date.today().year, 9, 30)
+            "group", 1, promo_until=date(date.today().year, 9, 30)
         )
         return context
 
