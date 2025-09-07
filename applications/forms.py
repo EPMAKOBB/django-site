@@ -35,10 +35,14 @@ class ApplicationForm(forms.ModelForm):
         labels = {
             "lesson_type": _("Формат"),
             "contact_info": "",
+            "contact_name": "",
         }
         widgets = {
             "contact_info": forms.Textarea(
                 attrs={"placeholder": _("как с вами связаться")}
+            ),
+            "contact_name": forms.TextInput(
+                attrs={"placeholder": _("Ваше имя")}
             ),
         }
 
