@@ -1,4 +1,5 @@
 from django import forms
+from django.utils.translation import gettext_lazy as _
 
 from .models import Application
 from subjects.models import Subject
@@ -31,6 +32,9 @@ class ApplicationForm(forms.ModelForm):
             "contact_name",
             "lesson_type",
         ]
+        labels = {
+            "lesson_type": _("Формат"),
+        }
 
     def save(self, commit: bool = True) -> Application:  # type: ignore[override]
         application = super().save(commit=False)
