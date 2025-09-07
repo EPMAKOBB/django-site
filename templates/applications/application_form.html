@@ -11,7 +11,7 @@
         {% if application_price.original %}{{ application_price.original }} ₽/мес{% endif %}
       </span>
       <span class="price-new">
-        {% if application_price.current %}{{ application_price.current }} ₽/мес{% endif %}
+        {% if application_price.current %}{{ application_price.current }} {{ application_price.unit|default:"₽/мес" }}{% endif %}
       </span>
       <span class="price-note">
         {% if application_price.promo_until %}до {{ application_price.promo_until|date:"d.m.Y" }}{% endif %}
