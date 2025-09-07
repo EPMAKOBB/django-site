@@ -26,6 +26,51 @@ function setMode(mode) {
   input.value = mode;
 }
 
+const INDIVIDUAL_PRICE_PER_SUBJECT = 4000;
+const GROUP_PRICE_PER_SUBJECT = 2500;
+
+function updatePrice() {
+  const lessonTypeEl = document.getElementById('id_lesson_type');
+  const subject1El = document.getElementById('id_subject1');
+  const subject2El = document.getElementById('id_subject2');
+  const priceOldEl = document.querySelector('.price-old');
+  const priceNewEl = document.querySelector('.price-new');
+  const priceNoteEl = document.querySelector('.price-note');
+  if (!lessonTypeEl || !subject1El || !subject2El || !priceNewEl) return;
+
+  const lessonType = lessonTypeEl.value || 'group';
+  let subjectsCount = 0;
+  if (subject1El.value) subjectsCount += 1;
+  if (subject2El.value) subjectsCount += 1;
+  if (subjectsCount === 0) subjectsCount = 1;
+
+  const priceMap = {
+    individual: INDIVIDUAL_PRICE_PER_SUBJECT,
+    group: GROUP_PRICE_PER_SUBJECT,
+  };
+  const perSubject = priceMap[lessonType];
+  if (!perSubject) return;
+
+  const total = perSubject * subjectsCount;
+  const oldTotal = Math.round(total * 1.2);
+  const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
+
+  if (priceOldEl) {
+    priceOldEl.textContent = `${format(oldTotal)} ₽/мес`;
+  }
+  priceNewEl.textContent = `${format(total)} ₽/мес`;
+  if (priceNoteEl) {
+    priceNoteEl.textContent = 'скидка 20%';
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   setMode('group');
+  updatePrice();
+  ['id_grade', 'id_subject1', 'id_subject2', 'id_lesson_type'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', updatePrice);
+    }
+  });
 });
