@@ -34,6 +34,12 @@ class ApplicationForm(forms.ModelForm):
         ]
         labels = {
             "lesson_type": _("Формат"),
+            "contact_info": "",
+        }
+        widgets = {
+            "contact_info": forms.Textarea(
+                attrs={"placeholder": _("как с вами связаться")}
+            ),
         }
 
     def save(self, commit: bool = True) -> Application:  # type: ignore[override]
