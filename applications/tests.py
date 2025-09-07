@@ -63,12 +63,12 @@ class ApplicationPriceTests(TestCase):
         response = self.client.get(reverse("applications:apply"))
         self.assertEqual(response.status_code, 200)
         price = response.context.get("application_price")
-        expected_note = f"до 30.09.{date.today().year}"
+        expected_date = date(date.today().year, 9, 30)
         self.assertEqual(
             price,
             {
-                "original": "3 000 ₽/мес",
-                "current": "2 500 ₽/мес",
-                "note": expected_note,
+                "original": 5000,
+                "current": 3000,
+                "promo_until": expected_date,
             },
         )

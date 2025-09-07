@@ -7,9 +7,15 @@
     {{ form.as_p }}
     <button type="submit">Записаться</button>
     <p class="application-price">
-      <span class="price-old">{{ application_price.original|default:"" }}</span>
-      <span class="price-new">{{ application_price.current|default:"" }}</span>
-      <span class="price-note">до 30 сентября</span>
+      <span class="price-old">
+        {% if application_price.original %}{{ application_price.original }} ₽/мес{% endif %}
+      </span>
+      <span class="price-new">
+        {% if application_price.current %}{{ application_price.current }} ₽/мес{% endif %}
+      </span>
+      <span class="price-note">
+        {% if application_price.promo_until %}до {{ application_price.promo_until|date:"d.m.Y" }}{% endif %}
+      </span>
     </p>
   </form>
 {% endblock %}
