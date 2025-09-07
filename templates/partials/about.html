@@ -48,23 +48,27 @@
           {{ form.contact_name }}
           {{ form.contact_name.errors }}
         </p>
+        {% with current=form.lesson_type.value|default:form.fields.lesson_type.choices.0.0 %}
         <p class="lesson-type-field">
-          <span class="lesson-type-label">{{ form.lesson_type.label }}:</span>
-          {% spaceless %}
-          <span class="format-toggle">
-            {% for value, label in form.fields.lesson_type.choices %}
-            <input
-              type="radio"
-              id="id_{{ form.lesson_type.html_name }}_{{ forloop.counter }}"
-              name="{{ form.lesson_type.html_name }}"
-              value="{{ value }}"
-              {% if form.lesson_type.value|stringformat:'s' == value|stringformat:'s' %}checked{% endif %}
-            /><label for="id_{{ form.lesson_type.html_name }}_{{ forloop.counter }}">{{ label }}</label>
-            {% endfor %}
-          </span>
-          {% endspaceless %}
+          <div class="switch">
+            <span class="muted">{{ form.lesson_type.label }}:</span>
+            <div class="seg" role="tablist" aria-label="{{ form.lesson_type.label }}">
+              {% for value, label in form.fields.lesson_type.choices %}
+              <button
+                type="button"
+                id="mode-{{ value }}"
+                data-mode="{{ value }}"
+                role="tab"
+                aria-selected="{% if current == value %}true{% else %}false{% endif %}"
+                class="{% if current == value %}active{% endif %}"
+              >{{ label }}</button>
+              {% endfor %}
+            </div>
+          </div>
+          <input type="hidden" name="{{ form.lesson_type.html_name }}" id="{{ form.lesson_type.id_for_label }}" value="{{ current }}" />
           {{ form.lesson_type.errors }}
         </p>
+        {% endwith %}
         <div class="muted">{% trans "Цена: ..." %}</div>
         <button type="submit" class="btn accent">{% trans "Записаться" %}</button>
       </form>
