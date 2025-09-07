@@ -36,17 +36,14 @@ class ApplicationCreateView(FormView):
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:  # type: ignore[override]
         context = super().get_context_data(**kwargs)
         form: ApplicationForm = context.get("form")
+        lesson_type = "group"
         subjects_count = 0
-        lesson_type = ""
         if form:
             data = form.data if form.is_bound else form.initial
-            if data.get("subject1"):
-                subjects_count += 1
-            if data.get("subject2"):
-                subjects_count += 1
-            lesson_type = data.get("lesson_type", "")
-        if not lesson_type:
-            lesson_type = "group"
+            subjects_count = sum(
+                1 for field in ("subject1", "subject2") if data.get(field)
+            )
+            lesson_type = data.get("lesson_type") or lesson_type
         context["application_price"] = get_application_price(
             lesson_type,
             subjects_count,
