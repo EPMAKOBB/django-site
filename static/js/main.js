@@ -52,15 +52,15 @@ function updatePrice() {
   if (!perSubject) return;
 
   const total = perSubject * subjectsCount;
-  const oldTotal = Math.round(total * 1.2);
+  const originalTotal = Math.round(total * 1.2);
   const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
 
   if (priceOldEl) {
-    priceOldEl.textContent = `${format(oldTotal)} ₽/мес`;
+    priceOldEl.textContent = `${format(originalTotal)} ₽/мес`;
   }
   priceNewEl.textContent = `${format(total)} ₽/мес`;
   if (priceNoteEl) {
-    priceNoteEl.textContent = 'скидка 20%';
+    priceNoteEl.textContent = 'до 30 сентября';
   }
 }
 
