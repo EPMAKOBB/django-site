@@ -1,12 +1,13 @@
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 from subjects.models import Subject
 
 
 class Application(models.Model):
     class LessonType(models.TextChoices):
-        INDIVIDUAL = "individual", "Individual"
-        GROUP = "group", "Group"
+        INDIVIDUAL = "individual", _("Индивидуально")
+        GROUP = "group", _("Группа")
 
     class Status(models.TextChoices):
         NEW = "new", "New"

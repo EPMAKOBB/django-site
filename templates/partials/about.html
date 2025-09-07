@@ -50,18 +50,19 @@
         </p>
         <p class="lesson-type-field">
           <span class="lesson-type-label">{{ form.lesson_type.label }}:</span>
+          {% spaceless %}
           <span class="format-toggle">
             {% for value, label in form.fields.lesson_type.choices %}
-              <input
-                type="radio"
-                id="id_{{ form.lesson_type.html_name }}_{{ forloop.counter }}"
-                name="{{ form.lesson_type.html_name }}"
-                value="{{ value }}"
-                {% if form.lesson_type.value|stringformat:'s' == value|stringformat:'s' %}checked{% endif %}
-              />
-              <label for="id_{{ form.lesson_type.html_name }}_{{ forloop.counter }}">{{ label }}</label>
+            <input
+              type="radio"
+              id="id_{{ form.lesson_type.html_name }}_{{ forloop.counter }}"
+              name="{{ form.lesson_type.html_name }}"
+              value="{{ value }}"
+              {% if form.lesson_type.value|stringformat:'s' == value|stringformat:'s' %}checked{% endif %}
+            /><label for="id_{{ form.lesson_type.html_name }}_{{ forloop.counter }}">{{ label }}</label>
             {% endfor %}
           </span>
+          {% endspaceless %}
           {{ form.lesson_type.errors }}
         </p>
         <div class="muted">{% trans "Цена: ..." %}</div>
