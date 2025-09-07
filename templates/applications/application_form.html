@@ -6,5 +6,8 @@
     {% csrf_token %}
     {{ form.as_p }}
     <button type="submit">Записаться</button>
+    {% if application_price %}
+      <p class="application-price">{{ application_price }}</p>
+    {% endif %}
   </form>
 {% endblock %}
