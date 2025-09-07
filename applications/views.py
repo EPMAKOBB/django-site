@@ -1,10 +1,11 @@
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 
 from .forms import ApplicationForm
 from subjects.models import Subject
+from .utils import get_application_price
 
 
 class ApplicationCreateView(FormView):
@@ -30,3 +31,20 @@ class ApplicationCreateView(FormView):
     def form_valid(self, form: ApplicationForm) -> Any:  # type: ignore[override]
         form.save()
         return super().form_valid(form)
+
+    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:  # type: ignore[override]
+        context = super().get_context_data(**kwargs)
+        form: ApplicationForm = context.get("form")
+        subjects_count = 0
+        lesson_type = ""
+        if form:
+            data = form.data if form.is_bound else form.initial
+            if data.get("subject1"):
+                subjects_count += 1
+            if data.get("subject2"):
+                subjects_count += 1
+            lesson_type = data.get("lesson_type", "")
+        context["application_price"] = get_application_price(
+            lesson_type, subjects_count
+        )
+        return context
