@@ -27,7 +27,8 @@ function setMode(mode) {
 }
 
 const INDIVIDUAL_PRICE_PER_SUBJECT = 4000;
-const GROUP_PRICE_PER_SUBJECT = 2500;
+const GROUP_ORIGINAL_PRICE_PER_SUBJECT = 5000;
+const GROUP_DISCOUNT_PRICE_PER_SUBJECT = 3000;
 
 function updatePrice() {
   const lessonTypeEl = document.getElementById('id_lesson_type');
@@ -44,23 +45,29 @@ function updatePrice() {
   if (subject2El.value) subjectsCount += 1;
   if (subjectsCount === 0) subjectsCount = 1;
 
-  const priceMap = {
-    individual: INDIVIDUAL_PRICE_PER_SUBJECT,
-    group: GROUP_PRICE_PER_SUBJECT,
-  };
-  const perSubject = priceMap[lessonType];
-  if (!perSubject) return;
+  let currentPerSubject;
+  let originalPerSubject = null;
+  if (lessonType === 'group') {
+    currentPerSubject = GROUP_DISCOUNT_PRICE_PER_SUBJECT;
+    originalPerSubject = GROUP_ORIGINAL_PRICE_PER_SUBJECT;
+  } else {
+    currentPerSubject = INDIVIDUAL_PRICE_PER_SUBJECT;
+  }
 
-  const total = perSubject * subjectsCount;
-  const originalTotal = Math.round(total * 1.2);
+  const currentTotal = currentPerSubject * subjectsCount;
   const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
 
+  priceNewEl.textContent = `${format(currentTotal)} ₽/мес`;
   if (priceOldEl) {
-    priceOldEl.textContent = `${format(originalTotal)} ₽/мес`;
+    if (originalPerSubject) {
+      const originalTotal = originalPerSubject * subjectsCount;
+      priceOldEl.textContent = `${format(originalTotal)} ₽/мес`;
+    } else {
+      priceOldEl.textContent = '';
+    }
   }
-  priceNewEl.textContent = `${format(total)} ₽/мес`;
   if (priceNoteEl) {
-    priceNoteEl.textContent = 'до 30 сентября';
+    priceNoteEl.textContent = originalPerSubject ? 'до 30 сентября' : '';
   }
 }
 
