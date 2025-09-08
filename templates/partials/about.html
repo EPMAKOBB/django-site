@@ -71,9 +71,11 @@
             {{ application_price.current }}
             {% if application_price.per_lesson %}₽ за занятие (60 минут){% else %}₽/мес{% endif %}
           </span>
-          {% if application_price.promo_until %}
-            <span class="price-note">при записи до {{ application_price.promo_until|date:"j E" }}</span>
-          {% endif %}
+          <span class="price-note">
+            {% if application_price.promo_until %}
+              при записи до {{ application_price.promo_until|date:"j E" }}
+            {% endif %}
+          </span>
         </p>
         <button type="submit" class="btn accent">{% trans "Записаться" %}</button>
       </form>
