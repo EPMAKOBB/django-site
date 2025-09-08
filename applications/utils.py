@@ -28,6 +28,14 @@ def get_application_price(
 
     promo_until = date(date.today().year, 9, 30)
 
+    if lesson_type == "individual":
+        return {
+            "current": VARIANT2_CURRENT,
+            "original": VARIANT2_ORIGINAL,
+            "promo_until": promo_until,
+            "per_lesson": False,
+        }
+
     if subjects_count == 0:
         return {
             "current": VARIANT1_CURRENT,
