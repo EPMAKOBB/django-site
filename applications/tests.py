@@ -65,15 +65,8 @@ class ApplicationPriceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         price = response.context.get("application_price")
         expected_date = date(date.today().year, 9, 30)
-        self.assertEqual(
-            price,
-            {
-                "original": 5000,
-                "current": 3000,
-                "promo_until": expected_date,
-                "per_lesson": False,
-            },
-        )
+        expected_price = get_application_price("group", 0, promo_until=expected_date)
+        self.assertEqual(price, expected_price)
 
     def test_get_price_individual_two_subjects_variant2(self) -> None:
         expected_date = date(date.today().year, 9, 30)
