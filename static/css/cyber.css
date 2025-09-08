@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
 :root{
   --bg:#0a0f0d;           /* глубокий тёмный */
   --panel:#0f1613;        /* тёмная панель */
@@ -12,7 +14,8 @@
 }
 html,body{height:100%;}
 body{
-  margin:0; font: 16px/1.5 Consolas, "JetBrains Mono", Menlo, Monaco, "SFMono-Regular", monospace;
+  margin:0;
+  font: 16px/1.5 'JetBrains Mono', Consolas, Menlo, Monaco, 'SFMono-Regular', monospace;
   background: radial-gradient(1200px 600px at 10% 0%, #0b1310 0%, var(--bg) 45%) fixed;
   color:var(--text);
 }
