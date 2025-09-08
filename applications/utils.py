@@ -29,6 +29,9 @@ def get_application_price(
     if subjects_count < 0:
         return None
 
+    if lesson_type not in {"individual", "group"}:
+        return None
+
     promo_until = date(date.today().year, 9, 30)
 
     if lesson_type == "individual":
@@ -39,18 +42,7 @@ def get_application_price(
             "per_lesson": INDIVIDUAL_PER_LESSON,
         }
 
-    if subjects_count <= 1:
-        return {
-            "current": VARIANT1_CURRENT,
-            "original": VARIANT1_ORIGINAL,
-            "promo_until": promo_until,
-            "per_lesson": False,
-        }
-
-    if lesson_type not in {"individual", "group"}:
-        return None
-
-    if lesson_type == "group" and subjects_count == 2:
+    if subjects_count == 2:
         return {
             "current": VARIANT3_CURRENT,
             "original": VARIANT3_ORIGINAL,
@@ -58,4 +50,9 @@ def get_application_price(
             "per_lesson": True,
         }
 
-    return None
+    return {
+        "current": VARIANT1_CURRENT,
+        "original": VARIANT1_ORIGINAL,
+        "promo_until": promo_until,
+        "per_lesson": False,
+    }

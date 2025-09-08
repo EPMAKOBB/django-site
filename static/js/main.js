@@ -46,7 +46,7 @@ function updatePrice() {
   const priceNoteEl = document.querySelector('.price-note');
   if (!lessonTypeEl || !subject1El || !subject2El || !priceOldEl || !priceNewEl || !priceNoteEl) return;
 
-  const lessonType = lessonTypeEl.value || 'group';
+  const lessonType = lessonTypeEl.value === 'individual' ? 'individual' : 'group';
   let subjectsCount = 0;
   if (subject1El.value) subjectsCount += 1;
   if (subject2El.value) subjectsCount += 1;
@@ -60,13 +60,13 @@ function updatePrice() {
     currentTotal = INDIVIDUAL_CURRENT;
     originalTotal = INDIVIDUAL_ORIGINAL;
     unit = INDIVIDUAL_UNIT;
-  } else if (subjectsCount <= 1) {
-    currentTotal = VARIANT1_CURRENT;
-    originalTotal = VARIANT1_ORIGINAL;
-  } else if (lessonType === 'group' && subjectsCount === 2) {
+  } else if (subjectsCount === 2) {
     currentTotal = VARIANT3_CURRENT;
     originalTotal = VARIANT3_ORIGINAL;
     unit = VARIANT3_UNIT;
+  } else {
+    currentTotal = VARIANT1_CURRENT;
+    originalTotal = VARIANT1_ORIGINAL;
   }
 
   priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
@@ -75,7 +75,9 @@ function updatePrice() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  setMode('group');
+  const input = document.getElementById('id_lesson_type');
+  const mode = input && input.value ? input.value : 'group';
+  setMode(mode);
   ['id_grade', 'id_subject1', 'id_subject2', 'id_lesson_type'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
