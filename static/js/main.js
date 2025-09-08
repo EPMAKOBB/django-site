@@ -69,7 +69,7 @@ function updatePrice() {
   priceNewEl.textContent = `${format(currentTotal)} ${unit}`;
   if (priceOldEl) {
     if (originalTotal) {
-      priceOldEl.textContent = `${format(originalTotal)} ₽/мес`;
+      priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
       priceOldEl.style.display = '';
     } else {
       priceOldEl.textContent = '';
