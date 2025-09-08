@@ -6,36 +6,21 @@ document.addEventListener('click', (e) => {
 });
 
 function setMode(mode) {
-  const individualBtn = document.getElementById('mode-individual');
-  const groupBtn = document.getElementById('mode-group');
   const input = document.getElementById('id_lesson_type');
-  if (!individualBtn || !groupBtn || !input) return;
-
-  if (mode === 'individual') {
-    individualBtn.classList.add('active');
-    individualBtn.setAttribute('aria-selected', 'true');
-    groupBtn.classList.remove('active');
-    groupBtn.setAttribute('aria-selected', 'false');
-  } else {
-    groupBtn.classList.add('active');
-    groupBtn.setAttribute('aria-selected', 'true');
-    individualBtn.classList.remove('active');
-    individualBtn.setAttribute('aria-selected', 'false');
-  }
-
+  if (!input) return;
   input.value = mode;
   updatePrice();
 }
 
 const VARIANT1_CURRENT = 3000;
 const VARIANT1_ORIGINAL = 5000;
+const VARIANT1_UNIT = '₽/мес';
+const VARIANT2_CURRENT = 5000;
+const VARIANT2_ORIGINAL = 10000;
+const VARIANT2_UNIT = '₽/мес';
 const VARIANT3_CURRENT = 2000;
 const VARIANT3_ORIGINAL = 2500;
-const INDIVIDUAL_CURRENT = 2000;
-const INDIVIDUAL_ORIGINAL = 2500;
 const VARIANT3_UNIT = '₽ за занятие (60 минут)';
-const INDIVIDUAL_UNIT = '₽ за урок';
-const DEFAULT_UNIT = '₽/мес';
 
 function updatePrice() {
   const lessonTypeEl = document.getElementById('id_lesson_type');
@@ -47,19 +32,20 @@ function updatePrice() {
   if (!lessonTypeEl || !subject1El || !subject2El || !priceOldEl || !priceNewEl || !priceNoteEl) return;
 
   const lessonType = lessonTypeEl.value === 'individual' ? 'individual' : 'group';
+  const isSelected = (el) => !!(el && el.value && el.value !== 'none');
   let subjectsCount = 0;
-  if (subject1El.value) subjectsCount += 1;
-  if (subject2El.value) subjectsCount += 1;
+  if (isSelected(subject1El)) subjectsCount += 1;
+  if (isSelected(subject2El)) subjectsCount += 1;
 
   const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
   let currentTotal;
   let originalTotal;
-  let unit = DEFAULT_UNIT;
+  let unit;
 
-  if (lessonType === 'individual') {
-    currentTotal = INDIVIDUAL_CURRENT;
-    originalTotal = INDIVIDUAL_ORIGINAL;
-    unit = INDIVIDUAL_UNIT;
+  if (lessonType === 'individual' || subjectsCount === 1) {
+    currentTotal = VARIANT2_CURRENT;
+    originalTotal = VARIANT2_ORIGINAL;
+    unit = VARIANT2_UNIT;
   } else if (subjectsCount === 2) {
     currentTotal = VARIANT3_CURRENT;
     originalTotal = VARIANT3_ORIGINAL;
@@ -67,6 +53,7 @@ function updatePrice() {
   } else {
     currentTotal = VARIANT1_CURRENT;
     originalTotal = VARIANT1_ORIGINAL;
+    unit = VARIANT1_UNIT;
   }
 
   priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
@@ -75,14 +62,10 @@ function updatePrice() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const input = document.getElementById('id_lesson_type');
-  const mode = input && input.value ? input.value : 'group';
-  setMode(mode);
+  updatePrice();
   ['id_grade', 'id_subject1', 'id_subject2', 'id_lesson_type'].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('change', updatePrice);
-    }
+    if (el) el.addEventListener('change', updatePrice);
   });
 });
 
