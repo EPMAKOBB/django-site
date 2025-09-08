@@ -66,6 +66,9 @@ class ApplicationPriceTests(TestCase):
         price = response.context.get("application_price")
         expected_price = get_application_price("group", 0)
         self.assertEqual(price, expected_price)
+        self.assertContains(response, "price-old")
+        self.assertContains(response, "price-new")
+        self.assertContains(response, "при записи до 30 сентября")
 
     def test_get_price_individual_two_subjects(self) -> None:
         expected_date = date(date.today().year, 9, 30)
@@ -161,6 +164,7 @@ class ApplicationPriceTests(TestCase):
           current: priceNew.textContent,
           note: priceNote.textContent,
           oldDisplay: priceOld.style.display,
+          newDisplay: priceNew.style.display,
           noteDisplay: priceNote.style.display,
         }}));
         """
@@ -177,8 +181,9 @@ class ApplicationPriceTests(TestCase):
             {
                 "old": "5 000 ₽/мес",
                 "current": "3 000 ₽/мес",
-                "note": "до 30 сентября",
+                "note": "при записи до 30 сентября",
                 "oldDisplay": "",
+                "newDisplay": "",
                 "noteDisplay": "",
             },
         )
@@ -190,8 +195,9 @@ class ApplicationPriceTests(TestCase):
             {
                 "old": "10 000 ₽/мес",
                 "current": "5 000 ₽/мес",
-                "note": "до 30 сентября",
+                "note": "при записи до 30 сентября",
                 "oldDisplay": "",
+                "newDisplay": "",
                 "noteDisplay": "",
             },
         )
@@ -203,8 +209,9 @@ class ApplicationPriceTests(TestCase):
             {
                 "old": "2 500 ₽ за занятие (60 минут)",
                 "current": "2 000 ₽ за занятие (60 минут)",
-                "note": "до 30 сентября",
+                "note": "при записи до 30 сентября",
                 "oldDisplay": "",
+                "newDisplay": "",
                 "noteDisplay": "",
             },
         )
@@ -214,10 +221,11 @@ class ApplicationPriceTests(TestCase):
         self.assertEqual(
             data,
             {
-                "old": "2 500 ₽ за занятие (60 минут)",
-                "current": "2 000 ₽ за занятие (60 минут)",
-                "note": "до 30 сентября",
+                "old": "2 500 ₽ за урок",
+                "current": "2 000 ₽ за урок",
+                "note": "при записи до 30 сентября",
                 "oldDisplay": "",
+                "newDisplay": "",
                 "noteDisplay": "",
             },
         )
@@ -227,10 +235,11 @@ class ApplicationPriceTests(TestCase):
         self.assertEqual(
             data,
             {
-                "old": "2 500 ₽ за занятие (60 минут)",
-                "current": "2 000 ₽ за занятие (60 минут)",
-                "note": "до 30 сентября",
+                "old": "2 500 ₽ за урок",
+                "current": "2 000 ₽ за урок",
+                "note": "при записи до 30 сентября",
                 "oldDisplay": "",
+                "newDisplay": "",
                 "noteDisplay": "",
             },
         )
