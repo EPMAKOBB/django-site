@@ -6,8 +6,8 @@ from typing import TypedDict
 # Pricing variants
 VARIANT1_CURRENT = 3000
 VARIANT1_ORIGINAL = 5000
-VARIANT2_CURRENT = 5000
-VARIANT2_ORIGINAL = 10000
+VARIANT2_CURRENT = 2000
+VARIANT2_ORIGINAL = 2500
 VARIANT3_CURRENT = 2000
 VARIANT3_ORIGINAL = 2500
 
@@ -37,15 +37,7 @@ def get_application_price(
             "current": VARIANT2_CURRENT,
             "original": VARIANT2_ORIGINAL,
             "promo_until": PROMO_UNTIL,
-            "per_lesson": False,
-        }
-
-    if subjects_count == 1:
-        return {
-            "current": VARIANT2_CURRENT,
-            "original": VARIANT2_ORIGINAL,
-            "promo_until": PROMO_UNTIL,
-            "per_lesson": False,
+            "per_lesson": True,
         }
 
     if subjects_count == 2:
