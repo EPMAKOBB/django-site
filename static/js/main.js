@@ -15,9 +15,9 @@ function setMode(mode) {
 const VARIANT1_CURRENT = 3000;
 const VARIANT1_ORIGINAL = 5000;
 const VARIANT1_UNIT = '₽/мес';
-const VARIANT2_CURRENT = 5000;
-const VARIANT2_ORIGINAL = 10000;
-const VARIANT2_UNIT = '₽/мес';
+const VARIANT2_CURRENT = 2000;
+const VARIANT2_ORIGINAL = 2500;
+const VARIANT2_UNIT = '₽ за урок';
 const VARIANT3_CURRENT = 2000;
 const VARIANT3_ORIGINAL = 2500;
 const VARIANT3_UNIT = '₽ за занятие (60 минут)';
@@ -29,7 +29,7 @@ function updatePrice() {
   const priceOldEl = document.querySelector('.price-old');
   const priceNewEl = document.querySelector('.price-new');
   const priceNoteEl = document.querySelector('.price-note');
-  if (!lessonTypeEl || !subject1El || !subject2El || !priceOldEl || !priceNewEl || !priceNoteEl) return;
+  if (!lessonTypeEl || !subject1El || !subject2El || !priceOldEl || !priceNewEl) return;
 
   const lessonType = lessonTypeEl.value === 'individual' ? 'individual' : 'group';
   const isSelected = (el) => !!(el && el.value && el.value !== 'none');
@@ -42,7 +42,7 @@ function updatePrice() {
   let originalTotal;
   let unit;
 
-  if (lessonType === 'individual' || subjectsCount === 1) {
+  if (lessonType === 'individual') {
     currentTotal = VARIANT2_CURRENT;
     originalTotal = VARIANT2_ORIGINAL;
     unit = VARIANT2_UNIT;
