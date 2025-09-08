@@ -67,29 +67,29 @@ class ApplicationPriceTests(TestCase):
         expected_price = get_application_price("group", 0)
         self.assertEqual(price, expected_price)
 
-    def test_get_price_individual_two_subjects_variant2(self) -> None:
+    def test_get_price_individual_two_subjects(self) -> None:
         expected_date = date(date.today().year, 9, 30)
         price = get_application_price("individual", 2)
         self.assertEqual(
             price,
             {
-                "original": 10000,
-                "current": 5000,
+                "original": 2500,
+                "current": 2000,
                 "promo_until": expected_date,
-                "per_lesson": False,
+                "per_lesson": True,
             },
         )
 
-    def test_get_price_individual_no_subjects_variant2(self) -> None:
+    def test_get_price_individual_no_subjects(self) -> None:
         expected_date = date(date.today().year, 9, 30)
         price = get_application_price("individual", 0)
         self.assertEqual(
             price,
             {
-                "original": 10000,
-                "current": 5000,
+                "original": 2500,
+                "current": 2000,
                 "promo_until": expected_date,
-                "per_lesson": False,
+                "per_lesson": True,
             },
         )
 
@@ -107,13 +107,14 @@ class ApplicationPriceTests(TestCase):
         )
 
     def test_get_price_group_two_subjects_variant3(self) -> None:
+        expected_date = date(date.today().year, 9, 30)
         price = get_application_price("group", 2)
         self.assertEqual(
             price,
             {
-                "original": None,
+                "original": 2500,
                 "current": 2000,
-                "promo_until": None,
+                "promo_until": expected_date,
                 "per_lesson": True,
             },
         )
@@ -200,34 +201,34 @@ class ApplicationPriceTests(TestCase):
         self.assertEqual(
             data,
             {
-                "old": "",
+                "old": "2 500 ₽ за занятие (60 минут)",
                 "current": "2 000 ₽ за занятие (60 минут)",
-                "note": "",
-                "oldDisplay": "none",
-                "noteDisplay": "none",
-            },
-        )
-
-    def test_js_individual_two_subjects_variant2(self) -> None:
-        data = self._run_js("individual", 2)
-        self.assertEqual(
-            data,
-            {
-                "old": "10 000 ₽/мес",
-                "current": "5 000 ₽/мес",
                 "note": "до 30 сентября",
                 "oldDisplay": "",
                 "noteDisplay": "",
             },
         )
 
-    def test_js_individual_no_subjects_variant2(self) -> None:
+    def test_js_individual_two_subjects(self) -> None:
+        data = self._run_js("individual", 2)
+        self.assertEqual(
+            data,
+            {
+                "old": "2 500 ₽ за занятие (60 минут)",
+                "current": "2 000 ₽ за занятие (60 минут)",
+                "note": "до 30 сентября",
+                "oldDisplay": "",
+                "noteDisplay": "",
+            },
+        )
+
+    def test_js_individual_no_subjects(self) -> None:
         data = self._run_js("individual", 0)
         self.assertEqual(
             data,
             {
-                "old": "10 000 ₽/мес",
-                "current": "5 000 ₽/мес",
+                "old": "2 500 ₽ за занятие (60 минут)",
+                "current": "2 000 ₽ за занятие (60 минут)",
                 "note": "до 30 сентября",
                 "oldDisplay": "",
                 "noteDisplay": "",
