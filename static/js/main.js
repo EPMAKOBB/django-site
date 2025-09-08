@@ -54,7 +54,10 @@ function updatePrice() {
   let originalTotal = null;
   let perLesson = false;
 
-  if (subjectsCount === 0) {
+  if (lessonType === 'individual') {
+    currentTotal = VARIANT2_CURRENT;
+    originalTotal = VARIANT2_ORIGINAL;
+  } else if (subjectsCount === 0) {
     currentTotal = VARIANT1_CURRENT;
     originalTotal = VARIANT1_ORIGINAL;
   } else if (lessonType === 'group' && subjectsCount === 2) {
