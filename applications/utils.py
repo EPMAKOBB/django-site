@@ -6,12 +6,12 @@ from typing import TypedDict
 # Pricing variants
 VARIANT1_CURRENT = 3000
 VARIANT1_ORIGINAL = 5000
+VARIANT2_CURRENT = 5000
+VARIANT2_ORIGINAL = 10000
 VARIANT3_CURRENT = 2000
 VARIANT3_ORIGINAL = 2500
 
-INDIVIDUAL_ORIGINAL = 2500
-INDIVIDUAL_CURRENT = 2000
-INDIVIDUAL_PER_LESSON = True
+PROMO_UNTIL = date(2025, 9, 30)
 
 class ApplicationPrice(TypedDict):
     current: int
@@ -32,27 +32,33 @@ def get_application_price(
     if lesson_type not in {"individual", "group"}:
         return None
 
-    promo_until = date(date.today().year, 9, 30)
-
     if lesson_type == "individual":
         return {
-            "current": INDIVIDUAL_CURRENT,
-            "original": INDIVIDUAL_ORIGINAL,
-            "promo_until": promo_until,
-            "per_lesson": INDIVIDUAL_PER_LESSON,
+            "current": VARIANT2_CURRENT,
+            "original": VARIANT2_ORIGINAL,
+            "promo_until": PROMO_UNTIL,
+            "per_lesson": False,
+        }
+
+    if subjects_count == 1:
+        return {
+            "current": VARIANT2_CURRENT,
+            "original": VARIANT2_ORIGINAL,
+            "promo_until": PROMO_UNTIL,
+            "per_lesson": False,
         }
 
     if subjects_count == 2:
         return {
             "current": VARIANT3_CURRENT,
             "original": VARIANT3_ORIGINAL,
-            "promo_until": promo_until,
+            "promo_until": PROMO_UNTIL,
             "per_lesson": True,
         }
 
     return {
         "current": VARIANT1_CURRENT,
         "original": VARIANT1_ORIGINAL,
-        "promo_until": promo_until,
+        "promo_until": PROMO_UNTIL,
         "per_lesson": False,
     }
