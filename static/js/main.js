@@ -35,8 +35,8 @@ const VARIANT3_CURRENT = 2000;
 const VARIANT3_ORIGINAL = 2500;
 const INDIVIDUAL_CURRENT = 2000;
 const INDIVIDUAL_ORIGINAL = 2500;
-const INDIVIDUAL_PER_LESSON = true;
 const VARIANT3_UNIT = '₽ за занятие (60 минут)';
+const INDIVIDUAL_UNIT = '₽ за урок';
 const DEFAULT_UNIT = '₽/мес';
 
 function updatePrice() {
@@ -46,7 +46,7 @@ function updatePrice() {
   const priceOldEl = document.querySelector('.price-old');
   const priceNewEl = document.querySelector('.price-new');
   const priceNoteEl = document.querySelector('.price-note');
-  if (!lessonTypeEl || !subject1El || !subject2El || !priceNewEl) return;
+  if (!lessonTypeEl || !subject1El || !subject2El || !priceOldEl || !priceNewEl || !priceNoteEl) return;
 
   const lessonType = lessonTypeEl.value || 'group';
   let subjectsCount = 0;
@@ -56,34 +56,27 @@ function updatePrice() {
   const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
   let currentTotal;
   let originalTotal;
-  let perLesson = false;
+  let unit = DEFAULT_UNIT;
 
   if (lessonType === 'individual') {
     currentTotal = INDIVIDUAL_CURRENT;
     originalTotal = INDIVIDUAL_ORIGINAL;
-    perLesson = INDIVIDUAL_PER_LESSON;
+    unit = INDIVIDUAL_UNIT;
   } else if (subjectsCount === 0) {
     currentTotal = VARIANT1_CURRENT;
     originalTotal = VARIANT1_ORIGINAL;
   } else if (lessonType === 'group' && subjectsCount === 2) {
     currentTotal = VARIANT3_CURRENT;
     originalTotal = VARIANT3_ORIGINAL;
-    perLesson = true;
+    unit = VARIANT3_UNIT;
   } else {
     currentTotal = VARIANT2_CURRENT;
     originalTotal = VARIANT2_ORIGINAL;
   }
 
-  const unit = perLesson ? VARIANT3_UNIT : DEFAULT_UNIT;
+  priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
   priceNewEl.textContent = `${format(currentTotal)} ${unit}`;
-  if (priceOldEl) {
-    priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
-    priceOldEl.style.display = '';
-  }
-  if (priceNoteEl) {
-    priceNoteEl.textContent = 'до 30 сентября';
-    priceNoteEl.style.display = '';
-  }
+  priceNoteEl.textContent = 'при записи до 30 сентября';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
