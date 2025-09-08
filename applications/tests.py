@@ -64,13 +64,12 @@ class ApplicationPriceTests(TestCase):
         response = self.client.get(reverse("applications:apply"))
         self.assertEqual(response.status_code, 200)
         price = response.context.get("application_price")
-        expected_date = date(date.today().year, 9, 30)
-        expected_price = get_application_price("group", 0, promo_until=expected_date)
+        expected_price = get_application_price("group", 0)
         self.assertEqual(price, expected_price)
 
     def test_get_price_individual_two_subjects_variant2(self) -> None:
         expected_date = date(date.today().year, 9, 30)
-        price = get_application_price("individual", 2, promo_until=expected_date)
+        price = get_application_price("individual", 2)
         self.assertEqual(
             price,
             {
@@ -83,7 +82,7 @@ class ApplicationPriceTests(TestCase):
 
     def test_get_price_group_one_subject_variant2(self) -> None:
         expected_date = date(date.today().year, 9, 30)
-        price = get_application_price("group", 1, promo_until=expected_date)
+        price = get_application_price("group", 1)
         self.assertEqual(
             price,
             {
@@ -108,7 +107,7 @@ class ApplicationPriceTests(TestCase):
 
     def test_get_price_no_subjects_variant1(self) -> None:
         expected_date = date(date.today().year, 9, 30)
-        price = get_application_price("group", 0, promo_until=expected_date)
+        price = get_application_price("group", 0)
         self.assertEqual(
             price,
             {

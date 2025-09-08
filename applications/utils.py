@@ -20,13 +20,13 @@ class ApplicationPrice(TypedDict):
 def get_application_price(
     lesson_type: str,
     subjects_count: int,
-    *,
-    promo_until: date | None = None,
 ) -> ApplicationPrice | None:
     """Return application price based on lesson type and subjects count."""
 
     if subjects_count < 0:
         return None
+
+    promo_until = date(date.today().year, 9, 30)
 
     if subjects_count == 0:
         return {
