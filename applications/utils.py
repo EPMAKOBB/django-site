@@ -8,12 +8,17 @@ VARIANT1_CURRENT = 3000
 VARIANT1_ORIGINAL = 5000
 VARIANT2_CURRENT = 5000
 VARIANT2_ORIGINAL = 10000
-VARIANT3_PRICE = 2000
+VARIANT3_CURRENT = 2000
+VARIANT3_ORIGINAL = 2500
+
+INDIVIDUAL_ORIGINAL = 2500
+INDIVIDUAL_CURRENT = 2000
+INDIVIDUAL_PER_LESSON = True
 
 class ApplicationPrice(TypedDict):
     current: int
-    original: int | None
-    promo_until: date | None
+    original: int
+    promo_until: date
     per_lesson: bool
 
 
@@ -30,10 +35,10 @@ def get_application_price(
 
     if lesson_type == "individual":
         return {
-            "current": VARIANT2_CURRENT,
-            "original": VARIANT2_ORIGINAL,
+            "current": INDIVIDUAL_CURRENT,
+            "original": INDIVIDUAL_ORIGINAL,
             "promo_until": promo_until,
-            "per_lesson": False,
+            "per_lesson": INDIVIDUAL_PER_LESSON,
         }
 
     if subjects_count == 0:
@@ -49,9 +54,9 @@ def get_application_price(
 
     if lesson_type == "group" and subjects_count == 2:
         return {
-            "current": VARIANT3_PRICE,
-            "original": None,
-            "promo_until": None,
+            "current": VARIANT3_CURRENT,
+            "original": VARIANT3_ORIGINAL,
+            "promo_until": promo_until,
             "per_lesson": True,
         }
 

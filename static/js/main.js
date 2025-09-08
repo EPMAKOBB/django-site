@@ -31,7 +31,11 @@ const VARIANT1_CURRENT = 3000;
 const VARIANT1_ORIGINAL = 5000;
 const VARIANT2_CURRENT = 5000;
 const VARIANT2_ORIGINAL = 10000;
-const VARIANT3_PRICE = 2000;
+const VARIANT3_CURRENT = 2000;
+const VARIANT3_ORIGINAL = 2500;
+const INDIVIDUAL_CURRENT = 2000;
+const INDIVIDUAL_ORIGINAL = 2500;
+const INDIVIDUAL_PER_LESSON = true;
 const VARIANT3_UNIT = '₽ за занятие (60 минут)';
 const DEFAULT_UNIT = '₽/мес';
 
@@ -51,17 +55,19 @@ function updatePrice() {
 
   const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
   let currentTotal;
-  let originalTotal = null;
+  let originalTotal;
   let perLesson = false;
 
   if (lessonType === 'individual') {
-    currentTotal = VARIANT2_CURRENT;
-    originalTotal = VARIANT2_ORIGINAL;
+    currentTotal = INDIVIDUAL_CURRENT;
+    originalTotal = INDIVIDUAL_ORIGINAL;
+    perLesson = INDIVIDUAL_PER_LESSON;
   } else if (subjectsCount === 0) {
     currentTotal = VARIANT1_CURRENT;
     originalTotal = VARIANT1_ORIGINAL;
   } else if (lessonType === 'group' && subjectsCount === 2) {
-    currentTotal = VARIANT3_PRICE;
+    currentTotal = VARIANT3_CURRENT;
+    originalTotal = VARIANT3_ORIGINAL;
     perLesson = true;
   } else {
     currentTotal = VARIANT2_CURRENT;
@@ -71,22 +77,12 @@ function updatePrice() {
   const unit = perLesson ? VARIANT3_UNIT : DEFAULT_UNIT;
   priceNewEl.textContent = `${format(currentTotal)} ${unit}`;
   if (priceOldEl) {
-    if (originalTotal) {
-      priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
-      priceOldEl.style.display = '';
-    } else {
-      priceOldEl.textContent = '';
-      priceOldEl.style.display = 'none';
-    }
+    priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
+    priceOldEl.style.display = '';
   }
   if (priceNoteEl) {
-    if (originalTotal) {
-      priceNoteEl.textContent = 'до 30 сентября';
-      priceNoteEl.style.display = '';
-    } else {
-      priceNoteEl.textContent = '';
-      priceNoteEl.style.display = 'none';
-    }
+    priceNoteEl.textContent = 'до 30 сентября';
+    priceNoteEl.style.display = '';
   }
 }
 
