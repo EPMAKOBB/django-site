@@ -96,14 +96,14 @@ class ApplicationPriceTests(TestCase):
             },
         )
 
-    def test_get_price_group_one_subject_variant2(self) -> None:
+    def test_get_price_group_one_subject_variant1(self) -> None:
         expected_date = date(date.today().year, 9, 30)
         price = get_application_price("group", 1)
         self.assertEqual(
             price,
             {
-                "original": 10000,
-                "current": 5000,
+                "original": 5000,
+                "current": 3000,
                 "promo_until": expected_date,
                 "per_lesson": False,
             },
@@ -188,13 +188,13 @@ class ApplicationPriceTests(TestCase):
             },
         )
 
-    def test_js_group_one_subject_variant2(self) -> None:
+    def test_js_group_one_subject_variant1(self) -> None:
         data = self._run_js("group", 1)
         self.assertEqual(
             data,
             {
-                "old": "10 000 ₽/мес",
-                "current": "5 000 ₽/мес",
+                "old": "5 000 ₽/мес",
+                "current": "3 000 ₽/мес",
                 "note": "при записи до 30 сентября",
                 "oldDisplay": "",
                 "newDisplay": "",

@@ -29,8 +29,6 @@ function setMode(mode) {
 
 const VARIANT1_CURRENT = 3000;
 const VARIANT1_ORIGINAL = 5000;
-const VARIANT2_CURRENT = 5000;
-const VARIANT2_ORIGINAL = 10000;
 const VARIANT3_CURRENT = 2000;
 const VARIANT3_ORIGINAL = 2500;
 const INDIVIDUAL_CURRENT = 2000;
@@ -62,16 +60,13 @@ function updatePrice() {
     currentTotal = INDIVIDUAL_CURRENT;
     originalTotal = INDIVIDUAL_ORIGINAL;
     unit = INDIVIDUAL_UNIT;
-  } else if (subjectsCount === 0) {
+  } else if (subjectsCount <= 1) {
     currentTotal = VARIANT1_CURRENT;
     originalTotal = VARIANT1_ORIGINAL;
   } else if (lessonType === 'group' && subjectsCount === 2) {
     currentTotal = VARIANT3_CURRENT;
     originalTotal = VARIANT3_ORIGINAL;
     unit = VARIANT3_UNIT;
-  } else {
-    currentTotal = VARIANT2_CURRENT;
-    originalTotal = VARIANT2_ORIGINAL;
   }
 
   priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
