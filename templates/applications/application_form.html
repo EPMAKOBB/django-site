@@ -8,7 +8,10 @@
     <button type="submit">Записаться</button>
     <p class="application-price">
       {% if application_price.original %}
-        <span class="price-old">{{ application_price.original }} ₽/мес</span>
+        <span class="price-old">
+          {{ application_price.original }}
+          {% if application_price.per_lesson %}₽ за занятие (60 минут){% else %}₽/мес{% endif %}
+        </span>
       {% endif %}
       {% if application_price.current %}
         <span class="price-new">
