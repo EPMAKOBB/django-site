@@ -22,6 +22,12 @@ const VARIANT3_CURRENT = 2000;
 const VARIANT3_ORIGINAL = 2500;
 const VARIANT3_UNIT = '₽ за занятие (60 минут)';
 
+function isChosen(selectEl) {
+  if (!selectEl) return false;
+  const value = (selectEl.value || '').toString().trim().toLowerCase();
+  return value !== '' && value !== 'none' && value !== '0';
+}
+
 function updatePrice() {
   const lessonTypeEl = document.getElementById('id_lesson_type');
   const subject1El = document.getElementById('id_subject1');
@@ -32,10 +38,9 @@ function updatePrice() {
   if (!lessonTypeEl || !subject1El || !subject2El || !priceOldEl || !priceNewEl) return;
 
   const lessonType = lessonTypeEl.value === 'individual' ? 'individual' : 'group';
-  const isSelected = (el) => !!(el && el.value && el.value !== 'none');
   let subjectsCount = 0;
-  if (isSelected(subject1El)) subjectsCount += 1;
-  if (isSelected(subject2El)) subjectsCount += 1;
+  if (isChosen(subject1El)) subjectsCount += 1;
+  if (isChosen(subject2El)) subjectsCount += 1;
 
   const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
   let currentTotal;
@@ -70,5 +75,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 if (typeof module !== 'undefined') {
-  module.exports = { updatePrice };
+  module.exports = { updatePrice, isChosen };
 }

@@ -135,13 +135,11 @@ class ApplicationPriceTests(TestCase):
             },
         )
 
-    def _run_js(self, lesson_type: str, subject_count: int):
+    def _run_js_values(self, lesson_type: str, subject1: str, subject2: str):
         import json
         import subprocess
         from pathlib import Path
 
-        subject1 = "1" if subject_count >= 1 else ""
-        subject2 = "1" if subject_count >= 2 else ""
         script = f"""
         global.alert = () => {{}};
         const inputs = {{
@@ -173,6 +171,11 @@ class ApplicationPriceTests(TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
+
+    def _run_js(self, lesson_type: str, subject_count: int):
+        subject1 = "1" if subject_count >= 1 else ""
+        subject2 = "1" if subject_count >= 2 else ""
+        return self._run_js_values(lesson_type, subject1, subject2)
 
     def test_js_no_subjects_variant1(self) -> None:
         data = self._run_js("group", 0)
@@ -243,3 +246,20 @@ class ApplicationPriceTests(TestCase):
                 "noteDisplay": "",
             },
         )
+
+    def test_js_placeholder_values_not_counted(self) -> None:
+        expected = {
+            "old": "5 000 ₽/мес",
+            "current": "3 000 ₽/мес",
+            "note": "при записи до 30 сентября",
+            "oldDisplay": "",
+            "newDisplay": "",
+            "noteDisplay": "",
+        }
+        for placeholder in ("0", "none"):
+            with self.subTest(placeholder=placeholder, field="subject1"):
+                data = self._run_js_values("group", placeholder, "1")
+                self.assertEqual(data, expected)
+            with self.subTest(placeholder=placeholder, field="subject2"):
+                data = self._run_js_values("group", "1", placeholder)
+                self.assertEqual(data, expected)
