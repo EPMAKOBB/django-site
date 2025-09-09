@@ -22,7 +22,6 @@ class ApplicationTests(TestCase):
             "subject1": self.subject_math.id,
             "subject2": self.subject_physics.id,
             "contact_info": "email@example.com",
-            "lesson_type": "individual",
             "source_offer": "math-9",
         }
         response = self.client.post(reverse("applications:apply"), data)
@@ -37,14 +36,12 @@ class ApplicationTests(TestCase):
             contact_name="Processed",
             grade=5,
             contact_info="info",
-            lesson_type="individual",
             status="processed",
         )
         Application.objects.create(
             contact_name="New",
             grade=5,
             contact_info="info",
-            lesson_type="individual",
         )
         admin_user = get_user_model().objects.create_superuser(
             "admin", "admin@example.com", "password"
@@ -64,41 +61,15 @@ class ApplicationPriceTests(TestCase):
         response = self.client.get(reverse("applications:apply"))
         self.assertEqual(response.status_code, 200)
         price = response.context.get("application_price")
-        expected_price = get_application_price("group", 0)
+        expected_price = get_application_price(0)
         self.assertEqual(price, expected_price)
         self.assertContains(response, "price-old")
         self.assertContains(response, "price-new")
         self.assertContains(response, "при записи до 30 сентября")
 
-    def test_get_price_individual_two_subjects(self) -> None:
-        expected_date = date(date.today().year, 9, 30)
-        price = get_application_price("individual", 2)
-        self.assertEqual(
-            price,
-            {
-                "original": 2500,
-                "current": 2000,
-                "promo_until": expected_date,
-                "per_lesson": True,
-            },
-        )
-
-    def test_get_price_individual_no_subjects(self) -> None:
-        expected_date = date(date.today().year, 9, 30)
-        price = get_application_price("individual", 0)
-        self.assertEqual(
-            price,
-            {
-                "original": 2500,
-                "current": 2000,
-                "promo_until": expected_date,
-                "per_lesson": True,
-            },
-        )
-
     def test_get_price_group_one_subject_variant1(self) -> None:
         expected_date = date(date.today().year, 9, 30)
-        price = get_application_price("group", 1)
+        price = get_application_price(1)
         self.assertEqual(
             price,
             {
@@ -111,7 +82,7 @@ class ApplicationPriceTests(TestCase):
 
     def test_get_price_group_two_subjects_variant3(self) -> None:
         expected_date = date(date.today().year, 9, 30)
-        price = get_application_price("group", 2)
+        price = get_application_price(2)
         self.assertEqual(
             price,
             {
@@ -124,7 +95,7 @@ class ApplicationPriceTests(TestCase):
 
     def test_get_price_no_subjects_variant1(self) -> None:
         expected_date = date(date.today().year, 9, 30)
-        price = get_application_price("group", 0)
+        price = get_application_price(0)
         self.assertEqual(
             price,
             {
@@ -135,7 +106,7 @@ class ApplicationPriceTests(TestCase):
             },
         )
 
-    def _run_js_values(self, lesson_type: str, subject1: str, subject2: str):
+    def _run_js_values(self, subject1: str, subject2: str):
         import json
         import subprocess
         from pathlib import Path
@@ -143,7 +114,6 @@ class ApplicationPriceTests(TestCase):
         script = f"""
         global.alert = () => {{}};
         const inputs = {{
-          id_lesson_type: {{ value: {json.dumps(lesson_type)}, addEventListener: () => {{}} }},
           id_subject1: {{ value: {json.dumps(subject1)}, addEventListener: () => {{}} }},
           id_subject2: {{ value: {json.dumps(subject2)}, addEventListener: () => {{}} }},
         }};
@@ -172,13 +142,13 @@ class ApplicationPriceTests(TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
-    def _run_js(self, lesson_type: str, subject_count: int):
+    def _run_js(self, subject_count: int):
         subject1 = "1" if subject_count >= 1 else ""
         subject2 = "1" if subject_count >= 2 else ""
-        return self._run_js_values(lesson_type, subject1, subject2)
+        return self._run_js_values(subject1, subject2)
 
     def test_js_no_subjects_variant1(self) -> None:
-        data = self._run_js("group", 0)
+        data = self._run_js(0)
         self.assertEqual(
             data,
             {
@@ -192,7 +162,7 @@ class ApplicationPriceTests(TestCase):
         )
 
     def test_js_group_one_subject_variant1(self) -> None:
-        data = self._run_js("group", 1)
+        data = self._run_js(1)
         self.assertEqual(
             data,
             {
@@ -206,7 +176,7 @@ class ApplicationPriceTests(TestCase):
         )
 
     def test_js_group_two_subjects_variant3(self) -> None:
-        data = self._run_js("group", 2)
+        data = self._run_js(2)
         self.assertEqual(
             data,
             {
@@ -219,33 +189,6 @@ class ApplicationPriceTests(TestCase):
             },
         )
 
-    def test_js_individual_two_subjects(self) -> None:
-        data = self._run_js("individual", 2)
-        self.assertEqual(
-            data,
-            {
-                "old": "2 500 ₽ за урок",
-                "current": "2 000 ₽ за урок",
-                "note": "при записи до 30 сентября",
-                "oldDisplay": "",
-                "newDisplay": "",
-                "noteDisplay": "",
-            },
-        )
-
-    def test_js_individual_no_subjects(self) -> None:
-        data = self._run_js("individual", 0)
-        self.assertEqual(
-            data,
-            {
-                "old": "2 500 ₽ за урок",
-                "current": "2 000 ₽ за урок",
-                "note": "при записи до 30 сентября",
-                "oldDisplay": "",
-                "newDisplay": "",
-                "noteDisplay": "",
-            },
-        )
 
     def test_js_placeholder_values_not_counted(self) -> None:
         expected = {
@@ -258,8 +201,8 @@ class ApplicationPriceTests(TestCase):
         }
         for placeholder in ("0", "none"):
             with self.subTest(placeholder=placeholder, field="subject1"):
-                data = self._run_js_values("group", placeholder, "1")
+                data = self._run_js_values(placeholder, "1")
                 self.assertEqual(data, expected)
             with self.subTest(placeholder=placeholder, field="subject2"):
-                data = self._run_js_values("group", "1", placeholder)
+                data = self._run_js_values("1", placeholder)
                 self.assertEqual(data, expected)
