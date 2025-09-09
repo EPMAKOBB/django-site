@@ -59,3 +59,12 @@ $$w_t = w_{t-1} e^{-\lambda \Delta t}$$
 предметы. Форма `ApplicationForm` используется для создания заявок через
 веб-интерфейс.
 
+Функция `get_application_price` вычисляет стоимость в зависимости от количества
+выбранных предметов. Например:
+
+```python
+from applications.utils import get_application_price
+
+price = get_application_price(0)  # стоимость при отсутствии выбранных предметов
+```
+

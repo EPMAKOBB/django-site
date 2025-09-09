@@ -11,6 +11,6 @@ class HomeView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["form"] = ApplicationForm()
-        context["application_price"] = get_application_price("group", 0)
+        context["application_price"] = get_application_price(0)
         return context
 
