@@ -68,19 +68,17 @@ class ApplicationPriceTests(TestCase):
         self.assertContains(response, "price-new")
         self.assertContains(response, "при записи до 30 сентября")
 
-    def test_get_price_same_for_any_subjects(self) -> None:
+    def test_get_price_changes_with_subjects(self) -> None:
         expected_date = date(date.today().year, 9, 30)
-        for subjects in [0, 1, 2]:
+        cases = {
+            0: {"original": 5000, "current": 3000, "promo_until": expected_date},
+            1: {"original": 5000, "current": 3000, "promo_until": expected_date},
+            2: {"original": 10000, "current": 5000, "promo_until": expected_date},
+        }
+        for subjects, expected in cases.items():
             with self.subTest(subjects=subjects):
                 price = get_application_price(subjects)
-                self.assertEqual(
-                    price,
-                    {
-                        "original": 5000,
-                        "current": 3000,
-                        "promo_until": expected_date,
-                    },
-                )
+                self.assertEqual(price, expected)
                 self.assertNotIn("per_lesson", price)
 
     def _run_js_values(self, subject1: str, subject2: str):
@@ -124,16 +122,34 @@ class ApplicationPriceTests(TestCase):
         subject2 = "1" if subject_count >= 2 else ""
         return self._run_js_values(subject1, subject2)
 
-    def test_js_price_same_for_any_subjects(self) -> None:
-        expected = {
-            "old": "5 000 ₽/мес",
-            "current": "3 000 ₽/мес",
-            "note": "при записи до 30 сентября",
-            "oldDisplay": "",
-            "newDisplay": "",
-            "noteDisplay": "",
+    def test_js_price_changes_with_subjects(self) -> None:
+        cases = {
+            0: {
+                "old": "5 000 ₽/мес",
+                "current": "3 000 ₽/мес",
+                "note": "при записи до 30 сентября",
+                "oldDisplay": "",
+                "newDisplay": "",
+                "noteDisplay": "",
+            },
+            1: {
+                "old": "5 000 ₽/мес",
+                "current": "3 000 ₽/мес",
+                "note": "при записи до 30 сентября",
+                "oldDisplay": "",
+                "newDisplay": "",
+                "noteDisplay": "",
+            },
+            2: {
+                "old": "10 000 ₽/мес",
+                "current": "5 000 ₽/мес",
+                "note": "за два предмета при записи до 30 сентября",
+                "oldDisplay": "",
+                "newDisplay": "",
+                "noteDisplay": "",
+            },
         }
-        for subjects in [0, 1, 2]:
+        for subjects, expected in cases.items():
             with self.subTest(subjects=subjects):
                 data = self._run_js(subjects)
                 self.assertEqual(data, expected)

@@ -41,7 +41,6 @@ class ApplicationCreateView(FormView):
                 subjects_count += 1
             if data.get("subject2"):
                 subjects_count += 1
-        context["application_price"] = get_application_price(
-            subjects_count,
-        )
+        context["subjects_count"] = subjects_count
+        context["application_price"] = get_application_price(subjects_count)
         return context
