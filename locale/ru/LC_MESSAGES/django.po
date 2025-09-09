@@ -150,7 +150,7 @@ msgid ""
 msgstr ""
 
 #: templates/home.html:12
-msgid "Запись"
+msgid "Записаться на занятия"
 msgstr ""
 
 #: templates/home.html:41
@@ -162,7 +162,7 @@ msgid "Записаться"
 msgstr ""
 
 #: templates/home.html:51
-msgid "О школе «Фрактал»"
+msgid "О нас"
 msgstr ""
 
 #: templates/home.html:54
