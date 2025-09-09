@@ -61,8 +61,12 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 
 .block--futuristic {
   background: var(--bg);
-  border: none;
-  box-shadow: none;
+
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 25%, transparent),
+    0 0 24px color-mix(in srgb, var(--accent-2) 15%, transparent);
+
 }
 
 .section-title {
