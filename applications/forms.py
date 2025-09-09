@@ -30,10 +30,8 @@ class ApplicationForm(forms.ModelForm):
             "subject2",
             "contact_info",
             "contact_name",
-            "lesson_type",
         ]
         labels = {
-            "lesson_type": _("Формат"),
             "contact_info": "",
             "contact_name": "",
         }

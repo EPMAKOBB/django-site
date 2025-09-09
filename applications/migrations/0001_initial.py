@@ -33,13 +33,6 @@ class Migration(migrations.Migration):
                 ("grade", models.PositiveSmallIntegerField()),
                 ("contact_info", models.TextField()),
                 (
-                    "lesson_type",
-                    models.CharField(
-                        choices=[("individual", "Individual"), ("group", "Group")],
-                        max_length=10,
-                    ),
-                ),
-                (
                     "source_offer",
                     models.CharField(blank=True, max_length=255, null=True),
                 ),

@@ -6,8 +6,6 @@ from typing import TypedDict
 # Pricing variants
 VARIANT1_CURRENT = 3000
 VARIANT1_ORIGINAL = 5000
-VARIANT2_CURRENT = 2000
-VARIANT2_ORIGINAL = 2500
 VARIANT3_CURRENT = 2000
 VARIANT3_ORIGINAL = 2500
 
@@ -20,25 +18,11 @@ class ApplicationPrice(TypedDict):
     per_lesson: bool
 
 
-def get_application_price(
-    lesson_type: str,
-    subjects_count: int,
-) -> ApplicationPrice | None:
-    """Return application price based on lesson type and subjects count."""
+def get_application_price(subjects_count: int) -> ApplicationPrice | None:
+    """Return application price based on subjects count."""
 
     if subjects_count < 0:
         return None
-
-    if lesson_type not in {"individual", "group"}:
-        return None
-
-    if lesson_type == "individual":
-        return {
-            "current": VARIANT2_CURRENT,
-            "original": VARIANT2_ORIGINAL,
-            "promo_until": PROMO_UNTIL,
-            "per_lesson": True,
-        }
 
     if subjects_count == 2:
         return {

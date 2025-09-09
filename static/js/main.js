@@ -5,19 +5,9 @@ document.addEventListener('click', (e) => {
   alert('Офер: ' + offer + '\nЗдесь можно открыть форму записи и передать код оффера.');
 });
 
-function setMode(mode) {
-  const input = document.getElementById('id_lesson_type');
-  if (!input) return;
-  input.value = mode;
-  updatePrice();
-}
-
 const VARIANT1_CURRENT = 3000;
 const VARIANT1_ORIGINAL = 5000;
 const VARIANT1_UNIT = '₽/мес';
-const VARIANT2_CURRENT = 2000;
-const VARIANT2_ORIGINAL = 2500;
-const VARIANT2_UNIT = '₽ за урок';
 const VARIANT3_CURRENT = 2000;
 const VARIANT3_ORIGINAL = 2500;
 const VARIANT3_UNIT = '₽ за занятие (60 минут)';
@@ -29,15 +19,13 @@ function isChosen(selectEl) {
 }
 
 function updatePrice() {
-  const lessonTypeEl = document.getElementById('id_lesson_type');
   const subject1El = document.getElementById('id_subject1');
   const subject2El = document.getElementById('id_subject2');
   const priceOldEl = document.querySelector('.price-old');
   const priceNewEl = document.querySelector('.price-new');
   const priceNoteEl = document.querySelector('.price-note');
-  if (!lessonTypeEl || !subject1El || !subject2El || !priceOldEl || !priceNewEl) return;
+  if (!subject1El || !subject2El || !priceOldEl || !priceNewEl) return;
 
-  const lessonType = lessonTypeEl.value === 'individual' ? 'individual' : 'group';
   let subjectsCount = 0;
   if (isChosen(subject1El)) subjectsCount += 1;
   if (isChosen(subject2El)) subjectsCount += 1;
@@ -47,11 +35,7 @@ function updatePrice() {
   let originalTotal;
   let unit;
 
-  if (lessonType === 'individual') {
-    currentTotal = VARIANT2_CURRENT;
-    originalTotal = VARIANT2_ORIGINAL;
-    unit = VARIANT2_UNIT;
-  } else if (subjectsCount === 2) {
+  if (subjectsCount === 2) {
     currentTotal = VARIANT3_CURRENT;
     originalTotal = VARIANT3_ORIGINAL;
     unit = VARIANT3_UNIT;
@@ -68,7 +52,7 @@ function updatePrice() {
 
 document.addEventListener('DOMContentLoaded', () => {
   updatePrice();
-  ['id_grade', 'id_subject1', 'id_subject2', 'id_lesson_type'].forEach((id) => {
+  ['id_grade', 'id_subject1', 'id_subject2'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', updatePrice);
   });
