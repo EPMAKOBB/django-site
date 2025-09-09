@@ -11,8 +11,8 @@ class Application(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     contact_name = models.CharField(max_length=255)
     student_name = models.CharField(max_length=255, null=True, blank=True)
-    grade = models.PositiveSmallIntegerField()
-    subjects = models.ManyToManyField(Subject, related_name="applications")
+    grade = models.PositiveSmallIntegerField(null=True, blank=True)
+    subjects = models.ManyToManyField(Subject, related_name="applications", blank=True)
     contact_info = models.TextField()
     source_offer = models.CharField(max_length=255, null=True, blank=True)
     status = models.CharField(
