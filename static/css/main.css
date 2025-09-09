@@ -60,7 +60,7 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 }
 
 .block--futuristic {
-  background: linear-gradient(135deg, var(--card), color-mix(in srgb, var(--accent) 5%, transparent));
+  background: var(--bg);
   border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
   box-shadow:
     0 0 12px color-mix(in srgb, var(--accent) 25%, transparent),
