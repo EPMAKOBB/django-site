@@ -54,6 +54,7 @@
             {{ application_price.current }} ₽/мес
           </span>
           <span class="price-note">
+            {% if subjects_count >= 2 %}за два предмета {% endif %}
             {% if application_price.promo_until %}
               при записи до {{ application_price.promo_until|date:"j E" }}
             {% endif %}

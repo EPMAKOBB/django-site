@@ -9,20 +9,39 @@ const VARIANT1_CURRENT = 3000;
 const VARIANT1_ORIGINAL = 5000;
 const VARIANT1_UNIT = '₽/мес';
 
+const VARIANT2_CURRENT = 5000;
+const VARIANT2_ORIGINAL = 10000;
+
+function countSubjects() {
+  return ['id_subject1', 'id_subject2'].reduce((count, id) => {
+    const el = document.getElementById(id);
+    const value = el && el.value;
+    if (value && value !== '0' && value !== 'none') {
+      return count + 1;
+    }
+    return count;
+  }, 0);
+}
+
 function updatePrice() {
   const priceOldEl = document.querySelector('.price-old');
   const priceNewEl = document.querySelector('.price-new');
   const priceNoteEl = document.querySelector('.price-note');
-  if (!priceOldEl || !priceNewEl) return;
+  if (!priceOldEl || !priceNewEl || !priceNoteEl) return;
 
   const format = (n) => n.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
-  const currentTotal = VARIANT1_CURRENT;
-  const originalTotal = VARIANT1_ORIGINAL;
   const unit = VARIANT1_UNIT;
+
+  const subjects = countSubjects();
+  const isVariant2 = subjects >= 2;
+
+  const currentTotal = isVariant2 ? VARIANT2_CURRENT : VARIANT1_CURRENT;
+  const originalTotal = isVariant2 ? VARIANT2_ORIGINAL : VARIANT1_ORIGINAL;
+  const notePrefix = isVariant2 ? 'за два предмета ' : '';
 
   priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
   priceNewEl.textContent = `${format(currentTotal)} ${unit}`;
-  priceNoteEl.textContent = 'при записи до 30 сентября';
+  priceNoteEl.textContent = `${notePrefix}при записи до 30 сентября`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -66,5 +66,6 @@ $$w_t = w_{t-1} e^{-\lambda \Delta t}$$
 from applications.utils import get_application_price
 
 price = get_application_price(0)  # стоимость при отсутствии выбранных предметов
+price_two = get_application_price(2)  # стоимость при выборе двух предметов
 ```
 
