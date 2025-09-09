@@ -31,6 +31,20 @@ class ApplicationTests(TestCase):
         assert app is not None
         self.assertEqual(app.subjects.count(), 2)
 
+    def test_application_form_submission_without_grade_or_subjects(self) -> None:
+        data = {
+            "contact_name": "Parent",
+            "student_name": "Student",
+            "contact_info": "email@example.com",
+        }
+        response = self.client.post(reverse("applications:apply"), data)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Application.objects.count(), 1)
+        app = Application.objects.first()
+        assert app is not None
+        self.assertIsNone(app.grade)
+        self.assertEqual(app.subjects.count(), 0)
+
     def test_admin_filter_by_status(self) -> None:
         Application.objects.create(
             contact_name="Processed",
