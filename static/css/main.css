@@ -127,6 +127,25 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .signup-form input, .signup-form select, .signup-form textarea { width:100%; padding:var(--space-sm); border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
 .signup-form textarea { height:44px; resize:vertical; }
 
+.subjects-title {
+  font-size: clamp(24px, 5vw, 40px);
+  font-weight: 700;
+  text-align: center;
+  color: var(--accent);
+  margin: 0 0 var(--space-md);
+}
+
+.signup-prompt {
+  font-size: clamp(18px, 4vw, 24px);
+  font-weight: 600;
+  text-align: center;
+  margin: 0 0 var(--space-lg);
+}
+
+@media (max-width: 480px) {
+  .subjects-title { font-size: 24px; }
+  .signup-prompt { font-size: 18px; }
+}
 
 /* Dashboard */
 .dashboard-container { display:flex; gap:2rem; }
