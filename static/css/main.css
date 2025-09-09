@@ -202,6 +202,7 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .signup-form .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:var(--space-sm); }
 .signup-form input, .signup-form select, .signup-form textarea { width:100%; padding:var(--space-sm); border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
 .signup-form textarea { height:44px; resize:vertical; }
+.signup-form .card p { margin: 0; }
 
 .subjects-title {
   font-size: clamp(16px, 4vw, 28px);
