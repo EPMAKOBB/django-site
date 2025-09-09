@@ -1,6 +1,7 @@
 from typing import Any, Dict
 from django.urls import reverse_lazy
 from django.views.generic import FormView
+from django.contrib import messages
 
 from .forms import ApplicationForm
 from subjects.models import Subject
@@ -29,6 +30,7 @@ class ApplicationCreateView(FormView):
 
     def form_valid(self, form: ApplicationForm) -> Any:  # type: ignore[override]
         form.save()
+        messages.success(self.request, "Ваша заявка отправлена")
         return super().form_valid(form)
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:  # type: ignore[override]
