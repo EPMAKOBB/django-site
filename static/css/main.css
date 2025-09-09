@@ -69,26 +69,6 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 
 }
 
-.neon-border {
-  border: 2px solid transparent;
-  border-image: linear-gradient(90deg, var(--accent), var(--accent-2)) 1;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent);
-  transition: box-shadow .3s ease;
-}
-
-.neon-border:hover {
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 20px color-mix(in srgb, var(--accent-2) 40%, transparent);
-  }
-}
-
 .section-title {
   margin: 0 0 16px;
 }
