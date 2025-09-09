@@ -8,12 +8,10 @@
     <button type="submit">Записаться</button>
     <p class="application-price">
       <span class="price-old">
-        {{ application_price.original }}
-        {% if application_price.per_lesson %}₽ за занятие (60 минут){% else %}₽/мес{% endif %}
+        {{ application_price.original }} ₽/мес
       </span>
       <span class="price-new">
-        {{ application_price.current }}
-        {% if application_price.per_lesson %}₽ за занятие (60 минут){% else %}₽/мес{% endif %}
+        {{ application_price.current }} ₽/мес
       </span>
       <span class="price-note">
         {% if application_price.promo_until %}
