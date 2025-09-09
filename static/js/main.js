@@ -5,6 +5,23 @@ document.addEventListener('click', (e) => {
   alert('Офер: ' + offer + '\nЗдесь можно открыть форму записи и передать код оффера.');
 });
 
+// Scroll reveal animations
+document.addEventListener('DOMContentLoaded', () => {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('reveal-visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  });
+
+  document.querySelectorAll('.card').forEach((el) => {
+    el.classList.add('reveal');
+    observer.observe(el);
+  });
+});
+
 const VARIANT1_CURRENT = 3000;
 const VARIANT1_ORIGINAL = 5000;
 const VARIANT1_UNIT = '₽/мес';
