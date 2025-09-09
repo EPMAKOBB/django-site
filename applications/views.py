@@ -35,18 +35,13 @@ class ApplicationCreateView(FormView):
         context = super().get_context_data(**kwargs)
         form: ApplicationForm = context.get("form")
         subjects_count = 0
-        lesson_type = ""
         if form:
             data = form.data if form.is_bound else form.initial
             if data.get("subject1"):
                 subjects_count += 1
             if data.get("subject2"):
                 subjects_count += 1
-            lesson_type = data.get("lesson_type", "")
-        if not lesson_type:
-            lesson_type = "group"
         context["application_price"] = get_application_price(
-            lesson_type,
             subjects_count,
         )
         return context

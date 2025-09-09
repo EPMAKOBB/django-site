@@ -1,14 +1,9 @@
 from django.db import models
-from django.utils.translation import gettext_lazy as _
 
 from subjects.models import Subject
 
 
 class Application(models.Model):
-    class LessonType(models.TextChoices):
-        INDIVIDUAL = "individual", _("Индивидуально")
-        GROUP = "group", _("Группа")
-
     class Status(models.TextChoices):
         NEW = "new", "New"
         PROCESSED = "processed", "Processed"
@@ -19,7 +14,6 @@ class Application(models.Model):
     grade = models.PositiveSmallIntegerField()
     subjects = models.ManyToManyField(Subject, related_name="applications")
     contact_info = models.TextField()
-    lesson_type = models.CharField(max_length=10, choices=LessonType)
     source_offer = models.CharField(max_length=255, null=True, blank=True)
     status = models.CharField(
         max_length=10, choices=Status, default=Status.NEW

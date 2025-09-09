@@ -103,9 +103,6 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .signup-form input, .signup-form select, .signup-form textarea { width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
 .signup-form textarea { height:44px; resize:vertical; }
 
-/* Name and format row */
-.name-format-row { display:flex; align-items:center; gap:12px; }
-.name-format-row .name-field { flex:1; }
 
 /* Dashboard */
 .dashboard-container { display:flex; gap:2rem; }
@@ -126,29 +123,6 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .role-toggle label { flex:1; text-align:center; padding:10px 0; border:1px solid var(--border); border-radius:10px; background:var(--card); cursor:pointer; }
 .role-toggle input:checked + label { background:var(--accent); color:#001420; border-color:color-mix(in srgb, var(--accent) 70%, black); }
 
-.lesson-type-field { display:flex; align-items:center; gap:8px; }
-.switch .seg {
-  display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-.switch .seg button {
-  padding: 8px 12px;
-  background: var(--card);
-  color: var(--text);
-  cursor: pointer;
-  border: none;
-  border-right: 1px solid var(--border);
-  font: inherit;
-}
-.switch .seg button:last-child {
-  border-right: none;
-}
-.switch .seg button.active {
-  background: var(--accent);
-  color: #001420;
-}
 
 /* Utility */
 .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
