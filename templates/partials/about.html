@@ -8,58 +8,60 @@
       <form action="{% url 'applications:apply' %}" method="post" class="signup-form">
         {% csrf_token %}
         {{ form.non_field_errors }}
-        <div class="grid">
-          <div>
-            <select name="{{ form.grade.html_name }}" id="{{ form.grade.id_for_label }}">
-              <option value="" selected disabled>{% trans "выберите класс" %}</option>
-              {% for value, label in form.fields.grade.choices %}
-                <option value="{{ value }}" {% if form.grade.value|stringformat:'s' == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-            {{ form.grade.errors }}
+        <div class="card">
+          <div class="grid">
+            <div>
+              <select name="{{ form.grade.html_name }}" id="{{ form.grade.id_for_label }}">
+                <option value="" selected disabled>{% trans "выберите класс" %}</option>
+                {% for value, label in form.fields.grade.choices %}
+                  <option value="{{ value }}" {% if form.grade.value|stringformat:'s' == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              {{ form.grade.errors }}
+            </div>
+            <div>
+              <select name="{{ form.subject1.html_name }}" id="{{ form.subject1.id_for_label }}">
+                <option value="" selected disabled>{% trans "выберите предмет" %}</option>
+                {% for subject in form.fields.subject1.queryset %}
+                  <option value="{{ subject.pk }}" {% if form.subject1.value|stringformat:'s' == subject.pk|stringformat:'s' %}selected{% endif %}>{{ subject.name }}</option>
+                {% endfor %}
+              </select>
+              {{ form.subject1.errors }}
+            </div>
+            <div>
+              <select name="{{ form.subject2.html_name }}" id="{{ form.subject2.id_for_label }}">
+                <option value="" selected disabled>{% trans "выберите второй предмет" %}</option>
+                {% for subject in form.fields.subject2.queryset %}
+                  <option value="{{ subject.pk }}" {% if form.subject2.value|stringformat:'s' == subject.pk|stringformat:'s' %}selected{% endif %}>{{ subject.name }}</option>
+                {% endfor %}
+                <option value="">{% trans "- не нужен -" %}</option>
+              </select>
+              {{ form.subject2.errors }}
+            </div>
           </div>
-          <div>
-            <select name="{{ form.subject1.html_name }}" id="{{ form.subject1.id_for_label }}">
-              <option value="" selected disabled>{% trans "выберите предмет" %}</option>
-              {% for subject in form.fields.subject1.queryset %}
-                <option value="{{ subject.pk }}" {% if form.subject1.value|stringformat:'s' == subject.pk|stringformat:'s' %}selected{% endif %}>{{ subject.name }}</option>
-              {% endfor %}
-            </select>
-            {{ form.subject1.errors }}
-          </div>
-          <div>
-            <select name="{{ form.subject2.html_name }}" id="{{ form.subject2.id_for_label }}">
-              <option value="" selected disabled>{% trans "выберите второй предмет" %}</option>
-              {% for subject in form.fields.subject2.queryset %}
-                <option value="{{ subject.pk }}" {% if form.subject2.value|stringformat:'s' == subject.pk|stringformat:'s' %}selected{% endif %}>{{ subject.name }}</option>
-              {% endfor %}
-              <option value="">{% trans "- не нужен -" %}</option>
-            </select>
-            {{ form.subject2.errors }}
-          </div>
+          <p>
+            {{ form.contact_info }}
+            {{ form.contact_info.errors }}
+          </p>
+          <p>
+            {{ form.contact_name }}
+            {{ form.contact_name.errors }}
+          </p>
+          <p class="application-price">
+            <span class="price-old">
+              {{ application_price.original }} ₽/мес
+            </span>
+            <span class="price-new">
+              {{ application_price.current }} ₽/мес
+            </span>
+            <span class="price-note">
+              {% if subjects_count >= 2 %}за два предмета {% endif %}
+              {% if application_price.promo_until %}
+                при записи до {{ application_price.promo_until|date:"j E" }}
+              {% endif %}
+            </span>
+          </p>
         </div>
-        <p>
-          {{ form.contact_info }}
-          {{ form.contact_info.errors }}
-        </p>
-        <p>
-          {{ form.contact_name }}
-          {{ form.contact_name.errors }}
-        </p>
-        <p class="application-price">
-          <span class="price-old">
-            {{ application_price.original }} ₽/мес
-          </span>
-          <span class="price-new">
-            {{ application_price.current }} ₽/мес
-          </span>
-          <span class="price-note">
-            {% if subjects_count >= 2 %}за два предмета {% endif %}
-            {% if application_price.promo_until %}
-              при записи до {{ application_price.promo_until|date:"j E" }}
-            {% endif %}
-          </span>
-        </p>
         <button type="submit" class="btn accent">{% trans "Записаться" %}</button>
       </form>
     </div>
