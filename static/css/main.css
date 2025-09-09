@@ -204,10 +204,10 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .signup-form textarea { height:44px; resize:vertical; }
 
 .subjects-title {
-  font-size: clamp(24px, 5vw, 40px);
+  font-size: clamp(16px, 4vw, 28px);
   font-weight: 700;
   text-align: center;
-  color: var(--accent);
+  color: var(--text);
   margin: 0 0 var(--space-md);
 }
 
@@ -219,7 +219,7 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 }
 
 @media (max-width: 480px) {
-  .subjects-title { font-size: 24px; }
+  .subjects-title { font-size: 18px; }
   .signup-prompt { font-size: 18px; }
 }
 
