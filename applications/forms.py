@@ -23,6 +23,7 @@ class ApplicationForm(forms.ModelForm):
         required=False,
         label="",
     )
+    source_offer = forms.CharField(required=False, widget=forms.HiddenInput())
 
 
     class Meta:
@@ -31,6 +32,7 @@ class ApplicationForm(forms.ModelForm):
             "grade",
             "subject1",
             "subject2",
+            "source_offer",
             "contact_info",
             "contact_name",
         ]
@@ -49,6 +51,7 @@ class ApplicationForm(forms.ModelForm):
 
     def save(self, commit: bool = True) -> Application:  # type: ignore[override]
         application = super().save(commit=False)
+        application.source_offer = self.cleaned_data.get("source_offer")
         if commit:
             application.save()
             subjects = []

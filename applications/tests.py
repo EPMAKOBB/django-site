@@ -30,6 +30,7 @@ class ApplicationTests(TestCase):
         app = Application.objects.first()
         assert app is not None
         self.assertEqual(app.subjects.count(), 2)
+        self.assertEqual(app.source_offer, "math-9")
 
     def test_application_form_submission_without_grade_or_subjects(self) -> None:
         data = {

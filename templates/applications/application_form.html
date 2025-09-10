@@ -4,6 +4,7 @@
   <h1>Заявка на обучение</h1>
   <form method="post">
     {% csrf_token %}
+    <input type="hidden" name="source_offer" value="{{ form.initial.source_offer }}">
     {{ form.as_p }}
     <button type="submit">Отправить заявку</button>
     <p class="application-price">
