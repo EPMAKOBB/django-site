@@ -2,7 +2,7 @@ from typing import Any, Dict
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 from django.contrib import messages
-from django.contrib.messages.api import MessageFailure
+from django.http import JsonResponse
 
 from .forms import ApplicationForm
 from subjects.models import Subject
@@ -31,10 +31,9 @@ class ApplicationCreateView(FormView):
 
     def form_valid(self, form: ApplicationForm) -> Any:  # type: ignore[override]
         form.save()
-        try:
-            messages.success(self.request, "Ваша заявка отправлена")
-        except MessageFailure:
-            pass
+        if self.request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"message": "Ваша заявка отправлена"})
+        messages.success(self.request, "Ваша заявка отправлена")
         return super().form_valid(form)
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:  # type: ignore[override]
