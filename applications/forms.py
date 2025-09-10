@@ -52,6 +52,7 @@ class ApplicationForm(forms.ModelForm):
     def save(self, commit: bool = True) -> Application:  # type: ignore[override]
         application = super().save(commit=False)
         application.source_offer = self.cleaned_data.get("source_offer")
+        application.lesson_type = "placeholder"
         if commit:
             application.save()
             subjects = []
