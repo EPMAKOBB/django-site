@@ -24,7 +24,7 @@ urlpatterns = [
     path('', HomeView.as_view(), name='home'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
-    path('applications/', include('applications.urls')),
+    path('applications/', include(('applications.urls', 'applications'), namespace='applications')),
 
     path('', include('apps.recsys.api.urls')),
 
