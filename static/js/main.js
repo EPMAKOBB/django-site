@@ -5,6 +5,27 @@ document.addEventListener('click', (e) => {
   alert('Офер: ' + offer + '\nЗдесь можно открыть форму записи и передать код оффера.');
 });
 
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('typewriter');
+  if (!el) return;
+  const text = el.dataset.text || '';
+  const cursor = el.querySelector('.cursor');
+  let index = 0;
+  let current = '';
+  el.textContent = '';
+  if (cursor) el.appendChild(cursor);
+  const interval = setInterval(() => {
+    if (index < text.length) {
+      current += text[index++];
+      el.textContent = current;
+      if (cursor) el.appendChild(cursor);
+    } else {
+      clearInterval(interval);
+      if (cursor) el.appendChild(cursor);
+    }
+  }, 100);
+});
+
 // Scroll reveal animations
 document.addEventListener('DOMContentLoaded', () => {
   const observer = new IntersectionObserver((entries) => {
