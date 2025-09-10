@@ -15,6 +15,7 @@ class Application(models.Model):
     subjects = models.ManyToManyField(Subject, related_name="applications", blank=True)
     contact_info = models.TextField()
     source_offer = models.CharField(max_length=255, null=True, blank=True)
+    lesson_type = models.CharField(max_length=50, default="placeholder")
     status = models.CharField(
         max_length=10, choices=Status, default=Status.NEW
     )
