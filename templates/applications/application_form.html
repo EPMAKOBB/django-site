@@ -7,6 +7,7 @@
     <input type="hidden" name="source_offer" value="{{ form.initial.source_offer }}">
     {{ form.as_p }}
     <button type="submit">Отправить заявку</button>
+    <div id="form-message"></div>
     <p class="application-price">
       <span class="price-old">
         {{ application_price.original }} ₽/мес
@@ -22,4 +23,23 @@
       </span>
     </p>
   </form>
+  <script>
+    document.querySelector('form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const form = e.target;
+        const msg = document.getElementById('form-message');
+        const resp = await fetch(form.action || window.location.href, {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            body: new FormData(form),
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            msg.textContent = data.message;
+            form.reset();
+        } else {
+            msg.textContent = 'Не удалось отправить.';
+        }
+    });
+  </script>
 {% endblock %}
