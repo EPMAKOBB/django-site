@@ -1,0 +1,35 @@
+# Название нашего workflow-процесса. Оно будет отображаться в разделе "Actions" на GitHub.
+name: Deploy to Timeweb
+
+# Условие, при котором будет запускаться этот процесс.
+# В данном случае — при каждом 'push' (отправке изменений) в ветку 'master'.
+on:
+  push:
+    branches:
+      - master
+
+# "jobs" — это задачи, которые нужно выполнить. У нас она одна — "deploy".
+jobs:
+  deploy:
+    # "runs-on" указывает, на какой операционной системе будет выполняться задача.
+    # "ubuntu-latest" — это стандартный и хороший выбор.
+    runs-on: ubuntu-latest
+
+    # "steps" — это конкретные шаги внутри нашей задачи.
+    steps:
+      # Шаг 1: Клонирование репозитория
+      # Этот шаг скачивает код из вашего репозитория, чтобы с ним можно было работать.
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # Шаг 2: Отправка файлов по FTP
+      # Это самый главный шаг. Он использует готовое действие "FTP-Deploy-Action".
+      - name: FTP Deploy
+        uses: SamKirkland/FTP-Deploy-Action@4.3.3
+        with:
+          # Адрес вашего FTP-сервера на Timeweb.
+          server: ${{ secrets.FTP_SERVER }}
+          # Имя пользователя (логин) для подключения по FTP.
+          username: ${{ secrets.FTP_USERNAME }}
+          # Пароль для подключения по FTP.
+          password: ${{ secrets.FTP_PASSWORD }}
