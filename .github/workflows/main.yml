@@ -33,3 +33,4 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           # Пароль для подключения по FTP.
           password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: fractalschool/ 
