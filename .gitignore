@@ -13,3 +13,4 @@ __pycache__/
 staticfiles/
 media/
 .venv/
+passenger_wsgi.py
