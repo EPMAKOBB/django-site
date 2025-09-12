@@ -15,10 +15,14 @@ from pathlib import Path
 import pymysql
 pymysql.install_as_MySQLdb()
 from dotenv import load_dotenv
-load_dotenv()
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+### ИЗМЕНЕНО ###
+# Явно указываем путь к файлу .env, чтобы сервер его точно нашел.
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -53,7 +57,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    ### ИЗМЕНЕНО ###
+    # WhiteNoise не нужен, т.к. статику будет раздавать веб-сервер Timeweb.
+    # 'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
@@ -135,7 +141,13 @@ LOCALE_PATHS = [BASE_DIR / 'locale']
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / "staticfiles"
+
+### ИЗМЕНЕНО ###
+# Указываем путь, куда collectstatic будет собирать все файлы.
+# Этот путь должен совпадать с тем, что будет настроено на хостинге.
+STATIC_ROOT = BASE_DIR / 'public' / 'static'
+
+# Указываем, где Django будет искать статику в процессе разработки.
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Default primary key field type
