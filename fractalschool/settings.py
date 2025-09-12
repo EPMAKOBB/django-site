@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 import dj_database_url
 
 
@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 ### ИЗМЕНЕНО ###
 # Явно указываем путь к файлу .env, чтобы сервер его точно нашел.
-load_dotenv(BASE_DIR / '.env')
+#load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
