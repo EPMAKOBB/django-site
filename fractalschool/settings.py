@@ -12,9 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
-import pymysql
-pymysql.install_as_MySQLdb()
 from dotenv import load_dotenv
+import dj_database_url
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -37,7 +36,8 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = ALLOWED_HOSTS.split(",") if ALLOWED_HOSTS else []
 
-CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
+CSRF_TRUSTED_ORIGINS = CSRF_TRUSTED_ORIGINS.split(",") if CSRF_TRUSTED_ORIGINS else []
 
 
 # Application definition
@@ -94,14 +94,10 @@ WSGI_APPLICATION = 'fractalschool.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME'),
-        'USER': os.environ.get('DB_USER'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'), # 'localhost' как значение по умолчанию
-        'PORT': '3306',
-    }
+    "default": dj_database_url.config(
+        default=os.environ.get("DATABASE_URL"),
+        conn_max_age=600,
+    )
 }
 
 # Password validation
