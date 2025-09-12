@@ -4,7 +4,17 @@
 
 ## Установка и запуск
 
-Для запуска сервера выполните следующие команды:
+Создайте файл `.env` и укажите переменные окружения:
+
+```bash
+SECRET_KEY=changeme
+DEBUG=True
+ALLOWED_HOSTS=localhost
+CSRF_TRUSTED_ORIGINS=http://localhost
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DBNAME
+```
+
+Затем выполните миграции и запустите сервер:
 
 ```bash
 python manage.py migrate
