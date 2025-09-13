@@ -14,4 +14,3 @@ staticfiles/
 media/
 .venv/
 passenger_wsgi.py
-*.mo
