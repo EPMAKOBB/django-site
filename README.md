@@ -20,6 +20,7 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DBNAME
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py seed_ege
+python manage.py collectstatic --noinput
 python manage.py runserver
 ```
 
