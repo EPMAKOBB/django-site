@@ -85,7 +85,7 @@ USE_I18N = True
 USE_TZ = True
 LOCALE_PATHS = [BASE_DIR / "locale"]
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "public" / "static"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
