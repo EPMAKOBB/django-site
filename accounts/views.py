@@ -4,6 +4,14 @@ from django.shortcuts import render, redirect
 
 
 from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
+from subjects.models import Subject
+from apps.recsys.models import (
+    SkillMastery,
+    TypeMastery,
+    SkillGroup,
+    ExamVersion,
+    TaskType,
+)
 
 
 def _get_dashboard_role(request):
@@ -102,9 +110,66 @@ def dashboard_settings(request):
 
 @login_required
 def dashboard_subjects(request):
-    """Display a placeholder subjects dashboard."""
+    """Subjects dashboard with collapsible subject blocks and progress.
+
+    For each subject:
+      - Skill progress by skill (via SkillMastery)
+      - Task-type progress (via TypeMastery)
+      - Skill groups for the latest exam version, if configured
+    """
     role = _get_dashboard_role(request)
-    context = {"active_tab": "subjects", "role": role}
+
+    subjects = Subject.objects.all().order_by("name")
+
+    # Preload user masteries once and index by related id
+    skill_masteries = (
+        SkillMastery.objects.filter(user=request.user)
+        .select_related("skill", "skill__subject")
+    )
+    type_masteries = (
+        TypeMastery.objects.filter(user=request.user)
+        .select_related("task_type", "task_type__subject")
+    )
+
+    mastery_by_skill_id: dict[int, float] = {
+        sm.skill_id: float(sm.mastery) for sm in skill_masteries
+    }
+    mastery_by_type_id: dict[int, float] = {
+        tm.task_type_id: float(tm.mastery) for tm in type_masteries
+    }
+
+    subjects_data = []
+    for subj in subjects:
+        # Try to pick a default exam version for groups (first by name)
+        exam_version = (
+            ExamVersion.objects.filter(subject=subj).order_by("name").first()
+        )
+        groups = []
+        if exam_version:
+            groups = (
+                SkillGroup.objects.filter(exam_version=exam_version)
+                .prefetch_related("items__skill")
+                .order_by("id")
+            )
+
+        types = TaskType.objects.filter(subject=subj).order_by("name")
+
+        subjects_data.append(
+            {
+                "subject": subj,
+                "exam_version": exam_version,
+                "groups": groups,
+                "types": types,
+                "skill_masteries": mastery_by_skill_id,
+                "type_masteries": mastery_by_type_id,
+            }
+        )
+
+    context = {
+        "active_tab": "subjects",
+        "role": role,
+        "subjects_data": subjects_data,
+    }
     return render(request, "accounts/dashboard/subjects.html", context)
 
 

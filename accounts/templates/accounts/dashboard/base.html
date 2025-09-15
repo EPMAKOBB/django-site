@@ -4,18 +4,31 @@
 
 {% block content %}
 <div class="dashboard-container container">
-  <aside class="dashboard-sidebar">
-    <nav>
-      <ul>
-        <li class="{% if active_tab == 'tasks' %}active{% endif %}"><a href="{% url 'accounts:dashboard' %}">Задания</a></li>
-        <li class="{% if active_tab == 'subjects' %}active{% endif %}"><a href="{% url 'accounts:dashboard-subjects' %}">Предметы</a></li>
-        <li class="{% if active_tab == 'courses' %}active{% endif %}"><a href="{% url 'accounts:dashboard-courses' %}">Курсы</a></li>
-        <li class="{% if active_tab == 'settings' %}active{% endif %}"><a href="{% url 'accounts:dashboard-settings' %}">Настройки</a></li>
-      </ul>
-    </nav>
-  </aside>
-  <section class="dashboard-content">
-    {% block dashboard_content %}{% endblock %}
-  </section>
+  <nav class="dashboard-tabs" aria-label="Навигация личного кабинета">
+    <ul class="tabs" role="tablist" style="list-style:none; margin:0; padding:0;">
+      <li class="{% if active_tab == 'tasks' %}active{% endif %}" role="presentation">
+        <a role="tab" aria-selected="{% if active_tab == 'tasks' %}true{% else %}false{% endif %}"
+           href="{% url 'accounts:dashboard' %}">Задания</a>
+      </li>
+      <li class="{% if active_tab == 'subjects' %}active{% endif %}" role="presentation">
+        <a role="tab" aria-selected="{% if active_tab == 'subjects' %}true{% else %}false{% endif %}"
+           href="{% url 'accounts:dashboard-subjects' %}">Предметы</a>
+      </li>
+      <li class="{% if active_tab == 'courses' %}active{% endif %}" role="presentation">
+        <a role="tab" aria-selected="{% if active_tab == 'courses' %}true{% else %}false{% endif %}"
+           href="{% url 'accounts:dashboard-courses' %}">Курсы</a>
+      </li>
+      <li class="{% if active_tab == 'settings' %}active{% endif %}" role="presentation">
+        <a role="tab" aria-selected="{% if active_tab == 'settings' %}true{% else %}false{% endif %}"
+           href="{% url 'accounts:dashboard-settings' %}">Настройки</a>
+      </li>
+    </ul>
+  </nav>
+  <div class="dashboard-panel">
+    <section class="dashboard-content">
+      {% block dashboard_content %}{% endblock %}
+    </section>
+  </div>
+
 </div>
 {% endblock %}

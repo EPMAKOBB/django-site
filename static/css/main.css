@@ -230,13 +230,39 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 }
 
 /* Dashboard */
-.dashboard-container { display:flex; gap:2rem; }
-.dashboard-sidebar { width:200px; }
-.dashboard-sidebar ul { list-style:none; margin:0; padding:0; }
-.dashboard-sidebar li { margin-bottom:0.5rem; }
-.dashboard-sidebar a { display:block; padding:0.5rem 0; color:var(--text); }
-.dashboard-sidebar li.active a { color:var(--accent); }
-.dashboard-content { flex:1; }
+.container-fluid { max-width: 100%; margin: 0 auto; padding: 24px 16px; }
+.dashboard-container { display:block; }
+.dashboard-content { width:100%; }
+.dashboard-panel { background: var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; }
+
+/* Top tabs navigation (browser-like) */
+.dashboard-tabs { margin-bottom: 0; }
+.dashboard-tabs .tabs { list-style:none; margin:0; padding:0; display:flex; gap:var(--space-sm); align-items:flex-end; overflow-x:auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.dashboard-tabs .tabs li { flex: 0 0 auto; }
+.dashboard-tabs .tabs a {
+  display:block;
+  padding:10px 14px;
+  color:var(--muted);
+  border:1px solid var(--border);
+  border-bottom:none;
+  border-top-left-radius:12px;
+  border-top-right-radius:12px;
+  background:#0b1017;
+  white-space:nowrap;
+  transition:all .2s ease;
+  margin-bottom:-1px; /* соединяем с панелью */
+}
+.dashboard-tabs .tabs a:hover { color:var(--text); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.dashboard-tabs .tabs li.active a {
+  color:var(--text);
+  background: var(--card);
+  border-color: var(--border);
+}
+
+@media (max-width: 640px) {
+  .dashboard-tabs .tabs { gap: var(--space-xs); }
+  .dashboard-tabs .tabs a { padding: 10px 12px; font-size: var(--font-sm); }
+}
 
 /* Dashboard settings */
 .dashboard-content form { background: var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
@@ -275,3 +301,11 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
   color: #555;
 }
 
+/* Mobile header layout: stack title and account button */
+@media (max-width: 640px) {
+  header .row {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+}
