@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Прогресс</title>
+  <style>
+    :root{
+      --bg:#0a0f0d;           /* глубокий тёмный */
+      --panel:#0f1613;        /* тёмная панель */
+      --muted:#8aa39b;        /* приглушённый текст */
+      --text:#e6fff5;         /* основной текст */
+      --accent:#00ff9c;       /* неоново-зелёный */
+      --accent-dim:#0ecf83;   /* более тёмный неон */
+      --outline:#1f2a25;      /* контуры */
+      --purple:#9c6bff;       /* вторичный акцент */
+      --danger:#ff4d6d;       /* красный для ошибок */
+      --shadow: 0 0 20px rgba(0,255,156,0.12), 0 0 4px rgba(0,255,156,0.2);
+    }
+    html,body{height:100%;}
+    body{
+      margin:0; font: 16px/1.5 Consolas, "JetBrains Mono", Menlo, Monaco, "SFMono-Regular", monospace;
+      background: radial-gradient(1200px 600px at 10% 0%, #0b1310 0%, var(--bg) 45%) fixed;
+      color:var(--text);
+    }
+    .wrap{max-width:1100px; margin-inline:auto; padding:24px;}
+    header{
+      position:sticky; top:0; z-index:10; backdrop-filter: blur(8px);
+      background: linear-gradient(180deg, rgba(10,15,13,0.85), rgba(10,15,13,0.55));
+      border-bottom:1px solid var(--outline);
+    }
+    .brand{display:flex; align-items:center; gap:16px; padding:12px 24px;}
+    .avatar{
+      width:42px; height:42px; border-radius:10px; background:linear-gradient(135deg,var(--accent),var(--purple));
+      box-shadow: var(--shadow);
+    }
+    h1{
+      margin:0; font-size:28px; letter-spacing:0.6px; text-transform:uppercase; font-weight:800;
+      text-shadow:0 0 18px rgba(156,107,255,0.25), 0 0 18px rgba(0,255,156,0.15);
+    }
+    h1 .cursor{color:var(--accent); animation:blink 1.1s steps(1) infinite;}
+    @keyframes blink{50%{opacity:0;}}
+
+    section{margin:28px 0;}
+    .section-title{display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--muted);}
+    .section-title .dot{width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px rgba(0,255,156,.6);}    
+
+    .group{border:1px solid var(--outline); border-radius:16px; background:linear-gradient(180deg,#0e1512,#0b120f);
+      padding:16px; box-shadow: var(--shadow);}
+    .group + .group{margin-top:14px;}
+    .group h3{margin:4px 0 14px; font-size:18px; color:var(--accent); letter-spacing:.4px;}
+
+    .grid{display:grid; gap:12px; grid-template-columns: repeat(1, minmax(0,1fr));}
+    @media (min-width:700px){ .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }}
+    @media (min-width:1000px){ .grid{ grid-template-columns: repeat(3, minmax(0,1fr)); }}
+
+    .item{display:flex; flex-direction:column; gap:8px;}
+    .label{display:flex; justify-content:space-between; gap:10px; font-weight:600;}
+    .pct{color:var(--muted);}
+    .bar{position:relative; height:14px; border-radius:10px; overflow:hidden; background: #0a1411; border:1px solid var(--outline);}    
+    .fill{position:absolute; inset:0 auto 0 0; width:0%; background:linear-gradient(90deg, rgba(0,255,156,.9), rgba(156,107,255,.85)); box-shadow: inset 0 0 12px rgba(0,0,0,.35), 0 0 18px rgba(0,255,156,.35);
+      transition:width .35s ease;}
+
+    /* Ниже остаются стили панели/кнопок из исходника — можно удалить при желании */
+    .panel{border:1px solid var(--outline); border-radius:16px; background:linear-gradient(180deg,#0b1210,#09110e);
+      padding:16px; box-shadow: var(--shadow);}
+    .controls{display:grid; gap:10px; grid-template-columns:repeat(1, minmax(0,1fr));}
+    @media (min-width:820px){ .controls{ grid-template-columns:repeat(3, minmax(0,1fr)); }}
+    .ctrl{display:flex; align-items:center; gap:10px; border:1px dashed var(--outline); padding:10px; border-radius:12px;}
+    .ctrl label{flex:1; color:var(--muted);} 
+    .ctrl input[type=number]{width:90px; padding:6px 8px; border-radius:8px; border:1px solid var(--outline); background:#0a1411; color:var(--text);
+      box-shadow:inset 0 0 6px rgba(0,0,0,.4);}    
+    .toolbar{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+    .btn{appearance:none; border:1px solid var(--outline); background:#0d1613; color:var(--text); padding:10px 14px; border-radius:12px; font-weight:700; letter-spacing:.4px; cursor:pointer;
+      box-shadow:var(--shadow);} 
+    .btn:hover{border-color:var(--accent);}
+    .btn.accent{border-color:transparent; background:linear-gradient(90deg, #0bbf84, #7a5ef7);} 
+
+    .matrix{position:fixed; inset:0; pointer-events:none; opacity:.05;
+      background-image: linear-gradient(transparent 31px, rgba(0,255,156,.35) 32px), linear-gradient(90deg, transparent 31px, rgba(156,107,255,.35) 32px);
+      background-size:32px 32px; mix-blend-mode:screen;}
+
+    footer{opacity:.7; font-size:12px; text-align:center; margin:18px 0 8px; color:var(--muted);} 
+  </style>
+</head>
+<body>
+  <div class="matrix" aria-hidden="true"></div>
+  <header>
+    <div class="brand wrap">
+      <div class="avatar" aria-hidden="true"></div>
+      <h1>ваш прогресс <span class="cursor">▍</span></h1>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- СКИЛЛЫ -->
+    <section id="skills-section">
+      <div class="section-title"><span class="dot"></span><span>Скиллы (умения по кодификатору ЕГЭ 2026)</span></div>
+      <div id="skill-groups"></div>
+    </section>
+
+    <!-- ТИПЫ ЗАДАЧ -->
+    <section id="types-section">
+      <div class="section-title"><span class="dot"></span><span>Типы задач (1–27)</span></div>
+      <div class="group">
+        <div class="grid" id="types-grid"></div>
+      </div>
+    </section>
+
+    <!-- БЛОК РУЧНОГО ВВОДА УДАЛЁН -->
+
+    <footer>Тёмная тема · кибер-вибрации</footer>
+  </main>
+
+  <script>
+    // ==== ДАННЫЕ СЕКЦИЙ (из документа кодификатора/спецификации) ====
+    const skillGroups = [
+      {
+        title: 'Цифровая грамотность',
+        items: [
+          { id:'networks', label:'Сети и адресация' },
+          { id:'filesystem', label:'Параллельные вычисления' },
+          { id:'speed', label:'Текстовый и табличный редакторы' },
+        ]
+      },
+      {
+        title: 'Теоретические основы информатики',
+        items: [
+          { id:'coding', label:'Кодирование и декодирование (условие Фано)' },
+          { id:'bases', label:'Системы счисления' },
+          { id:'text-enc', label:'Теория информации (комбинаторика)' },
+          { id:'media-enc', label:'Кодирование изображений и звука' },
+          { id:'logic', label:'Алгебра логики' },
+          { id:'discrete', label:'Дискретные структуры (таблица и граф)' },
+          { id:'games', label:'Теория игр' },
+        ]
+      },
+      {
+        title: 'Алгоритмы и программирование',
+        items: [
+          { id:'complexity', label:'Основы программирования' },
+          { id:'trace', label:'Циклы for, while' },
+          { id:'num-algo', label:'Базовые алгоритмы' },
+          { id:'language', label:'Рекурсия' },
+          { id:'strings', label:'Работа со строками' },
+          { id:'arrays', label:'Массивы/сортировка' },
+          { id:'numeric-methods', label:'Пользовательские функции' },
+        ]
+      },
+      {
+        title: 'Информационные технологии',
+        items: [
+          { id:'spreadsheets', label:'Реляционные базы данных' },
+          { id:'db', label:'Обработка информации в электронных таблицах' },
+          { id:'word', label:'Текстовый процессор' },
+          { id:'modelling', label:'Анализ данных (кластеризация)' },
+        ]
+      }
+    ];
+
+    // Инициализация словаря значений (0..100)
+    const values = {};
+    for(const g of skillGroups){ for(const it of g.items){ values[it.id] = 0; } }
+    for(let i=1;i<=27;i++){ values['type'+i] = 0; }
+
+    // ==== УТИЛИТЫ РЕНДЕРА ====
+    const skillGroupsRoot = document.getElementById('skill-groups');
+    const typesGrid = document.getElementById('types-grid');
+
+    function clamp(v){ v = Number(v||0); if(Number.isNaN(v)) v=0; return Math.max(0, Math.min(100, Math.round(v))); }
+
+    function makeBar(id,label){
+      const box = document.createElement('div');
+      box.className = 'item';
+      box.innerHTML = `
+        <div class="label"><span>${label}</span><span class="pct" id="pct-${id}">0%</span></div>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="${label}">
+          <div class="fill" id="fill-${id}" style="width:0%"></div>
+        </div>`;
+      return box;
+    }
+
+    function setValue(id,v){
+      const val = clamp(v);
+      values[id] = val;
+      const pctEl = document.getElementById('pct-'+id);
+      const fillEl = document.getElementById('fill-'+id);
+      if(pctEl) pctEl.textContent = val + '%';
+      if(fillEl){ fillEl.style.width = val + '%'; fillEl.parentElement.setAttribute('aria-valuenow', String(val)); }
+    }
+
+    function render(){
+      // группы скиллов
+      skillGroupsRoot.innerHTML = '';
+      for(const group of skillGroups){
+        const card = document.createElement('div');
+        card.className = 'group';
+        const h3 = document.createElement('h3'); h3.textContent = group.title; card.appendChild(h3);
+        const grid = document.createElement('div'); grid.className = 'grid';
+        for(const it of group.items){ grid.appendChild(makeBar(it.id, it.label)); }
+        card.appendChild(grid);
+        skillGroupsRoot.appendChild(card);
+      }
+      // типы задач
+      typesGrid.innerHTML = '';
+      for(let i=1;i<=27;i++){ typesGrid.appendChild(makeBar('type'+i, `Тип ${i}`)); }
+    }
+
+    // ==== ПОЛУЧЕНИЕ ДАННЫХ ИЗ ВНЕШНЕЙ БАЗЫ (ЗАГЛУШКИ) ====
+    async function getProgressFromDB(userId){
+      /* ВАРИАНТ 1. Сервер внедряет данные прямо в HTML:
+         На сервере добавьте объект window.INIT_PROGRESS с нужными значениями.
+         Структура ожидаемых данных:
+         {
+           skills: { networks: 35, filesystem: 60, ... },
+           types:  { type1: 20, type2: 80, ... }
+         }
+      */
+      if (window.INIT_PROGRESS) {
+        return window.INIT_PROGRESS; // ← Замените генерацию этого объекта на сервере
+      }
+
+      /* ВАРИАНТ 2. REST API /fetch:
+         Замените URL на ваш эндпоинт и добавьте авторизацию по необходимости.
+         Пример: /api/progress?userId=...
+         Ожидается тот же формат JSON, что и выше.
+      */
+      try{
+        const resp = await fetch(`/api/progress?userId=${encodeURIComponent(userId)}`, {
+          // headers: { 'Authorization': 'Bearer <TOKEN>' }
+        });
+        if(resp.ok){
+          const data = await resp.json();
+          return data;
+        }
+      }catch(e){
+        // При желании, логируйте ошибку отправкой на ваш бэкенд
+      }
+
+      /* ЗАГЛУШКА ПО УМОЛЧАНИЮ:
+         Если БД/эндпоинт ещё не подключены — вернём пример.
+         Замените это на реальные данные.
+      */
+      return {
+        skills: {
+          networks: 25, filesystem: 40, speed: 55,
+          coding: 30, bases: 70, 'text-enc': 45, 'media-enc': 20, logic: 65, discrete: 50, games: 15,
+          complexity: 35, trace: 60, 'num-algo': 30, language: 10, strings: 25, arrays: 40, 'numeric-methods': 5,
+          spreadsheets: 45, db: 35, word: 20, modelling: 10
+        },
+        types: Object.fromEntries(Array.from({length:27}, (_,i)=>[`type${i+1}`, Math.floor(Math.random()*101)]))
+      };
+    }
+
+    // ==== ИНИЦИАЛИЗАЦИЯ ====
+    (async function init(){
+      render();
+
+      // Здесь получите userId/контекст авторизации (заглушка):
+      const userId = 'current-user-id'; // ← Подставьте реальный ID пользователя из сессии/JWT
+
+      const data = await getProgressFromDB(userId);
+
+      // Применяем значения из БД к локальному словарю и обновляем бары
+      if (data && data.skills){
+        for (const k in data.skills){
+          if (k in values) setValue(k, data.skills[k]);
+        }
+      }
+      if (data && data.types){
+        for (const k in data.types){
+          if (k in values) setValue(k, data.types[k]);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
