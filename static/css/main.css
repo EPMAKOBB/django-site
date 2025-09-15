@@ -1,4 +1,4 @@
-/* Color, spacing and typography variables */
+﻿/* Color, spacing and typography variables */
 :root {
   --bg: #0b0f14;
   --card:#121820;
@@ -30,6 +30,10 @@ body {
   background: var(--bg);
   color: var(--text);
 }
+/* Normalize a few UA defaults that create unexpected spacing */
+figure { margin: 0; }
+blockquote { margin: 0; }
+ul, ol { padding-left: 1.2em; }
 input, select, textarea, button {
   font-family: inherit;
 }
@@ -179,17 +183,13 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
   transform: translateY(0);
 }
 
-/* Testimonials */
-.reviews-block {}
-.testimonials { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap: var(--space-md); }
-.quote { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: var(--space-lg); color: var(--muted); }
-.quote strong { color: var(--text); }
-
-.feature-list { margin: 0 0 0 18px; display: grid; gap: 6px; }
-
 /* Footer CTA */
 .cta-block { text-align: center; padding: 28px 0 48px; }
 .muted { color: var(--muted); }
+
+/* Testimonials */
+#reviews .card p { color: var(--muted); }
+#reviews .card figcaption { color: var(--accent); font-style: italic; font-weight: 600; }
 
 /* Auth forms */
 .auth-form { background: var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:400px; }
@@ -274,3 +274,4 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
   font-size: 0.9rem;
   color: #555;
 }
+

@@ -1,13 +1,24 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <h1>Заявка на обучение</h1>
-  <form method="post">
+  {% if request.GET.ok %}
+    <div class="container">
+      <div class="block block--futuristic" style="max-width:640px;margin:48px auto;text-align:center;">
+        <h1 class="mb-16">Заявка успешно отправлена</h1>
+        <a href="{% url 'home' %}" class="btn btn-large">Назад на главную</a>
+      </div>
+    </div>
+  {% else %}
+  <div class="container">
+    <div class="block block--futuristic" style="max-width:760px;margin:28px auto;">
+      <h1 class="mb-16">Заявка на обучение</h1>
+      <form id="application-form" method="post">
     {% csrf_token %}
     <input type="hidden" name="source_offer" value="{{ form.initial.source_offer }}">
     {{ form.as_p }}
-    <button type="submit">Отправить заявку</button>
+    <button id="submit-btn" type="submit">Отправить заявку</button>
     <div id="form-message"></div>
+    <p id="form-note" style="display:none" class="hint">Чтобы отправить новую заявку, измените данные формы.</p>
     <p class="application-price">
       <span class="price-old">
         {{ application_price.original }} ₽/мес
@@ -16,30 +27,61 @@
         {{ application_price.current }} ₽/мес
       </span>
       <span class="price-note">
-        {% if subjects_count >= 2 %}за два предмета {% endif %}
+        {% if subjects_count >= 2 %}скидка при нескольких предметах{% endif %}
         {% if application_price.promo_until %}
-          при записи до {{ application_price.promo_until|date:"j E" }}
+          Акция действует до {{ application_price.promo_until|date:"j E" }}
         {% endif %}
       </span>
     </p>
-  </form>
+      </form>
+    </div>
+  </div>
   <script>
-    document.querySelector('form').addEventListener('submit', async e => {
-        e.preventDefault();
-        const form = e.target;
-        const msg = document.getElementById('form-message');
-        const resp = await fetch(form.action || window.location.href, {
-            method: 'POST',
-            headers: {'X-Requested-With': 'XMLHttpRequest'},
-            body: new FormData(form),
+    document.addEventListener('DOMContentLoaded', () => {
+      const form = document.getElementById('application-form');
+      if (!form) return;
+      const btn = document.getElementById('submit-btn');
+      const msg = document.getElementById('form-message');
+      const note = document.getElementById('form-note');
+
+      // Явно укажем action и отключим нативную проверку, чтобы не было повторной отправки
+      if (!form.getAttribute('action')) form.setAttribute('action', window.location.href);
+      form.noValidate = true;
+
+      async function handleSubmit(e) {
+        if (e) e.preventDefault();
+        const resp = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: new FormData(form),
+          redirect: 'follow',
         });
         if (resp.ok) {
-            const data = await resp.json();
-            msg.textContent = data.message;
-            form.reset();
+          let data = {};
+          try { data = await resp.json(); } catch (_) {}
+          msg.textContent = data.message || 'Заявка успешно отправлена';
+          msg.setAttribute('aria-live', 'polite');
+          btn.disabled = true;
+          btn.textContent = 'Заявка отправлена';
+          note.style.display = 'block';
         } else {
-            msg.textContent = 'Не удалось отправить.';
+          msg.textContent = 'Произошла ошибка при отправке заявки.';
         }
+      }
+
+      form.addEventListener('submit', handleSubmit);
+      if (btn) btn.addEventListener('click', (e) => { e.preventDefault(); handleSubmit(e); });
+
+      // Если пользователь меняет данные после успешной отправки — вновь разрешаем отправку
+      form.addEventListener('input', () => {
+        if (btn.disabled) {
+          btn.disabled = false;
+          btn.textContent = 'Отправить заявку';
+          note.style.display = 'none';
+          msg.textContent = '';
+        }
+      });
     });
   </script>
+  {% endif %}
 {% endblock %}
