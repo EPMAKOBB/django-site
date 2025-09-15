@@ -1,6 +1,7 @@
 from typing import Any, Dict
 from django.urls import reverse_lazy
 from django.views.generic import FormView
+from django.contrib import messages
 from django.http import JsonResponse
 
 from .forms import ApplicationForm
@@ -33,7 +34,7 @@ class ApplicationCreateView(FormView):
         ok_msg = "Заявка успешно отправлена"
         if self.request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return JsonResponse({"message": ok_msg})
-        # Не показываем флэш-сообщение, чтобы не дублировать заголовок на странице ok
+        messages.success(self.request, ok_msg)
         return super().form_valid(form)
 
     def get_success_url(self) -> str:  # type: ignore[override]
@@ -54,4 +55,3 @@ class ApplicationCreateView(FormView):
         context["subjects_count"] = subjects_count
         context["application_price"] = get_application_price(subjects_count)
         return context
-

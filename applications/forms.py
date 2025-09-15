@@ -42,7 +42,7 @@ class ApplicationForm(forms.ModelForm):
         }
         widgets = {
             "contact_info": forms.Textarea(
-                attrs={"placeholder": _("Ваши контакты и пожелания")}
+                attrs={"placeholder": _("Ваши контакты и комментарий")}
             ),
             "contact_name": forms.TextInput(
                 attrs={"placeholder": _("Ваше имя")}
@@ -64,3 +64,4 @@ class ApplicationForm(forms.ModelForm):
                 subjects.append(subject2)
             application.subjects.set(subjects)
         return application
+
