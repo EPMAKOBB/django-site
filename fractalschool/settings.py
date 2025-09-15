@@ -61,9 +61,15 @@ WSGI_APPLICATION = "fractalschool.wsgi.application"
 
 # Database: prefer DATABASE_URL, else DATABASE_PUBLIC_URL, else sqlite3
 _db_url = os.environ.get("DATABASE_URL") or os.environ.get("DATABASE_PUBLIC_URL")
+
 if _db_url:
-    db_cfg = dj_database_url.parse(_db_url, conn_max_age=600, ssl_require=True)
-    db_cfg["ENGINE"] = "django.db.backends.postgresql"  # принудительно psycopg2 backend
+    db_cfg = dj_database_url.parse(_db_url, conn_max_age=600, ssl_require=False)
+    db_cfg["ENGINE"] = "django.db.backends.postgresql_psycopg2"
+    host = (db_cfg.get("HOST") or "").lower()
+    if host in ("localhost", "127.0.0.1"):
+        db_cfg.setdefault("OPTIONS", {})["sslmode"] = "disable"
+    else:
+        db_cfg.setdefault("OPTIONS", {})["sslmode"] = "require"
     DATABASES = {"default": db_cfg}
 else:
     DATABASES = {
