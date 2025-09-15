@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Fractal School{% endblock %}</title>
+  <title>{% block title %}ФРАКТАЛ: ШКОЛА БУДУЩЕГО{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/main.css' %}">
   <link rel="stylesheet" href="{% static 'css/cyber.css' %}">
 </head>
@@ -15,7 +15,7 @@
       <div class="row">
         <a href="{% url 'home' %}" class="brand">
           <div class="avatar" aria-hidden="true">[Ф]</div>
-          <h1 id="typewriter" data-text="Фрактал: школа будущего"><span class="cursor">_</span></h1>
+          <h1 id="typewriter" data-text="ФРАКТАЛ: ШКОЛА БУДУЩЕГО"><span class="cursor">_</span></h1>
         </a>
         <nav class="toolbar">
           <a
@@ -23,9 +23,9 @@
             class="btn"
           >
             {% if user.is_authenticated %}
-              Мой кабинет: 👤 {{ request.user.username }}
+              Личный кабинет: {{ request.user.username }}
             {% else %}
-              Логин/Регистрация
+              Вход / Регистрация
             {% endif %}
           </a>
         </nav>
@@ -47,3 +47,4 @@
   <script src="{% static 'js/main.js' %}"></script>
 </body>
 </html>
+

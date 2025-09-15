@@ -1,25 +1,30 @@
-{% load i18n %}
-<section class="section">
+<section id="reviews" class="section" aria-labelledby="reviews-title">
   <div class="container">
-    <div class="block block--futuristic reviews-block">
-        <h3 class="section-title">{% trans "Отзывы" %}</h3>
-      <div class="testimonials">
-          <div class="quote">
-            {% blocktrans trimmed %}"Виктор, спасибо Вам огромное!!! Я вообще в шоке!!! Я Вам бесконечно благодарен!!!"{% endblocktrans %}
-            <br>
-            <strong>— Дмитрий, 100 баллов на ЕГЭ по информатике</strong>
-          </div>
-          <div class="quote">
-            {% blocktrans trimmed %}"Было относительно просто, если честно. Вполне себе мог получить 100 баллов, но у меня 99. Тоже неплохо, думаю"{% endblocktrans %}
-            <br>
-            <strong>— Матвей, 99 баллов на ЕГЭ по математике</strong>
-          </div>
-          <div class="quote">
-            {% blocktrans trimmed %}"Сдал ЕГЭ на высочайший балл, после чего знаний хватило на то, чтобы самостоятельно подготовиться к ДВИ МГУ по физике на 90+"{% endblocktrans %}
-            <br>
-            <strong>— Андрей, 97 баллов на ЕГЭ по физике</strong>
-          </div>
+    <div class="block block--futuristic">
+      <h3 id="reviews-title" class="section-title">Отзывы</h3>
+      <div class="subjects mt-12">
+        <figure class="card">
+          <p>
+            "Виктор, спасибо Вам огромное!!! Я вообще в шоке!!! Я Вам бесконечно благодарен!!!"
+          </p>
+          <figcaption>— Дмитрий, 100 баллов на ЕГЭ по информатике</figcaption>
+        </figure>
+
+        <figure class="card">
+          <p>
+            "Было относительно просто, если честно. Вполне себе мог получить 100 баллов, но у меня 99. Тоже неплохо, думаю"
+          </p>
+          <figcaption>— Матвей, 99 баллов на ЕГЭ по математике</figcaption>
+        </figure>
+
+        <figure class="card">
+          <p>
+            "Сдал ЕГЭ на высочайший балл, после чего знаний хватило на то, чтобы самостоятельно подготовиться к ДВИ МГУ по физике на 90+"
+          </p>
+          <figcaption>— Андрей, 97 баллов на ЕГЭ по физике</figcaption>
+        </figure>
       </div>
     </div>
   </div>
 </section>
+
