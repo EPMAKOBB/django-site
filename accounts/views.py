@@ -209,15 +209,13 @@ def dashboard_settings(request):
         db_selected_exam_ids,
     )
     logger.info(
-        "Dashboard settings context",
-        extra={
-            "connection_alias": connection.alias,
-            "profile_id": profile.pk,
-            "user_id": request.user.pk,
-            "selected_exam_ids": selected_exam_ids,
-            "db_selected_exam_ids": db_selected_exam_ids,
-            "through_records": through_records,
-        },
+        "Dashboard settings context: alias=%s profile_id=%s user_id=%s selected_exam_ids=%s db_selected_exam_ids=%s through_records=%s",
+        connection.alias,
+        profile.pk,
+        request.user.pk,
+        selected_exam_ids,
+        db_selected_exam_ids,
+        through_records,
     )
     return render(request, "accounts/dashboard/settings.html", context)
 
