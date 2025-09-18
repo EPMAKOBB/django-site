@@ -97,3 +97,16 @@ class DashboardSettingsTests(TestCase):
         self.assertTrue(
             any("Received exam selection payload" in message for message in logs.output)
         )
+
+    def test_exam_selection_without_submit_keys_updates_profile(self):
+        subject = Subject.objects.create(name="Математика", slug="matematika")
+        exam = ExamVersion.objects.create(subject=subject, name="Пробный вариант 1")
+
+        self.client.login(username="user1", password="pass")
+        url = reverse("accounts:dashboard-settings")
+        response = self.client.post(url, {"exam_versions": [str(exam.id)]})
+
+        self.assertRedirects(response, url)
+
+        profile = StudentProfile.objects.get(user=self.user)
+        self.assertEqual(list(profile.exam_versions.all()), [exam])
