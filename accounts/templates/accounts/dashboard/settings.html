@@ -7,6 +7,7 @@
 <form method="post" class="card mb-16" id="exams-form">
   {% csrf_token %}
   <h2 class="mb-8">{% trans "Выбор экзаменов" %}</h2>
+  <input type="hidden" name="form_type" value="exams">
   {{ exams_form.non_field_errors }}
   <div class="mb-16">
     {% for subject in subjects %}
