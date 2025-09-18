@@ -28,6 +28,16 @@
       <p class="hint">{% trans "Нет доступных предметов" %}</p>
     {% endfor %}
   </div>
+  <h3 class="mb-8">{% trans "Ваши экзамены" %}</h3>
+  {% if selected_exams %}
+    <ul class="mb-16">
+      {% for exam in selected_exams %}
+        <li>{{ exam.subject.name }} — {{ exam.name }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="hint mb-16">{% trans "Вы ещё не выбрали экзамены" %}</p>
+  {% endif %}
   <div class="flex items-center gap-8">
     <button type="submit" name="exams_submit" class="btn" id="exams-submit">{% trans "Сохранить выбор" %}</button>
     <span id="exams-saving" class="hint" style="display:none">{% trans "Сохраняем выбор..." %}</span>

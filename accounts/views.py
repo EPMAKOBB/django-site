@@ -149,12 +149,18 @@ def dashboard_settings(request):
         p_form = PasswordChangeForm(request.user)
         exams_form = ExamPreferencesForm(instance=profile)
 
+    selected_exams = (
+        profile.exam_versions.select_related("subject")
+        .order_by("subject__name", "name")
+    )
+
     context = {
         "u_form": u_form,
         "p_form": p_form,
         "exams_form": exams_form,
         "subjects": subjects_qs,
         "selected_exam_ids": _get_selected_exam_ids(profile, exams_form),
+        "selected_exams": selected_exams,
         "active_tab": "settings",
         "role": role,
     }
