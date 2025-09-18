@@ -7,22 +7,7 @@
 <form method="post" class="card mb-16" id="exams-form">
   {% csrf_token %}
   <h2 class="mb-8">{% trans "Выбор экзаменов" %}</h2>
-  <div class="block block--futuristic mb-16" style="padding: 12px;">
-    <strong>{% trans "Отладочный вывод:" %}</strong>
-    <div style="margin-top: 8px;">
-      <div><code>selected_exam_ids</code>: {{ selected_exam_ids|join:", " }}</div>
-      <div><code>selected_exams</code>:</div>
-      <ul class="hint" style="margin-top: 4px;">
-        {% for exam in selected_exams %}
-          <li>#{{ exam.id }} — {{ exam.subject.name }} — {{ exam.name }}</li>
-        {% empty %}
-          <li>{% trans "(пусто)" %}</li>
-        {% endfor %}
-      </ul>
-    </div>
-  </div>
   {{ exams_form.non_field_errors }}
-  <pre class="errorlist" style="margin-top:8px; white-space:pre-wrap;">{{ exams_form.errors.as_text }}</pre>
   <div class="mb-16">
     {% for subject in subjects %}
       <div class="block block--futuristic mb-12">
