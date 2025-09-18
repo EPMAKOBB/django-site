@@ -1,4 +1,5 @@
-﻿from django.contrib import messages
+﻿import logging
+from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
@@ -15,6 +16,8 @@ from apps.recsys.models import (
     TaskType,
 )
 
+
+logger = logging.getLogger(__name__)
 
 def _get_dashboard_role(request):
     """Return the current dashboard role stored in the session."""
@@ -131,8 +134,33 @@ def dashboard_settings(request):
                     ids.append(int(v))
                 except (TypeError, ValueError):
                     continue
+            logger.debug(
+                "Received exam selection payload",
+                extra={
+                    "raw_ids": raw_ids,
+                    "normalized_ids": ids,
+                    "user_id": request.user.pk,
+                    "profile_id": profile.pk,
+                },
+            )
             selected = ExamVersion.objects.filter(id__in=ids)
+            logger.debug(
+                "ExamVersion queryset after filtering",
+                extra={
+                    "selected_ids": list(selected.values_list("id", flat=True)),
+                    "user_id": request.user.pk,
+                    "profile_id": profile.pk,
+                },
+            )
             profile.exam_versions.set(selected)
+            logger.debug(
+                "Profile exam versions updated",
+                extra={
+                    "stored_ids": list(profile.exam_versions.values_list("id", flat=True)),
+                    "user_id": request.user.pk,
+                    "profile_id": profile.pk,
+                },
+            )
             messages.success(request, _("Выбор сохранён"))
             return redirect("accounts:dashboard-settings")
         elif "role_submit" in request.POST:
@@ -164,6 +192,17 @@ def dashboard_settings(request):
         "active_tab": "settings",
         "role": role,
     }
+    logger.debug(
+        "Rendering dashboard settings",
+        extra={
+            "user_id": request.user.pk,
+            "profile_id": profile.pk,
+            "selected_exam_ids": context["selected_exam_ids"],
+            "selected_exams": list(
+                selected_exams.values_list("id", "name", "subject__name")
+            ),
+        },
+    )
     return render(request, "accounts/dashboard/settings.html", context)
 
 
