@@ -75,4 +75,7 @@ class DashboardSettingsTests(TestCase):
             f'value="{exam_second.id}" checked="checked"',
             html=False,
         )
+        self.assertContains(response, "Ваши экзамены")
+        self.assertContains(response, "Математика — Пробный вариант 1")
+        self.assertContains(response, "Математика — Пробный вариант 2")
         self.assertNotContains(response, "выбрать экзамены можно")
