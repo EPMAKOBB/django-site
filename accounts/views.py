@@ -110,14 +110,19 @@ def dashboard_settings(request):
 
     if request.method == "POST":
         form_type = request.POST.get("form_type")
-        if "user_submit" in request.POST:
+        user_submit = "user_submit" in request.POST
+        password_submit = "password_submit" in request.POST
+        role_submit = "role_submit" in request.POST
+        exams_submit = "exams_submit" in request.POST
+
+        if user_submit:
             u_form = UserUpdateForm(request.POST, instance=request.user)
             p_form = PasswordChangeForm(request.user)
             exams_form = ExamPreferencesForm(instance=profile)
             if u_form.is_valid():
                 u_form.save()
                 return redirect("accounts:dashboard-settings")
-        elif "password_submit" in request.POST:
+        elif password_submit:
             u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user, request.POST)
             exams_form = ExamPreferencesForm(instance=profile)
@@ -125,7 +130,16 @@ def dashboard_settings(request):
                 user = p_form.save()
                 update_session_auth_hash(request, user)
                 return redirect("accounts:dashboard-settings")
-        elif form_type == "exams" or "exams_submit" in request.POST:
+        elif role_submit:
+            new_role = request.POST.get("role")
+            if new_role in {"student", "teacher"}:
+                request.session["dashboard_role"] = new_role
+            return redirect("accounts:dashboard-settings")
+        elif (
+            form_type == "exams"
+            or exams_submit
+            or not (user_submit or password_submit or role_submit)
+        ):
             u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user)
             exams_form = ExamPreferencesForm(request.POST, instance=profile)
@@ -164,11 +178,6 @@ def dashboard_settings(request):
                 },
             )
             messages.success(request, _("Выбор сохранён"))
-            return redirect("accounts:dashboard-settings")
-        elif "role_submit" in request.POST:
-            new_role = request.POST.get("role")
-            if new_role in {"student", "teacher"}:
-                request.session["dashboard_role"] = new_role
             return redirect("accounts:dashboard-settings")
         else:
             u_form = UserUpdateForm(instance=request.user)
