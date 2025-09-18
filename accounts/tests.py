@@ -2,6 +2,10 @@ from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 
+from accounts.models import StudentProfile
+from subjects.models import Subject
+from apps.recsys.models import ExamVersion
+
 User = get_user_model()
 
 
@@ -49,3 +53,26 @@ class DashboardSettingsTests(TestCase):
             },
         )
         self.assertContains(response, "Этот логин уже занят")
+
+    def test_dashboard_settings_shows_selected_exam_versions(self):
+        subject = Subject.objects.create(name="Математика", slug="matematika")
+        exam_first = ExamVersion.objects.create(subject=subject, name="Пробный вариант 1")
+        exam_second = ExamVersion.objects.create(subject=subject, name="Пробный вариант 2")
+
+        profile, _ = StudentProfile.objects.get_or_create(user=self.user)
+        profile.exam_versions.set([exam_first, exam_second])
+
+        self.client.login(username="user1", password="pass")
+        response = self.client.get(reverse("accounts:dashboard-settings"))
+
+        self.assertContains(
+            response,
+            f'value="{exam_first.id}" checked="checked"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            f'value="{exam_second.id}" checked="checked"',
+            html=False,
+        )
+        self.assertNotContains(response, "выбрать экзамены можно")
