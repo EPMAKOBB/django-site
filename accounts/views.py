@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -17,7 +17,7 @@ from apps.recsys.models import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("accounts")
 
 def _get_dashboard_role(request):
     """Return the current dashboard role stored in the session."""
@@ -182,26 +182,25 @@ def dashboard_settings(request):
         .order_by("subject__name", "name")
     )
 
+    selected_exam_ids = _get_selected_exam_ids(profile, exams_form)
+    db_selected_exam_ids = list(profile.exam_versions.values_list("id", flat=True))
+
     context = {
         "u_form": u_form,
         "p_form": p_form,
         "exams_form": exams_form,
         "subjects": subjects_qs,
-        "selected_exam_ids": _get_selected_exam_ids(profile, exams_form),
+        "selected_exam_ids": selected_exam_ids,
         "selected_exams": selected_exams,
         "active_tab": "settings",
         "role": role,
     }
     logger.debug(
-        "Rendering dashboard settings",
-        extra={
-            "user_id": request.user.pk,
-            "profile_id": profile.pk,
-            "selected_exam_ids": context["selected_exam_ids"],
-            "selected_exams": list(
-                selected_exams.values_list("id", "name", "subject__name")
-            ),
-        },
+        "Rendering dashboard settings: profile_id=%s user_id=%s selected_exam_ids=%s db_selected_exam_ids=%s",
+        profile.pk,
+        request.user.pk,
+        selected_exam_ids,
+        db_selected_exam_ids,
     )
     return render(request, "accounts/dashboard/settings.html", context)
 
