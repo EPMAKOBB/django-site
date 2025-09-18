@@ -158,7 +158,32 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
     no-repeat center/contain;
 }
 .formats { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.exam-options { gap: var(--space-md); }
+
+.checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.checkbox-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.checkbox-option label {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.checkbox-option input[type="checkbox"]:checked + label {
+  color: var(--accent);
+}
 .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -170,6 +195,43 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 }
 .pill:hover {
   border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+}
+/* Exams selection UX */
+.formats .pill input { margin: 0; }
+.formats .pill:has(input:checked) {
+  background: color-mix(in srgb, var(--accent) 22%, #0b1017);
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* Custom checkbox inside pill */
+.pill-check .tick {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: #0d131b;
+  display: inline-block;
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(0,0,0,0.3);
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.pill-check:has(input:checked) .tick {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 80%, black);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.pill-check:has(input:checked) .tick::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 7px;
+  height: 11px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 /* Scroll reveal */
@@ -237,7 +299,7 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 
 /* Top tabs navigation (browser-like) */
 .dashboard-tabs { margin-bottom: 0; }
-.dashboard-tabs .tabs { list-style:none; margin:0; padding:0; display:flex; gap:var(--space-sm); align-items:flex-end; overflow-x:auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.dashboard-tabs .tabs { list-style:none; margin:0; padding:0; display:flex; gap:var(--space-sm); align-items:flex-end; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 .dashboard-tabs .tabs li { flex: 0 0 auto; }
 .dashboard-tabs .tabs a {
   display:block;
@@ -309,3 +371,7 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
     gap: var(--space-sm);
   }
 }
+
+
+
+

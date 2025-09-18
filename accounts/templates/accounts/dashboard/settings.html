@@ -1,55 +1,101 @@
-{% extends 'accounts/dashboard/base.html' %}
+﻿{% extends 'accounts/dashboard/base.html' %}
 {% load i18n %}
 
 {% block dashboard_title %}{% trans "Настройки" %}{% endblock %}
 
 {% block dashboard_content %}
+<form method="post" class="card mb-16" id="exams-form">
+  {% csrf_token %}
+  <h2 class="mb-8">{% trans "Выбор экзаменов" %}</h2>
+  {{ exams_form.non_field_errors }}
+  <pre class="errorlist" style="margin-top:8px; white-space:pre-wrap;">{{ exams_form.errors.as_text }}</pre>
+  <div class="mb-16">
+    {% for subject in subjects %}
+      <div class="block block--futuristic mb-12">
+        <div class="section-title" style="margin-bottom:8px">{{ subject.name }}</div>
+        <div class="formats exam-options">
+          {% for exam in subject.exam_versions.all %}
+            <div class="checkbox-option">
+              <input type="checkbox" id="exam-{{ exam.id }}" name="exam_versions" value="{{ exam.id }}" {% if exam.id in selected_exam_ids %}checked="checked"{% endif %}>
+              <label for="exam-{{ exam.id }}">{{ exam.name }}</label>
+            </div>
+          {% empty %}
+            <div class="hint">{% trans "Нет доступных экзаменов для этого предмета" %}</div>
+          {% endfor %}
+        </div>
+      </div>
+    {% empty %}
+      <p class="hint">{% trans "Нет доступных предметов" %}</p>
+    {% endfor %}
+  </div>
+  <div class="flex items-center gap-8">
+    <button type="submit" name="exams_submit" class="btn" id="exams-submit">{% trans "Сохранить выбор" %}</button>
+    <span id="exams-saving" class="hint" style="display:none">{% trans "Сохраняем выбор..." %}</span>
+  </div>
+</form>
+
 <h1 class="mb-16">{% trans "Настройки" %}</h1>
 {% if request.user.teacherprofile and request.user.studentprofile %}
 <form method="post" class="card mb-16">
-    {% csrf_token %}
-    <h2 class="mb-8">{% trans "Режим кабинета" %}</h2>
-    <div class="role-toggle mb-16">
-        <input type="radio" id="role-student" name="role" value="student" {% if role == 'student' %}checked{% endif %}>
-        <label for="role-student">{% trans "Ученик" %}</label>
-        <input type="radio" id="role-teacher" name="role" value="teacher" {% if role == 'teacher' %}checked{% endif %}>
-        <label for="role-teacher">{% trans "Учитель" %}</label>
-    </div>
-    <button type="submit" name="role_submit" class="btn">{% trans "Сменить режим" %}</button>
+  {% csrf_token %}
+  <h2 class="mb-8">{% trans "Роль в кабинете" %}</h2>
+  <div class="role-toggle mb-16">
+    <input type="radio" id="role-student" name="role" value="student" {% if role == 'student' %}checked{% endif %}>
+    <label for="role-student">{% trans "Студент" %}</label>
+    <input type="radio" id="role-teacher" name="role" value="teacher" {% if role == 'teacher' %}checked{% endif %}>
+    <label for="role-teacher">{% trans "Преподаватель" %}</label>
+  </div>
+  <button type="submit" name="role_submit" class="btn">{% trans "Сохранить роль" %}</button>
 </form>
 {% endif %}
+
 <form method="post" class="card mb-16">
-    {% csrf_token %}
-    <h2 class="mb-8">{% trans "Личная информация" %}</h2>
-    {{ u_form.non_field_errors }}
-    {% for field in u_form %}
-        <div class="mb-16">
-            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.errors %}
-                <div class="errorlist">{{ field.errors }}</div>
-            {% endif %}
-        </div>
-    {% endfor %}
-    <button type="submit" name="user_submit" class="btn">{% trans "Сохранить изменения" %}</button>
+  {% csrf_token %}
+  <h2 class="mb-8">{% trans "Личные данные" %}</h2>
+  {{ u_form.non_field_errors }}
+  {% for field in u_form %}
+    <div class="mb-16">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}
+        <div class="errorlist">{{ field.errors }}</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+  <button type="submit" name="user_submit" class="btn">{% trans "Сохранить данные" %}</button>
 </form>
+
 <form method="post" class="card">
-    {% csrf_token %}
-    <h2 class="mb-8">{% trans "Изменить пароль" %}</h2>
-    {{ p_form.non_field_errors }}
-    {% for field in p_form %}
-        <div class="mb-16">
-            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.errors %}
-                <div class="errorlist">{{ field.errors }}</div>
-            {% endif %}
-        </div>
-    {% endfor %}
-    <button type="submit" name="password_submit" class="btn">{% trans "Изменить пароль" %}</button>
+  {% csrf_token %}
+  <h2 class="mb-8">{% trans "Смена пароля" %}</h2>
+  {{ p_form.non_field_errors }}
+  {% for field in p_form %}
+    <div class="mb-16">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}
+        <div class="errorlist">{{ field.errors }}</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+  <button type="submit" name="password_submit" class="btn">{% trans "Сменить пароль" %}</button>
 </form>
+
 <form method="post" action="{% url 'accounts:logout' %}">
-    {% csrf_token %}
-    <button type="submit" class="btn mt-16">{% trans "Выйти из аккаунта" %}</button>
+  {% csrf_token %}
+  <button type="submit" class="btn mt-16">{% trans "Выйти из аккаунта" %}</button>
 </form>
+
+<script>
+  (function() {
+    var form = document.getElementById('exams-form');
+    if (!form) return;
+    form.addEventListener('submit', function() {
+      var btn = document.getElementById('exams-submit');
+      var saving = document.getElementById('exams-saving');
+      if (btn) { btn.disabled = true; btn.textContent = '{% trans "Сохраняем выбор..." %}'; }
+      if (saving) { saving.style.display = ''; }
+    });
+  })();
+</script>
 {% endblock %}

@@ -5,6 +5,8 @@ from django.contrib.auth.forms import (
     PasswordChangeForm as DjangoPasswordChangeForm,
 )
 from django.utils.translation import gettext_lazy as _
+from apps.recsys.models import ExamVersion
+from .models import StudentProfile
 
 User = get_user_model()
 

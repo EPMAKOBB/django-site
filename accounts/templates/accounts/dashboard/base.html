@@ -1,26 +1,36 @@
-{% extends 'base.html' %}
-
+﻿{% extends 'base.html' %}
+{% load i18n %}
 {% block title %}{% block dashboard_title %}{% endblock %}{% endblock %}
-
 {% block content %}
 <div class="dashboard-container container">
-  <nav class="dashboard-tabs" aria-label="Навигация личного кабинета">
-    <ul class="tabs" role="tablist" style="list-style:none; margin:0; padding:0;">
+  {% if role == 'student' %}
+    <div class="dashboard-exams-line" style="margin-bottom:12px;">
+      {% with exams_list=request.user.studentprofile.exam_versions.all %}
+        {% if exams_list|length %}
+          <div class="flex items-center gap-8" role="group" aria-label="{% trans 'Экзамены пользователя' %}">
+            {% for exam in exams_list %}
+              <button type="button" class="btn">{{ exam.name }}</button>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="hint">{% trans "выбрать экзамены можно в" %} <a href="{% url 'accounts:dashboard-settings' %}">{% trans "настройках" %}</a></div>
+        {% endif %}
+      {% endwith %}
+    </div>
+  {% endif %}
+  <nav class="dashboard-tabs" aria-label="{% trans 'Навигация по разделам' %}">
+    <ul class="tabs" role="tablist">
       <li class="{% if active_tab == 'tasks' %}active{% endif %}" role="presentation">
-        <a role="tab" aria-selected="{% if active_tab == 'tasks' %}true{% else %}false{% endif %}"
-           href="{% url 'accounts:dashboard' %}">Задания</a>
+        <a role="tab" aria-selected="{% if active_tab == 'tasks' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard' %}">{% trans 'Задания' %}</a>
       </li>
       <li class="{% if active_tab == 'subjects' %}active{% endif %}" role="presentation">
-        <a role="tab" aria-selected="{% if active_tab == 'subjects' %}true{% else %}false{% endif %}"
-           href="{% url 'accounts:dashboard-subjects' %}">Предметы</a>
+        <a role="tab" aria-selected="{% if active_tab == 'subjects' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-subjects' %}">{% trans 'Предметы' %}</a>
       </li>
       <li class="{% if active_tab == 'courses' %}active{% endif %}" role="presentation">
-        <a role="tab" aria-selected="{% if active_tab == 'courses' %}true{% else %}false{% endif %}"
-           href="{% url 'accounts:dashboard-courses' %}">Курсы</a>
+        <a role="tab" aria-selected="{% if active_tab == 'courses' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-courses' %}">{% trans 'Курсы' %}</a>
       </li>
       <li class="{% if active_tab == 'settings' %}active{% endif %}" role="presentation">
-        <a role="tab" aria-selected="{% if active_tab == 'settings' %}true{% else %}false{% endif %}"
-           href="{% url 'accounts:dashboard-settings' %}">Настройки</a>
+        <a role="tab" aria-selected="{% if active_tab == 'settings' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-settings' %}">{% trans 'Настройки' %}</a>
       </li>
     </ul>
   </nav>
@@ -29,6 +39,5 @@
       {% block dashboard_content %}{% endblock %}
     </section>
   </div>
-
 </div>
 {% endblock %}

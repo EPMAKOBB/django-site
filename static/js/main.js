@@ -1,3 +1,14 @@
+// Prevent offer popup on non-offer pills (capture phase)
+document.addEventListener('click', (e) => {
+  const pill = e.target.closest('.pill');
+  if (!pill) return;
+  const offer = pill.getAttribute('data-offer');
+  if (!offer) {
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    e.stopPropagation();
+  }
+}, true);
+
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.pill');
   if (!btn) return;
