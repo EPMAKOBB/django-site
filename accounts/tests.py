@@ -1,7 +1,6 @@
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-
 from accounts.models import StudentProfile
 from subjects.models import Subject
 from apps.recsys.models import ExamVersion
@@ -79,3 +78,22 @@ class DashboardSettingsTests(TestCase):
         self.assertContains(response, "Математика — Пробный вариант 1")
         self.assertContains(response, "Математика — Пробный вариант 2")
         self.assertNotContains(response, "выбрать экзамены можно")
+
+    def test_exam_selection_submission_without_choices_clears_profile(self):
+        subject = Subject.objects.create(name="Математика", slug="matematika")
+        ExamVersion.objects.create(subject=subject, name="Пробный вариант 1")
+        profile, _ = StudentProfile.objects.get_or_create(user=self.user)
+        profile.exam_versions.set(list(subject.exam_versions.all()))
+
+        self.client.login(username="user1", password="pass")
+        url = reverse("accounts:dashboard-settings")
+
+        with self.assertLogs("accounts", level="DEBUG") as logs:
+            response = self.client.post(url, {"form_type": "exams"})
+
+        self.assertEqual(response.status_code, 302)
+        profile = StudentProfile.objects.get(pk=profile.pk)
+        self.assertEqual(profile.exam_versions.count(), 0)
+        self.assertTrue(
+            any("Received exam selection payload" in message for message in logs.output)
+        )

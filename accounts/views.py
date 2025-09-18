@@ -105,10 +105,11 @@ def dashboard_classes(request):
 @login_required
 def dashboard_settings(request):
     role = _get_dashboard_role(request)
-    profile, _ = StudentProfile.objects.get_or_create(user=request.user)
+    profile, _created = StudentProfile.objects.get_or_create(user=request.user)
     subjects_qs = Subject.objects.all().prefetch_related("exam_versions").order_by("name")
 
     if request.method == "POST":
+        form_type = request.POST.get("form_type")
         if "user_submit" in request.POST:
             u_form = UserUpdateForm(request.POST, instance=request.user)
             p_form = PasswordChangeForm(request.user)
@@ -124,7 +125,7 @@ def dashboard_settings(request):
                 user = p_form.save()
                 update_session_auth_hash(request, user)
                 return redirect("accounts:dashboard-settings")
-        elif "exams_submit" in request.POST:
+        elif form_type == "exams" or "exams_submit" in request.POST:
             u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user)
             exams_form = ExamPreferencesForm(request.POST, instance=profile)
