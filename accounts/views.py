@@ -2,6 +2,7 @@ import logging
 from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.db import connection
 from django.shortcuts import render, redirect
 from django.utils.translation import gettext_lazy as _
 from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
@@ -195,12 +196,28 @@ def dashboard_settings(request):
         "active_tab": "settings",
         "role": role,
     }
+    through_records = list(
+        profile.exam_versions.through.objects.filter(studentprofile=profile).values_list(
+            "id", "examversion_id"
+        )
+    )
     logger.debug(
         "Rendering dashboard settings: profile_id=%s user_id=%s selected_exam_ids=%s db_selected_exam_ids=%s",
         profile.pk,
         request.user.pk,
         selected_exam_ids,
         db_selected_exam_ids,
+    )
+    logger.info(
+        "Dashboard settings context",
+        extra={
+            "connection_alias": connection.alias,
+            "profile_id": profile.pk,
+            "user_id": request.user.pk,
+            "selected_exam_ids": selected_exam_ids,
+            "db_selected_exam_ids": db_selected_exam_ids,
+            "through_records": through_records,
+        },
     )
     return render(request, "accounts/dashboard/settings.html", context)
 
