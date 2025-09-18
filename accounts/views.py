@@ -1,9 +1,11 @@
+﻿from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
-
-
+from django.utils.translation import gettext_lazy as _
 from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
+from .forms_exams import ExamPreferencesForm
+from .models import StudentProfile
 from subjects.models import Subject
 from apps.recsys.models import (
     SkillMastery,
@@ -15,10 +17,8 @@ from apps.recsys.models import (
 
 
 def _get_dashboard_role(request):
-    """Return the current dashboard role stored in the session.
+    """Return the current dashboard role stored in the session."""
 
-    If no role is stored, infer it from the user's profiles and store it.
-    """
     role = request.session.get("dashboard_role")
     if role not in {"student", "teacher"}:
         if hasattr(request.user, "teacherprofile") and not hasattr(
@@ -31,8 +31,32 @@ def _get_dashboard_role(request):
     return role
 
 
+def _get_selected_exam_ids(
+    profile: StudentProfile | None, exams_form: ExamPreferencesForm
+) -> list[int]:
+    """Return the exam ids that should be rendered as selected."""
+
+    def _normalize(values) -> list[int]:
+        normalized: list[int] = []
+        for value in values:
+            if value is None:
+                continue
+            try:
+                normalized.append(int(value))
+            except (TypeError, ValueError):
+                continue
+        return normalized
+
+    if exams_form.is_bound:
+        return _normalize(exams_form.data.getlist("exam_versions"))
+    if profile:
+        return list(profile.exam_versions.values_list("id", flat=True))
+    return []
+
+
 def signup(request):
     """Register a new user and log them in."""
+
     if request.method == "POST":
         form = SignupForm(request.POST)
         if form.is_valid():
@@ -47,6 +71,7 @@ def signup(request):
 @login_required
 def progress(request):
     """Temporary placeholder for the dashboard page."""
+
     role = _get_dashboard_role(request)
     context = {
         "active_tab": "tasks",
@@ -58,6 +83,7 @@ def progress(request):
 @login_required
 def dashboard_teachers(request):
     """Display a placeholder teachers dashboard."""
+
     role = _get_dashboard_role(request)
     context = {"active_tab": "teachers", "role": role}
     return render(request, "accounts/dashboard/teachers.html", context)
@@ -66,6 +92,7 @@ def dashboard_teachers(request):
 @login_required
 def dashboard_classes(request):
     """Display a placeholder classes dashboard."""
+
     role = _get_dashboard_role(request)
     context = {"active_tab": "classes", "role": role}
     return render(request, "accounts/dashboard/classes.html", context)
@@ -74,20 +101,40 @@ def dashboard_classes(request):
 @login_required
 def dashboard_settings(request):
     role = _get_dashboard_role(request)
+    profile, _ = StudentProfile.objects.get_or_create(user=request.user)
+    subjects_qs = Subject.objects.all().prefetch_related("exam_versions").order_by("name")
+
     if request.method == "POST":
         if "user_submit" in request.POST:
             u_form = UserUpdateForm(request.POST, instance=request.user)
             p_form = PasswordChangeForm(request.user)
+            exams_form = ExamPreferencesForm(instance=profile)
             if u_form.is_valid():
                 u_form.save()
                 return redirect("accounts:dashboard-settings")
         elif "password_submit" in request.POST:
             u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user, request.POST)
+            exams_form = ExamPreferencesForm(instance=profile)
             if p_form.is_valid():
                 user = p_form.save()
                 update_session_auth_hash(request, user)
                 return redirect("accounts:dashboard-settings")
+        elif "exams_submit" in request.POST:
+            u_form = UserUpdateForm(instance=request.user)
+            p_form = PasswordChangeForm(request.user)
+            exams_form = ExamPreferencesForm(request.POST, instance=profile)
+            raw_ids = request.POST.getlist("exam_versions")
+            ids = []
+            for v in raw_ids:
+                try:
+                    ids.append(int(v))
+                except (TypeError, ValueError):
+                    continue
+            selected = ExamVersion.objects.filter(id__in=ids)
+            profile.exam_versions.set(selected)
+            messages.success(request, _("Выбор сохранён"))
+            return redirect("accounts:dashboard-settings")
         elif "role_submit" in request.POST:
             new_role = request.POST.get("role")
             if new_role in {"student", "teacher"}:
@@ -96,12 +143,18 @@ def dashboard_settings(request):
         else:
             u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user)
+            exams_form = ExamPreferencesForm(instance=profile)
     else:
         u_form = UserUpdateForm(instance=request.user)
         p_form = PasswordChangeForm(request.user)
+        exams_form = ExamPreferencesForm(instance=profile)
+
     context = {
         "u_form": u_form,
         "p_form": p_form,
+        "exams_form": exams_form,
+        "subjects": subjects_qs,
+        "selected_exam_ids": _get_selected_exam_ids(profile, exams_form),
         "active_tab": "settings",
         "role": role,
     }
@@ -110,18 +163,12 @@ def dashboard_settings(request):
 
 @login_required
 def dashboard_subjects(request):
-    """Subjects dashboard with collapsible subject blocks and progress.
+    """Subjects dashboard with collapsible subject blocks and progress."""
 
-    For each subject:
-      - Skill progress by skill (via SkillMastery)
-      - Task-type progress (via TypeMastery)
-      - Skill groups for the latest exam version, if configured
-    """
     role = _get_dashboard_role(request)
 
     subjects = Subject.objects.all().order_by("name")
 
-    # Preload user masteries once and index by related id
     skill_masteries = (
         SkillMastery.objects.filter(user=request.user)
         .select_related("skill", "skill__subject")
@@ -140,7 +187,6 @@ def dashboard_subjects(request):
 
     subjects_data = []
     for subj in subjects:
-        # Try to pick a default exam version for groups (first by name)
         exam_version = (
             ExamVersion.objects.filter(subject=subj).order_by("name").first()
         )
@@ -176,7 +222,12 @@ def dashboard_subjects(request):
 @login_required
 def dashboard_courses(request):
     """Display a placeholder courses dashboard."""
+
     role = _get_dashboard_role(request)
     context = {"active_tab": "courses", "role": role}
     return render(request, "accounts/dashboard/courses.html", context)
+
+
+
+
 
