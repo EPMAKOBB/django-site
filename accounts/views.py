@@ -284,7 +284,7 @@ def dashboard_subjects(request):
         )
 
     context = {
-        "active_tab": "subjects",
+        "active_tab": "statistics",
         "role": role,
         "exam_statistics": exam_statistics,
     }
