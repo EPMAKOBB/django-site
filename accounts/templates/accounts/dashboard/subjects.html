@@ -4,12 +4,12 @@
 {% block dashboard_title %}Статистика{% endblock %}
 
 {% block dashboard_content %}
-{% for item in subjects_data %}
-  {% with subj=item.subject %}
+{% for item in exam_statistics %}
+  {% with subj=item.subject exam=item.exam_version %}
   <section class="section">
     <div class="section-title">
       <span class="dot"></span>
-      <span>{{ subj.name }} — Скиллы{% if item.exam_version %} ({{ item.exam_version.name }}){% endif %}</span>
+      <span>{{ subj.name }} — {{ exam.name }}</span>
     </div>
 
     {% if item.groups %}
@@ -72,6 +72,6 @@
   </section>
   {% endwith %}
 {% empty %}
-  <p>Пока нет предметов для отображения.</p>
+  <p>Пока нет выбранных экзаменов.</p>
 {% endfor %}
 {% endblock %}
