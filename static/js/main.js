@@ -90,6 +90,32 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.exam-card').forEach((card) => {
+    const tabs = Array.from(card.querySelectorAll('.exam-tab'));
+    const panels = Array.from(card.querySelectorAll('.exam-panel'));
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const targetId = tab.getAttribute('data-target');
+        tabs.forEach((btn) => {
+          const isActive = btn === tab;
+          btn.classList.toggle('is-active', isActive);
+          btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        panels.forEach((panel) => {
+          const isActive = panel.id === targetId;
+          panel.classList.toggle('is-active', isActive);
+          if (isActive) {
+            panel.removeAttribute('hidden');
+          } else {
+            panel.setAttribute('hidden', '');
+          }
+        });
+      });
+    });
+  });
+});
+
 if (typeof module !== 'undefined') {
   module.exports = { updatePrice };
 }
