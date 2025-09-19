@@ -1,19 +1,9 @@
-from collections import defaultdict
-
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
-from django.db.models import Prefetch
-from django.shortcuts import redirect, render
+from django.shortcuts import render, redirect
 
-from apps.recsys.models import (
-    ExamVersion,
-    SkillGroup,
-    SkillGroupItem,
-    Task,
-    TaskType,
-)
 
-from .forms import PasswordChangeForm, SignupForm, UserUpdateForm
+from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
 
 
 def _get_dashboard_role(request):
@@ -114,96 +104,7 @@ def dashboard_settings(request):
 def dashboard_subjects(request):
     """Display a placeholder subjects dashboard."""
     role = _get_dashboard_role(request)
-
-    skill_items = Prefetch(
-        "items",
-        queryset=SkillGroupItem.objects.select_related("skill").order_by("order"),
-    )
-    skill_groups_prefetch = Prefetch(
-        "skill_groups",
-        queryset=SkillGroup.objects.prefetch_related(skill_items).order_by("id"),
-    )
-
-    exams = list(
-        ExamVersion.objects.select_related("subject")
-        .prefetch_related(skill_groups_prefetch)
-        .order_by("name")
-    )
-
-    exam_ids = [exam.id for exam in exams]
-    subject_ids = {exam.subject_id for exam in exams}
-
-    task_types_map = {
-        task_type.id: task_type
-        for task_type in TaskType.objects.filter(subject_id__in=subject_ids)
-    }
-
-    tasks_by_exam: dict[int, list[Task]] = defaultdict(list)
-    for task in Task.objects.filter(exam_version_id__in=exam_ids).select_related(
-        "type"
-    ):
-        tasks_by_exam[task.exam_version_id].append(task)
-
-    exam_contexts = []
-    for exam in exams:
-        groups_data = []
-        for group in exam.skill_groups.all():
-            groups_data.append(
-                {
-                    "title": group.title,
-                    "items": [
-                        {
-                            "label": item.label,
-                            "skill_name": item.skill.name,
-                        }
-                        for item in group.items.all()
-                    ],
-                }
-            )
-
-        type_counts: dict[int, int] = defaultdict(int)
-        for task in tasks_by_exam.get(exam.id, []):
-            type_counts[task.type_id] += 1
-
-        type_entries = []
-        for type_id, count in type_counts.items():
-            task_type = task_types_map.get(type_id)
-            if task_type is None:
-                continue
-            type_entries.append(
-                {
-                    "id": type_id,
-                    "name": task_type.name,
-                    "description": task_type.description,
-                    "task_count": count,
-                }
-            )
-
-        type_entries.sort(key=lambda entry: entry["name"])
-
-        stats = {
-            "group_count": len(groups_data),
-            "skill_count": sum(len(group["items"]) for group in groups_data),
-            "task_type_count": len(type_entries),
-            "task_count": sum(entry["task_count"] for entry in type_entries),
-        }
-
-        exam_contexts.append(
-            {
-                "id": exam.id,
-                "name": exam.name,
-                "subject": exam.subject.name,
-                "skill_groups": groups_data,
-                "task_types": type_entries,
-                "stats": stats,
-            }
-        )
-
-    context = {
-        "active_tab": "subjects",
-        "role": role,
-        "exams": exam_contexts,
-    }
+    context = {"active_tab": "subjects", "role": role}
     return render(request, "accounts/dashboard/subjects.html", context)
 
 
