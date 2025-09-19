@@ -112,7 +112,7 @@ msgstr ""
 
 #: accounts/templates/accounts/dashboard/base.html:27
 msgid "Предметы"
-msgstr ""
+msgstr "Статистика"
 
 #: accounts/templates/accounts/dashboard/base.html:30
 msgid "Курсы"
