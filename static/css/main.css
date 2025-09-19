@@ -248,47 +248,6 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .role-toggle label { flex:1; text-align:center; padding:10px 0; border:1px solid var(--border); border-radius:10px; background:var(--card); cursor:pointer; }
 .role-toggle input:checked + label { background:var(--accent); color:#001420; border-color:color-mix(in srgb, var(--accent) 70%, black); }
 
-/* Dashboard subjects */
-.exam-section { display:grid; gap:var(--space-xl); }
-.exam-card { display:grid; gap:var(--space-lg); }
-.exam-card__header { display:flex; justify-content:space-between; gap:var(--space-lg); flex-wrap:wrap; align-items:flex-start; }
-.exam-card__title { margin:0; font-size:clamp(22px, 3vw, 32px); }
-.exam-card__subtitle { margin:var(--space-xs) 0 0; color:var(--muted); }
-.exam-card__stats-preview { display:flex; gap:var(--space-md); flex-wrap:wrap; align-items:center; }
-.exam-card__stat { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-xs); padding:var(--space-sm) var(--space-md); border:1px solid var(--border); border-radius:12px; background:rgba(58,160,255,0.08); }
-.exam-card__stat-value { font-size:20px; font-weight:700; }
-.exam-card__stat-label { font-size:var(--font-sm); color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
-.exam-tabs { display:flex; gap:var(--space-sm); flex-wrap:wrap; }
-.exam-tab { padding:10px 16px; border-radius:999px; border:1px solid var(--border); background:#0b1017; color:var(--text); font-weight:600; cursor:pointer; transition:all 0.2s ease; }
-.exam-tab:hover { border-color:color-mix(in srgb, var(--accent) 60%, var(--border)); }
-.exam-tab.is-active { background:var(--accent); color:#001420; border-color:color-mix(in srgb, var(--accent) 70%, black); box-shadow:0 6px 18px color-mix(in srgb, var(--accent) 25%, transparent); }
-.exam-panels { display:grid; gap:var(--space-lg); }
-.exam-panel { display:none; }
-.exam-panel.is-active { display:block; }
-.exam-groups { display:grid; gap:var(--space-lg); }
-.exam-group { border:1px solid var(--border); border-radius:12px; padding:var(--space-lg); background:#0f151d; }
-.exam-group__title { margin:0 0 var(--space-sm); font-size:var(--font-lg); }
-.exam-skill-list { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-sm); }
-.exam-skill { display:flex; justify-content:space-between; gap:var(--space-sm); padding:var(--space-sm) var(--space-md); border-radius:10px; background:#0b1017; border:1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); }
-.exam-skill__label { font-weight:600; }
-.exam-skill__hint { color:var(--muted); font-size:var(--font-sm); }
-.exam-types { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-sm); }
-.exam-type { display:flex; justify-content:space-between; gap:var(--space-lg); align-items:center; padding:var(--space-md); border-radius:12px; border:1px solid var(--border); background:#0f151d; }
-.exam-type__title { margin:0; font-size:var(--font-lg); }
-.exam-type__description { margin:var(--space-xs) 0 0; color:var(--muted); }
-.exam-type__count { font-weight:700; font-size:24px; color:var(--accent); }
-.exam-stats { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-sm); grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); }
-.exam-stats li { border:1px solid var(--border); border-radius:12px; padding:var(--space-lg) var(--space-md); background:#0f151d; display:grid; gap:var(--space-xs); justify-items:center; }
-.exam-stats__value { font-size:24px; font-weight:700; }
-.exam-stats__label { color:var(--muted); text-align:center; font-size:var(--font-sm); text-transform:uppercase; letter-spacing:0.05em; }
-
-@media (max-width: 640px) {
-  .exam-card__header { flex-direction:column; }
-  .exam-card__stats-preview { width:100%; justify-content:space-between; }
-  .exam-type { flex-direction:column; align-items:flex-start; }
-  .exam-type__count { align-self:flex-end; }
-}
-
 
 /* Utility */
 .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
