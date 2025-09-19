@@ -74,9 +74,9 @@ class DashboardSettingsTests(TestCase):
             f'value="{exam_second.id}" checked="checked"',
             html=False,
         )
-        self.assertContains(response, "Ваши экзамены")
-        self.assertContains(response, "Математика — Пробный вариант 1")
-        self.assertContains(response, "Математика — Пробный вариант 2")
+        self.assertNotContains(response, "Ваши экзамены")
+        self.assertNotContains(response, "Математика — Пробный вариант 1")
+        self.assertNotContains(response, "Математика — Пробный вариант 2")
         self.assertNotContains(response, "выбрать экзамены можно")
 
     def test_exam_selection_submission_without_choices_clears_profile(self):
