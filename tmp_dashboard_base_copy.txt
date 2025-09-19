@@ -1,0 +1,21 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}{% block dashboard_title %}{% endblock %}{% endblock %}
+
+{% block content %}
+<div class="dashboard-container container">
+  <aside class="dashboard-sidebar">
+    <nav>
+      <ul>
+        <li class="{% if active_tab == 'tasks' %}active{% endif %}"><a href="{% url 'accounts:dashboard' %}">Р—Р°РґР°РЅРёСЏ</a></li>
+        <li class="{% if active_tab == 'subjects' %}active{% endif %}"><a href="{% url 'accounts:dashboard-subjects' %}">РџСЂРµРґРјРµС‚С‹</a></li>
+        <li class="{% if active_tab == 'courses' %}active{% endif %}"><a href="{% url 'accounts:dashboard-courses' %}">РљСѓСЂСЃС‹</a></li>
+        <li class="{% if active_tab == 'settings' %}active{% endif %}"><a href="{% url 'accounts:dashboard-settings' %}">РќР°СЃС‚СЂРѕР№РєРё</a></li>
+      </ul>
+    </nav>
+  </aside>
+  <section class="dashboard-content">
+    {% block dashboard_content %}{% endblock %}
+  </section>
+</div>
+{% endblock %}
