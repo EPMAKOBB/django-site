@@ -22,10 +22,10 @@
               {% with pct=m|default:0|mul:100 %}
               <div class="item">
                 <div class="label">
-                  <span>{{ gi.label }}</span>
+                  <span>{{ gi.skill.name }}</span>
                   <span class="pct">{{ pct|floatformat:0 }}%</span>
                 </div>
-                <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ gi.label }}">
+                <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ gi.skill.name }}">
                   <div class="fill" style="width: {{ pct }}%"></div>
                 </div>
               </div>
