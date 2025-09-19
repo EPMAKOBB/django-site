@@ -5,70 +5,78 @@
 
 {% block dashboard_content %}
 {% for item in exam_statistics %}
-  {% with subj=item.subject exam=item.exam_version %}
+  {% with exam=item.exam_version %}
   <section class="section">
-    <div class="section-title">
-      <span class="dot"></span>
-      <span>{{ subj.name }} — {{ exam.name }}</span>
-    </div>
-
-    {% if item.groups %}
-      {% for group in item.groups %}
-        <div class="group">
-          <h3>{{ group.title }}</h3>
-          <div class="grid">
-            {% for gi in group.items.all %}
-              {% with m=item.skill_masteries|get_item:gi.skill.id %}
-              {% with pct=m|default:0|mul:100 %}
-              <div class="item">
-                <div class="label">
-                  <span>{{ gi.skill.name }}</span>
-                  <span class="pct">{{ pct|floatformat:0 }}%</span>
-                </div>
-                <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ gi.skill.name }}">
-                  <div class="fill" style="width: {{ pct }}%"></div>
-                </div>
-              </div>
-              {% endwith %}
-              {% endwith %}
-            {% endfor %}
-          </div>
-        </div>
-      {% endfor %}
-    {% else %}
-      <div class="group">
-        <h3>Скиллы</h3>
-        <p class="muted">Группы для этого предмета ещё не настроены.</p>
+    <div class="exam-card">
+      <div class="section-title exam-card__title">
+        <span class="dot"></span>
+        <span>{{ exam.name }}</span>
       </div>
-    {% endif %}
 
-    <div class="section-title mt-12">
-      <span class="dot"></span>
-      <span>Типы заданий</span>
-    </div>
-    {% if item.types %}
-      <div class="group">
-        <div class="grid">
-          {% for t in item.types %}
-            {% with m=item.type_masteries|get_item:t.id %}
-            {% with pct=m|default:0|mul:100 %}
-            <div class="item">
-              <div class="label">
-                <span>{{ t.name }}</span>
-                <span class="pct">{{ pct|floatformat:0 }}%</span>
-              </div>
-              <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ t.name }}">
-                <div class="fill" style="width: {{ pct }}%"></div>
+      <div class="exam-card__section">
+        {% if item.groups %}
+          {% for group in item.groups %}
+            <div class="exam-panel">
+              <h3>{{ group.title }}</h3>
+              <div class="grid">
+                {% for gi in group.items.all %}
+                  {% with m=item.skill_masteries|get_item:gi.skill.id %}
+                  {% with pct=m|default:0|mul:100 %}
+                  <div class="item">
+                    <div class="label">
+                      <span>{{ gi.skill.name }}</span>
+                      <span class="pct">{{ pct|floatformat:0 }}%</span>
+                    </div>
+                    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ gi.skill.name }}">
+                      <div class="fill" style="width: {{ pct }}%"></div>
+                    </div>
+                  </div>
+                  {% endwith %}
+                  {% endwith %}
+                {% endfor %}
               </div>
             </div>
-            {% endwith %}
-            {% endwith %}
           {% endfor %}
-        </div>
+        {% else %}
+          <div class="exam-panel">
+            <h3>Скиллы</h3>
+            <p class="muted">Группы для этого предмета ещё не настроены.</p>
+          </div>
+        {% endif %}
       </div>
-    {% else %}
-      <p class="muted">Типы заданий не найдены.</p>
-    {% endif %}
+
+      <div class="section-title exam-card__title">
+        <span class="dot"></span>
+        <span>Типы заданий</span>
+      </div>
+      <div class="exam-card__section">
+        {% if item.types %}
+          <div class="exam-panel">
+            <div class="grid">
+              {% for t in item.types %}
+                {% with m=item.type_masteries|get_item:t.id %}
+                {% with pct=m|default:0|mul:100 %}
+                <div class="item">
+                  <div class="label">
+                    <span>{{ t.name }}</span>
+                    <span class="pct">{{ pct|floatformat:0 }}%</span>
+                  </div>
+                  <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ t.name }}">
+                    <div class="fill" style="width: {{ pct }}%"></div>
+                  </div>
+                </div>
+                {% endwith %}
+                {% endwith %}
+              {% endfor %}
+            </div>
+          </div>
+        {% else %}
+          <div class="exam-panel">
+            <p class="muted">Типы заданий не найдены.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
   </section>
   {% endwith %}
 {% empty %}
