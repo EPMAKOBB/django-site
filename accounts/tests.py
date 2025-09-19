@@ -110,3 +110,30 @@ class DashboardSettingsTests(TestCase):
 
         profile = StudentProfile.objects.get(user=self.user)
         self.assertEqual(list(profile.exam_versions.all()), [exam])
+
+
+class DashboardSubjectsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="student", password="pass", email="student@example.com"
+        )
+
+    def test_only_selected_exam_is_displayed(self):
+        subject = Subject.objects.create(name="Математика", slug="matematika")
+        selected_exam = ExamVersion.objects.create(
+            subject=subject, name="Вариант 1"
+        )
+        other_exam = ExamVersion.objects.create(subject=subject, name="Вариант 2")
+
+        profile, _ = StudentProfile.objects.get_or_create(user=self.user)
+        profile.exam_versions.set([selected_exam])
+
+        self.client.login(username="student", password="pass")
+
+        response = self.client.get(reverse("accounts:dashboard-subjects"))
+
+        self.assertContains(
+            response,
+            f"{subject.name} — {selected_exam.name}",
+        )
+        self.assertNotContains(response, other_exam.name)
