@@ -12,7 +12,6 @@ from subjects.models import Subject
 from apps.recsys.models import (
     SkillMastery,
     TypeMastery,
-    SkillGroup,
     ExamVersion,
     TaskType,
 )
@@ -236,7 +235,13 @@ def dashboard_subjects(request):
 
     role = _get_dashboard_role(request)
 
-    subjects = Subject.objects.all().order_by("name")
+    profile, _ = StudentProfile.objects.get_or_create(user=request.user)
+
+    selected_exams = (
+        profile.exam_versions.select_related("subject")
+        .prefetch_related("skill_groups__items__skill")
+        .order_by("subject__name", "name")
+    )
 
     skill_masteries = (
         SkillMastery.objects.filter(user=request.user)
@@ -254,27 +259,25 @@ def dashboard_subjects(request):
         tm.task_type_id: float(tm.mastery) for tm in type_masteries
     }
 
-    subjects_data = []
-    for subj in subjects:
-        exam_version = (
-            ExamVersion.objects.filter(subject=subj).order_by("name").first()
+    subject_ids = {exam.subject_id for exam in selected_exams}
+    types_by_subject: dict[int, list[TaskType]] = {}
+    if subject_ids:
+        task_types = (
+            TaskType.objects.filter(subject_id__in=subject_ids)
+            .select_related("subject")
+            .order_by("subject__name", "name")
         )
-        groups = []
-        if exam_version:
-            groups = (
-                SkillGroup.objects.filter(exam_version=exam_version)
-                .prefetch_related("items__skill")
-                .order_by("id")
-            )
+        for task_type in task_types:
+            types_by_subject.setdefault(task_type.subject_id, []).append(task_type)
 
-        types = TaskType.objects.filter(subject=subj).order_by("name")
-
-        subjects_data.append(
+    exam_statistics = []
+    for exam in selected_exams:
+        exam_statistics.append(
             {
-                "subject": subj,
-                "exam_version": exam_version,
-                "groups": groups,
-                "types": types,
+                "subject": exam.subject,
+                "exam_version": exam,
+                "groups": list(exam.skill_groups.all()),
+                "types": types_by_subject.get(exam.subject_id, []),
                 "skill_masteries": mastery_by_skill_id,
                 "type_masteries": mastery_by_type_id,
             }
@@ -283,7 +286,7 @@ def dashboard_subjects(request):
     context = {
         "active_tab": "subjects",
         "role": role,
-        "subjects_data": subjects_data,
+        "exam_statistics": exam_statistics,
     }
     return render(request, "accounts/dashboard/subjects.html", context)
 
