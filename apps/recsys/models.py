@@ -38,6 +38,13 @@ class TaskType(TimeStampedModel):
     subject = models.ForeignKey(
         Subject, on_delete=models.CASCADE, related_name="task_types"
     )
+    exam_version = models.ForeignKey(
+        "ExamVersion",
+        on_delete=models.CASCADE,
+        related_name="task_types",
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
 
@@ -48,6 +55,18 @@ class TaskType(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.name
+
+    def clean(self):
+        super().clean()
+
+        if self.exam_version and self.exam_version.subject_id != self.subject_id:
+            raise ValidationError(
+                {"exam_version": "Версия экзамена должна соответствовать предмету"}
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class Task(TimeStampedModel):
