@@ -234,7 +234,7 @@ class TaskSkillForm(forms.Form):
         return cleaned_data
 
 
-TaskSkillFormSet = formset_factory(TaskSkillForm, extra=3, can_delete=True)
+TaskSkillFormSet = formset_factory(TaskSkillForm, extra=1, can_delete=True)
 
 
 def build_task_skill_formset(*, subject: Subject | None, data=None, prefix: str = "skills"):
@@ -243,4 +243,5 @@ def build_task_skill_formset(*, subject: Subject | None, data=None, prefix: str 
     formset = TaskSkillFormSet(data=data, prefix=prefix)
     for form in formset.forms:
         form.set_subject(subject)
+    formset.empty_form.set_subject(subject)
     return formset
