@@ -11,7 +11,13 @@ from ..models import (
     SkillGroup,
     SkillGroupItem,
     TypeMastery,
+    VariantAssignment,
+    VariantAttempt,
+    VariantTask,
+    VariantTaskAttempt,
+    VariantTemplate,
 )
+from ..service_utils import variants as variant_service
 
 
 class SkillSerializer(serializers.ModelSerializer):
@@ -117,5 +123,140 @@ __all__ = [
     "TypeMasterySerializer",
     "SkillGroupItemSerializer",
     "SkillGroupSerializer",
+    "VariantTaskSerializer",
+    "VariantTemplateSerializer",
+    "VariantTaskAttemptSerializer",
+    "VariantAttemptSerializer",
+    "VariantAssignmentSerializer",
+    "VariantAssignmentHistorySerializer",
 ]
+
+
+class VariantTaskSerializer(serializers.ModelSerializer):
+    task = TaskSerializer(read_only=True)
+
+    class Meta:
+        model = VariantTask
+        fields = ["id", "task", "order", "max_attempts"]
+
+
+class VariantTemplateSerializer(serializers.ModelSerializer):
+    tasks = VariantTaskSerializer(source="template_tasks", many=True, read_only=True)
+
+    class Meta:
+        model = VariantTemplate
+        fields = ["id", "name", "description", "time_limit", "max_attempts", "tasks"]
+
+
+class VariantTaskAttemptSerializer(serializers.ModelSerializer):
+    task = TaskSerializer(read_only=True)
+
+    class Meta:
+        model = VariantTaskAttempt
+        fields = [
+            "id",
+            "variant_task",
+            "task",
+            "attempt_number",
+            "is_correct",
+            "task_snapshot",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class VariantAttemptSerializer(serializers.ModelSerializer):
+    time_limit = serializers.DurationField(
+        source="assignment.template.time_limit", read_only=True
+    )
+    time_left = serializers.SerializerMethodField()
+    is_completed = serializers.SerializerMethodField()
+    tasks_progress = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VariantAttempt
+        fields = [
+            "id",
+            "assignment",
+            "attempt_number",
+            "started_at",
+            "completed_at",
+            "time_spent",
+            "time_limit",
+            "time_left",
+            "is_completed",
+            "tasks_progress",
+        ]
+        read_only_fields = fields
+
+    def get_time_left(self, obj: VariantAttempt):
+        remaining = variant_service.get_time_left(obj)
+        if remaining is None:
+            return None
+        return remaining
+
+    def get_is_completed(self, obj: VariantAttempt) -> bool:
+        return obj.completed_at is not None
+
+    def get_tasks_progress(self, obj: VariantAttempt):
+        progress = []
+        for item in variant_service.build_tasks_progress(obj):
+            attempts_serializer = VariantTaskAttemptSerializer(
+                item["attempts"], many=True, context=self.context
+            )
+            progress.append(
+                {
+                    "variant_task_id": item["variant_task_id"],
+                    "task_id": item["task_id"],
+                    "order": item["order"],
+                    "max_attempts": item["max_attempts"],
+                    "attempts_used": item["attempts_used"],
+                    "is_completed": item["is_completed"],
+                    "attempts": attempts_serializer.data,
+                }
+            )
+        return progress
+
+
+class VariantAssignmentSerializer(serializers.ModelSerializer):
+    template = VariantTemplateSerializer(read_only=True)
+    active_attempt = serializers.SerializerMethodField()
+    attempts_left = serializers.SerializerMethodField()
+    progress = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VariantAssignment
+        fields = [
+            "id",
+            "template",
+            "deadline",
+            "started_at",
+            "created_at",
+            "active_attempt",
+            "attempts_left",
+            "progress",
+        ]
+        read_only_fields = fields
+
+    def get_active_attempt(self, obj: VariantAssignment):
+        active = next((a for a in obj.attempts.all() if a.completed_at is None), None)
+        if not active:
+            return None
+        serializer = VariantAttemptSerializer(active, context=self.context)
+        return serializer.data
+
+    def get_attempts_left(self, obj: VariantAssignment):
+        return variant_service.get_attempts_left(obj)
+
+    def get_progress(self, obj: VariantAssignment):
+        return variant_service.calculate_assignment_progress(obj)
+
+
+class VariantAssignmentHistorySerializer(VariantAssignmentSerializer):
+    attempts = VariantAttemptSerializer(many=True, read_only=True)
+
+    class Meta(VariantAssignmentSerializer.Meta):
+        fields = VariantAssignmentSerializer.Meta.fields + ["attempts"]
+
 
