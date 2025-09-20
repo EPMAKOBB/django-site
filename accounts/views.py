@@ -1,23 +1,70 @@
 import logging
+
 from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.db import connection
-from django.shortcuts import render, redirect
+from django.http import Http404
+from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
+from rest_framework import exceptions as drf_exceptions
+
+from apps.recsys.models import ExamVersion, SkillMastery, TaskType, TypeMastery
+from apps.recsys.service_utils import variants as variant_services
+from subjects.models import Subject
+
+from .forms import PasswordChangeForm, SignupForm, UserUpdateForm
 from .forms_exams import ExamPreferencesForm
 from .models import StudentProfile
-from subjects.models import Subject
-from apps.recsys.models import (
-    SkillMastery,
-    TypeMastery,
-    ExamVersion,
-    TaskType,
-)
 
 
 logger = logging.getLogger("accounts")
+
+
+def _format_error_detail(detail) -> str:
+    if isinstance(detail, (list, tuple)):
+        return " ".join(str(item) for item in detail)
+    if isinstance(detail, dict):
+        return " ".join(str(value) for value in detail.values())
+    return str(detail)
+
+
+def _active_attempt(assignment):
+    for attempt in assignment.attempts.all():
+        if attempt.completed_at is None:
+            return attempt
+    return None
+
+
+def _build_assignment_context(assignment):
+    progress = variant_services.calculate_assignment_progress(assignment)
+    total_tasks = progress.get("total_tasks") or 0
+    solved_tasks = progress.get("solved_tasks") or 0
+    if total_tasks:
+        progress_percentage = int(round((solved_tasks / total_tasks) * 100))
+    else:
+        progress_percentage = 0
+
+    active_attempt = _active_attempt(assignment)
+    attempts_used = assignment.attempts.count()
+    attempts_total = assignment.template.max_attempts
+    attempts_left = variant_services.get_attempts_left(assignment)
+    deadline = assignment.deadline
+    deadline_passed = bool(deadline and deadline < timezone.now())
+
+    return {
+        "assignment": assignment,
+        "progress": progress,
+        "progress_percentage": progress_percentage,
+        "active_attempt": active_attempt,
+        "attempts_used": attempts_used,
+        "attempts_total": attempts_total,
+        "attempts_left": attempts_left,
+        "can_start": variant_services.can_start_attempt(assignment),
+        "deadline": deadline,
+        "deadline_passed": deadline_passed,
+    }
 
 def _get_dashboard_role(request):
     """Return the current dashboard role stored in the session."""
@@ -73,14 +120,80 @@ def signup(request):
 
 @login_required
 def progress(request):
-    """Temporary placeholder for the dashboard page."""
+    """Render the assignments dashboard with current and past items."""
 
     role = _get_dashboard_role(request)
+    assignments = variant_services.get_assignments_for_user(request.user)
+    current_assignments, past_assignments = variant_services.split_assignments(assignments)
+
     context = {
         "active_tab": "tasks",
         "role": role,
+        "current_assignments": [
+            _build_assignment_context(assignment) for assignment in current_assignments
+        ],
+        "past_assignments": [
+            _build_assignment_context(assignment) for assignment in past_assignments
+        ],
     }
     return render(request, "accounts/dashboard.html", context)
+
+
+@login_required
+def assignment_detail(request, assignment_id: int):
+    """Show assignment details and allow starting a new attempt."""
+
+    role = _get_dashboard_role(request)
+    try:
+        assignment = variant_services.get_assignment_or_404(request.user, assignment_id)
+    except drf_exceptions.NotFound as exc:
+        raise Http404(str(exc)) from exc
+
+    if request.method == "POST" and "start_attempt" in request.POST:
+        try:
+            variant_services.start_new_attempt(request.user, assignment_id)
+        except drf_exceptions.ValidationError as exc:
+            messages.error(request, _format_error_detail(exc.detail))
+        else:
+            messages.success(request, _("Новая попытка по варианту начата"))
+            return redirect("accounts:assignment-detail", assignment_id=assignment_id)
+
+    context = {
+        "active_tab": "tasks",
+        "role": role,
+        "assignment": assignment,
+        "assignment_info": _build_assignment_context(assignment),
+        "attempts": assignment.attempts.all(),
+    }
+    return render(
+        request,
+        "accounts/dashboard/assignment_detail.html",
+        context,
+    )
+
+
+@login_required
+def assignment_result(request, assignment_id: int):
+    """Display the attempts history for the assignment."""
+
+    role = _get_dashboard_role(request)
+    try:
+        assignment = variant_services.get_assignment_history(request.user, assignment_id)
+    except drf_exceptions.NotFound as exc:
+        raise Http404(str(exc)) from exc
+
+    context = {
+        "active_tab": "tasks",
+        "role": role,
+        "assignment": assignment,
+        "assignment_info": _build_assignment_context(assignment),
+        "attempts": assignment.attempts.all(),
+    }
+    return render(
+        request,
+        "accounts/dashboard/assignment_result.html",
+        context,
+    )
 
 
 @login_required
