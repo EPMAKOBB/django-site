@@ -60,7 +60,8 @@ class NextTaskView(APIView):
         if not task:
             return Response({"detail": "No tasks available"}, status=404)
         RecommendationLog.objects.create(user=request.user, task=task)
-        return Response(TaskSerializer(task).data)
+        serializer = TaskSerializer(task, context={"request": request})
+        return Response(serializer.data)
 
 
 class ProgressView(APIView):

@@ -198,6 +198,9 @@ def _generate_task_snapshot(
     if task is None:  # pragma: no cover - defensive
         return None
 
+    image_url = task.image.url if task.image else None
+    correct_answer = deepcopy(task.correct_answer or {})
+
     if task.is_dynamic:
         payload = deepcopy(task.default_payload or {})
         seed = _compute_task_seed(attempt, variant_task)
@@ -217,6 +220,9 @@ def _generate_task_snapshot(
             "rendering_strategy": task.rendering_strategy,
             "payload": dict(used_payload),
             "content": dict(generation.content),
+            "image": image_url,
+            "correct_answer": correct_answer,
+            "difficulty_level": task.difficulty_level,
         }
         if generation.answers is not None:
             snapshot["answers"] = _normalise_answers(generation.answers)
@@ -230,6 +236,9 @@ def _generate_task_snapshot(
         "title": task.title,
         "description": task.description,
         "rendering_strategy": task.rendering_strategy,
+        "image": image_url,
+        "correct_answer": correct_answer,
+        "difficulty_level": task.difficulty_level,
     }
     if task.default_payload:
         snapshot["payload"] = deepcopy(task.default_payload)
@@ -338,6 +347,11 @@ def submit_task_answer(
                 "title": variant_task.task.title,
                 "description": variant_task.task.description,
                 "rendering_strategy": variant_task.task.rendering_strategy,
+                "image": variant_task.task.image.url
+                if variant_task.task.image
+                else None,
+                "correct_answer": deepcopy(variant_task.task.correct_answer or {}),
+                "difficulty_level": variant_task.task.difficulty_level,
             }
         }
 
