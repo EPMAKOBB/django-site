@@ -1,4 +1,4 @@
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -12,6 +12,7 @@ from ..models import (
     TaskType,
     TypeMastery,
 )
+from ..service_utils import variants as variant_service
 from .serializers import (
     AttemptSerializer,
     SkillGroupSerializer,
@@ -20,6 +21,9 @@ from .serializers import (
     TaskSerializer,
     TaskTypeSerializer,
     TypeMasterySerializer,
+    VariantAssignmentHistorySerializer,
+    VariantAssignmentSerializer,
+    VariantAttemptSerializer,
 )
 
 
@@ -95,4 +99,99 @@ class SkillGroupListView(generics.ListAPIView):
         return SkillGroup.objects.filter(
             exam_version_id=exam_version_id
         ).prefetch_related("items__skill").order_by("id")
+
+
+class VariantAssignmentListMixin(APIView):
+    """Base view for returning variant assignments for the current user."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_assignments(self, request):
+        assignments = variant_service.get_assignments_for_user(request.user)
+        current, past = variant_service.split_assignments(assignments)
+        return current, past
+
+
+class CurrentVariantAssignmentListView(VariantAssignmentListMixin):
+    """List assignments that can still be taken or have an active attempt."""
+
+    def get(self, request, *args, **kwargs):
+        current, _ = self._get_assignments(request)
+        serializer = VariantAssignmentSerializer(
+            current, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
+
+
+class PastVariantAssignmentListView(VariantAssignmentListMixin):
+    """List assignments where no further attempts are possible."""
+
+    def get(self, request, *args, **kwargs):
+        _, past = self._get_assignments(request)
+        serializer = VariantAssignmentSerializer(
+            past, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
+
+
+class VariantAttemptStartView(APIView):
+    """Start a new attempt for the selected assignment."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, assignment_id: int, *args, **kwargs):
+        attempt = variant_service.start_new_attempt(request.user, assignment_id)
+        attempt = variant_service.get_attempt_with_prefetch(request.user, attempt.id)
+        serializer = VariantAttemptSerializer(attempt, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class VariantTaskSubmitView(APIView):
+    """Persist an answer for a single task inside the attempt."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    class InputSerializer(serializers.Serializer):
+        is_correct = serializers.BooleanField()
+        task_snapshot = serializers.JSONField(required=False)
+
+    def post(self, request, attempt_id: int, variant_task_id: int, *args, **kwargs):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = variant_service.submit_task_answer(
+            request.user,
+            attempt_id,
+            variant_task_id,
+            **serializer.validated_data,
+        )
+        attempt = variant_service.get_attempt_with_prefetch(request.user, result.attempt.id)
+        response_serializer = VariantAttemptSerializer(
+            attempt, context={"request": request}
+        )
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class VariantAttemptFinalizeView(APIView):
+    """Mark an attempt as finished."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, attempt_id: int, *args, **kwargs):
+        attempt = variant_service.finalize_attempt(request.user, attempt_id)
+        attempt = variant_service.get_attempt_with_prefetch(request.user, attempt.id)
+        serializer = VariantAttemptSerializer(attempt, context={"request": request})
+        return Response(serializer.data)
+
+
+class VariantAssignmentHistoryView(APIView):
+    """Return full history of attempts for an assignment."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, assignment_id: int, *args, **kwargs):
+        assignment = variant_service.get_assignment_history(request.user, assignment_id)
+        serializer = VariantAssignmentHistorySerializer(
+            assignment, context={"request": request}
+        )
+        return Response(serializer.data)
 
