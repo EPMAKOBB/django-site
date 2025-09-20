@@ -94,7 +94,10 @@ class VariantAttemptModelTests(TestCase):
             variant_task=variant_task,
         )
         attempt_id = attempt.pk
-        self.assertEqual(attempt.task_attempts.count(), 1)
+        self.assertEqual(
+            attempt.task_attempts.filter(attempt_number__gt=0).count(),
+            1,
+        )
 
         attempt.delete()
         self.assertEqual(VariantTaskAttempt.objects.count(), 0)
@@ -128,7 +131,14 @@ class VariantAttemptModelTests(TestCase):
 
     def test_task_snapshot_persisted(self):
         attempt, variant_task = self._create_attempt_with_task()
-        snapshot = {"title": "custom", "difficulty": "hard"}
+        snapshot = {
+            "task": {
+                "type": "dynamic",
+                "title": "custom",
+                "payload": {"difficulty": "hard"},
+            },
+            "response": {"answer": "42"},
+        }
         task_attempt = factories.add_task_attempt(
             variant_attempt=attempt,
             variant_task=variant_task,

@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 
 from .models import (
@@ -18,6 +19,32 @@ from .models import (
     VariantAttempt,
     VariantTaskAttempt,
 )
+from .service_utils import task_generation
+
+
+class TaskAdminForm(forms.ModelForm):
+    default_payload = forms.JSONField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 6, "cols": 80}),
+    )
+
+    class Meta:
+        model = Task
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        generator_choices = [("", "---")] + list(
+            task_generation.get_generator_choices()
+        )
+        self.fields["generator_slug"].widget = forms.Select(choices=generator_choices)
+        self.fields["generator_slug"].required = False
+
+    def clean_generator_slug(self):
+        slug = self.cleaned_data.get("generator_slug") or ""
+        if slug and not task_generation.is_generator_registered(slug):
+            raise forms.ValidationError("Неизвестный генератор")
+        return slug
 
 
 class TaskSkillInline(admin.TabularInline):
@@ -38,10 +65,47 @@ class TaskTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
+    form = TaskAdminForm
     inlines = [TaskSkillInline]
-    list_display = ("title", "type", "subject", "exam_version")
-    search_fields = ("title",)
-    list_filter = ("type", "subject", "exam_version")
+    list_display = (
+        "title",
+        "type",
+        "subject",
+        "exam_version",
+        "is_dynamic",
+        "generator_slug",
+        "rendering_strategy",
+    )
+    search_fields = ("title", "generator_slug")
+    list_filter = (
+        "type",
+        "subject",
+        "exam_version",
+        "is_dynamic",
+        "rendering_strategy",
+    )
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "title",
+                    "subject",
+                    "exam_version",
+                    "type",
+                    "description",
+                    "rendering_strategy",
+                )
+            },
+        ),
+        (
+            "Динамическая генерация",
+            {
+                "fields": ("is_dynamic", "generator_slug", "default_payload"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
 
 
 class SkillGroupItemInline(admin.TabularInline):

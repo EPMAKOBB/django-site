@@ -40,6 +40,47 @@ curl -X POST http://localhost:8000/api/attempts/ \
 curl "http://localhost:8000/api/next-task/?n=5"
 ```
 
+## Формат `task_snapshot`
+
+Каждая попытка по заданию хранит снимок данных в поле `VariantTaskAttempt.task_snapshot`.
+Структура поля унифицирована и состоит из двух уровней:
+
+```json
+{
+  "task": {
+    "type": "static" | "dynamic",
+    "task_id": 1,
+    "title": "Задание",
+    "description": "Условие",
+    "rendering_strategy": "markdown",
+    "generator_slug": "math/addition",
+    "seed": 123456,
+    "payload": {"min": 1, "max": 5},
+    "content": {"question": "2 + 2", "choices": [3, 4, 5]},
+    "answers": {"value": 4},
+    "meta": {"difficulty": "base"}
+  },
+  "response": {"chosen": 4}
+}
+```
+
+* Для статических заданий `task.type = "static"`, а содержимое заполняется из
+  полей модели `Task` (`title`, `description`, `rendering_strategy`) и
+  `default_payload`.
+* Для динамических заданий `task.type = "dynamic"`; поле
+  `generator_slug` указывает выбранный генератор, `seed` — детерминированное
+  значение, используемое генератором, `payload` и `content` — фактически
+  сгенерированные данные, а в `answers` и `meta` хранятся дополнительные
+  сведения от генератора (если они есть).
+* Объект `response` содержит данные, отправленные студентом при решении. Если
+  попытка ещё не совершена, ключ `response` отсутствует.
+
+При старте попытки варианта система создаёт техническую запись с
+`attempt_number = 0`, которая содержит только часть `task` — это снапшот
+задания, отображаемый студенту. Все последующие записи с
+`attempt_number > 0` наследуют этот снапшот и добавляют раздел `response`.
+
+
 ## Формулы
 
 ### EWMA
