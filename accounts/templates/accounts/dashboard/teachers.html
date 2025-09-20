@@ -3,9 +3,111 @@
 {% block dashboard_title %}{% if role == 'teacher' %}Мои ученики{% else %}Мои учителя{% endif %}{% endblock %}
 
 {% block dashboard_content %}
-{% if role == 'teacher' %}
-<p>Здесь будет список учеников.</p>
-{% else %}
-<p>Здесь будет список учителей.</p>
-{% endif %}
+  {% if role == 'teacher' %}
+    <form method="post" class="card teacher-skills" aria-describedby="skill-form-description">
+      {% csrf_token %}
+      <h2 class="mb-16">Добавление умений</h2>
+      <p id="skill-form-description" class="muted mb-16">Выберите одно или несколько умений, которые хотите назначить.</p>
+      {% if skills_by_subject %}
+        <div class="skill-fields" data-skill-fields>
+          <div class="skill-field" data-skill-field>
+            <label class="skill-field__label" for="teacher-skill-1">Умение</label>
+            <div class="skill-field__control">
+              <select id="teacher-skill-1" name="skills" class="skill-select">
+                <option value="" selected disabled>Выберите умение</option>
+                {% for subject_block in skills_by_subject %}
+                  <optgroup label="{{ subject_block.subject.name }}">
+                    {% for skill in subject_block.skills %}
+                      <option value="{{ skill.id }}">{{ skill.name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="skill-actions">
+          <button type="button" class="skill-add-btn" data-add-skill aria-label="Добавить ещё умение">
+            <span aria-hidden="true">+</span>
+          </button>
+        </div>
+        <div class="skill-submit">
+          <button type="submit" class="btn">Сохранить</button>
+        </div>
+        <template id="skill-field-template">
+          <div class="skill-field" data-skill-field>
+            <label class="skill-field__label">Дополнительное умение</label>
+            <div class="skill-field__control">
+              <select class="skill-select" name="skills">
+                <option value="" selected disabled>Выберите умение</option>
+                {% for subject_block in skills_by_subject %}
+                  <optgroup label="{{ subject_block.subject.name }}">
+                    {% for skill in subject_block.skills %}
+                      <option value="{{ skill.id }}">{{ skill.name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                {% endfor %}
+              </select>
+              <button type="button" class="skill-remove-btn" data-remove-skill aria-label="Удалить умение">
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </div>
+        </template>
+      {% else %}
+        <p class="hint">Список умений пока пуст.</p>
+      {% endif %}
+    </form>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const container = document.querySelector('[data-skill-fields]');
+        if (!container) return;
+        const addBtn = document.querySelector('[data-add-skill]');
+        const template = document.getElementById('skill-field-template');
+        if (!template) return;
+
+        let counter = container.querySelectorAll('[data-skill-field]').length;
+
+        function createField() {
+          const fragment = template.content.firstElementChild.cloneNode(true);
+          counter += 1;
+          const select = fragment.querySelector('select');
+          const label = fragment.querySelector('label');
+          const id = `teacher-skill-${counter}`;
+          if (select) {
+            select.id = id;
+            select.name = 'skills';
+          }
+          if (label) {
+            label.setAttribute('for', id);
+          }
+          return fragment;
+        }
+
+        addBtn?.addEventListener('click', () => {
+          const field = createField();
+          container.appendChild(field);
+          const lastSelect = container.querySelector('[data-skill-field]:last-of-type select');
+          if (lastSelect) {
+            lastSelect.focus();
+          }
+        });
+
+        container.addEventListener('click', (event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          const removeBtn = target?.closest('[data-remove-skill]');
+          if (!removeBtn) return;
+          const field = removeBtn.closest('[data-skill-field]');
+          if (!field) return;
+          field.remove();
+          const lastSelect = container.querySelector('[data-skill-field]:last-of-type select');
+          if (lastSelect) {
+            lastSelect.focus();
+          }
+        });
+      });
+    </script>
+  {% else %}
+    <p>Здесь будет список учителей.</p>
+  {% endif %}
 {% endblock %}
