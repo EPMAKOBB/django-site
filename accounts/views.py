@@ -1,6 +1,4 @@
 import logging
-from typing import Any
-
 from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -11,9 +9,7 @@ from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
 from .forms_exams import ExamPreferencesForm
 from .models import StudentProfile
 from subjects.models import Subject
-
 from apps.recsys.models import (
-    Skill,
     SkillMastery,
     TypeMastery,
     ExamVersion,
@@ -92,21 +88,7 @@ def dashboard_teachers(request):
     """Display a placeholder teachers dashboard."""
 
     role = _get_dashboard_role(request)
-    skills_qs = Skill.objects.select_related("subject").order_by("subject__name", "name")
-    skills_by_subject: list[dict[str, Any]] = []
-    current_subject_id: int | None = None
-    for skill in skills_qs:
-        if current_subject_id != skill.subject_id:
-            skills_by_subject.append({"subject": skill.subject, "skills": [skill]})
-            current_subject_id = skill.subject_id
-        else:
-            skills_by_subject[-1]["skills"].append(skill)
-
-    context = {
-        "active_tab": "teachers",
-        "role": role,
-        "skills_by_subject": skills_by_subject,
-    }
+    context = {"active_tab": "teachers", "role": role}
     return render(request, "accounts/dashboard/teachers.html", context)
 
 
