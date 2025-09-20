@@ -26,12 +26,15 @@
       <span class="price-new">
         {{ application_price.current }} ₽/мес
       </span>
+      {% with deadline=application_price.promo_until|date:"j E" %}
       <span class="price-note">
-        {% if subjects_count >= 2 %}скидка при нескольких предметах{% endif %}
-        {% if application_price.promo_until %}
-          Акция действует до {{ application_price.promo_until|date:"j E" }}
+        {% if subjects_count >= 2 %}
+          за два предмета при записи до {{ deadline }}
+        {% else %}
+          при записи до {{ deadline }}
         {% endif %}
       </span>
+      {% endwith %}
     </p>
       </form>
     </div>

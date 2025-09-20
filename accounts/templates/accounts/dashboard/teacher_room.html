@@ -1,0 +1,100 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
+
+{% block dashboard_title %}{% trans "Учительская" %}{% endblock %}
+
+{% block dashboard_content %}
+<section class="card">
+  <h2 class="mt-0">{% trans "Добавить задачу" %}</h2>
+  <p class="muted">{% trans "Заполните поля ниже, чтобы сохранить новую задачу для своих учеников." %}</p>
+  <p class="hint">{% trans "Сначала выберите предмет — страница обновится и покажет связанные экзамены и умения." %}</p>
+  <form method="post" enctype="multipart/form-data" class="form-grid">
+    {% csrf_token %}
+    {{ task_form.non_field_errors }}
+    <div class="form-row">
+      <div class="form-field">
+        {{ task_form.subject.label_tag }}
+        {{ task_form.subject }}
+        {{ task_form.subject.errors }}
+      </div>
+      <div class="form-field">
+        {{ task_form.exam_version.label_tag }}
+        {{ task_form.exam_version }}
+        {{ task_form.exam_version.errors }}
+      </div>
+      <div class="form-field">
+        {{ task_form.type.label_tag }}
+        {{ task_form.type }}
+        {{ task_form.type.errors }}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field">
+        {{ task_form.title.label_tag }}
+        {{ task_form.title }}
+        {{ task_form.title.errors }}
+      </div>
+      <div class="form-field">
+        {{ task_form.difficulty.label_tag }}
+        {{ task_form.difficulty }}
+        {{ task_form.difficulty.errors }}
+      </div>
+      <div class="form-field">
+        {{ task_form.preliminary_difficulty.label_tag }}
+        {{ task_form.preliminary_difficulty }}
+        {{ task_form.preliminary_difficulty.errors }}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field">
+        {{ task_form.description.label_tag }}
+        {{ task_form.description }}
+        {{ task_form.description.errors }}
+      </div>
+      <div class="form-field">
+        {{ task_form.statement_image.label_tag }}
+        {{ task_form.statement_image }}
+        {{ task_form.statement_image.errors }}
+        {% if task_form.statement_image.help_text %}
+        <p class="hint">{{ task_form.statement_image.help_text }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field">
+        {{ task_form.correct_answer.label_tag }}
+        {{ task_form.correct_answer }}
+        {{ task_form.correct_answer.errors }}
+      </div>
+      <div class="form-field">
+        {{ task_form.skills.label_tag }}
+        {{ task_form.skills }}
+        {{ task_form.skills.errors }}
+        {% if task_form.skills.help_text %}
+        <p class="hint">{{ task_form.skills.help_text }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{% trans "Сохранить задачу" %}</button>
+    </div>
+  </form>
+</section>
+<script>
+  (function () {
+    const subjectSelect = document.getElementById("id_subject");
+    if (!subjectSelect) {
+      return;
+    }
+    subjectSelect.addEventListener("change", function () {
+      const url = new URL(window.location.href);
+      if (this.value) {
+        url.searchParams.set("subject", this.value);
+      } else {
+        url.searchParams.delete("subject");
+      }
+      window.location.href = url.toString();
+    });
+  })();
+</script>
+{% endblock %}

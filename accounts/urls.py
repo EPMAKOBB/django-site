@@ -11,6 +11,7 @@ urlpatterns = [
     path("dashboard/", views.progress, name="dashboard"),
     path("dashboard/subjects/", views.dashboard_subjects, name="dashboard-subjects"),
     path("dashboard/courses/", views.dashboard_courses, name="dashboard-courses"),
+    path("dashboard/teacher-room/", views.dashboard_teacher_room, name="dashboard-teacher-room"),
     path("dashboard/teachers/", views.dashboard_teachers, name="dashboard-teachers"),
     path("dashboard/classes/", views.dashboard_classes, name="dashboard-classes"),
     path("dashboard/settings/", views.dashboard_settings, name="dashboard-settings"),

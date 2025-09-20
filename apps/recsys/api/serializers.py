@@ -47,6 +47,10 @@ class TaskSerializer(serializers.ModelSerializer):
             "type",
             "title",
             "description",
+            "difficulty",
+            "preliminary_difficulty",
+            "statement_image",
+            "correct_answer",
             "skills",
         ]
 

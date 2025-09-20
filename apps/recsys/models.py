@@ -59,6 +59,14 @@ class Task(TimeStampedModel):
     type = models.ForeignKey(TaskType, on_delete=models.CASCADE, related_name="tasks")
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    difficulty = models.PositiveSmallIntegerField(default=1)
+    preliminary_difficulty = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True
+    )
+    statement_image = models.ImageField(
+        upload_to="task_statements/", null=True, blank=True
+    )
+    correct_answer = models.TextField(blank=True)
     skills = models.ManyToManyField("Skill", through="TaskSkill", related_name="tasks")
 
     class Meta:

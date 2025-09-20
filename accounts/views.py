@@ -4,10 +4,12 @@ from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.db import connection
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
 from .forms_exams import ExamPreferencesForm
 from .models import StudentProfile
+from apps.recsys.forms import TaskCreateForm
 from subjects.models import Subject
 from apps.recsys.models import (
     SkillMastery,
@@ -90,6 +92,40 @@ def dashboard_teachers(request):
     role = _get_dashboard_role(request)
     context = {"active_tab": "teachers", "role": role}
     return render(request, "accounts/dashboard/teachers.html", context)
+
+
+@login_required
+def dashboard_teacher_room(request):
+    """Display the teacher room with the task creation form."""
+
+    role = _get_dashboard_role(request)
+    if role != "teacher":
+        messages.warning(request, _("Раздел доступен только преподавателям."))
+        return redirect("accounts:dashboard")
+
+    initial = {}
+    subject_param = request.GET.get("subject")
+    if subject_param:
+        initial["subject"] = subject_param
+
+    if request.method == "POST":
+        form = TaskCreateForm(request.POST, request.FILES)
+        if form.is_valid():
+            task = form.save()
+            messages.success(request, _("Задача сохранена"))
+            redirect_url = reverse("accounts:dashboard-teacher-room")
+            if task.subject_id:
+                redirect_url = f"{redirect_url}?subject={task.subject_id}"
+            return redirect(redirect_url)
+    else:
+        form = TaskCreateForm(initial=initial)
+
+    context = {
+        "active_tab": "teacher-room",
+        "role": role,
+        "task_form": form,
+    }
+    return render(request, "accounts/dashboard/teacher_room.html", context)
 
 
 @login_required
