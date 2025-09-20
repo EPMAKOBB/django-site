@@ -54,6 +54,10 @@ class TaskSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "skills",
+            "is_dynamic",
+            "generator_slug",
+            "default_payload",
+            "rendering_strategy",
         ]
 
 
@@ -231,6 +235,7 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
                     "max_attempts": item["max_attempts"],
                     "attempts_used": item["attempts_used"],
                     "is_completed": item["is_completed"],
+                    "task_snapshot": item["task_snapshot"],
                     "attempts": attempts_serializer.data,
                 }
             )

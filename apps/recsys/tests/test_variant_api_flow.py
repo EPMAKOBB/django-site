@@ -77,8 +77,13 @@ class VariantApiFlowTests(TestCase):
         )
         self.assertEqual(first_task_entry["attempts_used"], 1)
         self.assertFalse(first_task_entry["is_completed"])
+        self.assertIsNotNone(first_task_entry["task_snapshot"])
+        first_attempt_snapshot = first_task_entry["attempts"][0]["task_snapshot"]
         self.assertEqual(
-            first_task_entry["attempts"][0]["task_snapshot"], incorrect_payload["task_snapshot"]
+            first_attempt_snapshot["response"], incorrect_payload["task_snapshot"]
+        )
+        self.assertEqual(
+            first_attempt_snapshot["task"], first_task_entry["task_snapshot"]
         )
 
         correct_payload = {
@@ -175,6 +180,6 @@ class VariantApiFlowTests(TestCase):
         self.assertTrue(first_task_progress["is_completed"])
         self.assertEqual(len(first_task_progress["attempts"]), 2)
         self.assertEqual(
-            first_task_progress["attempts"][0]["task_snapshot"],
+            first_task_progress["attempts"][0]["task_snapshot"]["response"],
             incorrect_payload["task_snapshot"],
         )

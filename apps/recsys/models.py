@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from copy import deepcopy
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -61,6 +65,20 @@ class Task(TimeStampedModel):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     skills = models.ManyToManyField("Skill", through="TaskSkill", related_name="tasks")
+    is_dynamic = models.BooleanField(default=False)
+    generator_slug = models.CharField(max_length=255, blank=True)
+    default_payload = models.JSONField(default=dict, blank=True)
+
+    class RenderingStrategy(models.TextChoices):
+        PLAIN = "plain", "Plain text"
+        MARKDOWN = "markdown", "Markdown"
+        HTML = "html", "HTML"
+
+    rendering_strategy = models.CharField(
+        max_length=32,
+        choices=RenderingStrategy.choices,
+        default=RenderingStrategy.MARKDOWN,
+    )
 
     class Meta:
         unique_together = ("subject", "exam_version", "type", "title")
@@ -70,6 +88,38 @@ class Task(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.title
+
+    def clean(self):
+        super().clean()
+
+        payload = self.default_payload or {}
+        if not isinstance(payload, dict):
+            raise ValidationError(
+                {"default_payload": "Payload должен быть объектом JSON"}
+            )
+        # Normalise JSON field to avoid shared mutable defaults
+        self.default_payload = deepcopy(payload)
+
+        if self.is_dynamic:
+            if not self.generator_slug:
+                raise ValidationError(
+                    {"generator_slug": "Для динамических задач требуется генератор"}
+                )
+            from apps.recsys.service_utils import task_generation
+
+            if not task_generation.is_generator_registered(self.generator_slug):
+                raise ValidationError(
+                    {"generator_slug": "Указанный генератор не зарегистрирован"}
+                )
+        else:
+            if self.generator_slug:
+                raise ValidationError(
+                    {"generator_slug": "Статические задачи не используют генератор"}
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class TaskSkill(TimeStampedModel):
