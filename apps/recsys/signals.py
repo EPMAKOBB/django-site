@@ -14,30 +14,34 @@ from .services import update_mastery
 
 @receiver(post_save, sender=Attempt)
 def handle_attempt_post_save(sender, instance: Attempt, created: bool, **kwargs) -> None:
-    """Aggregate quick repeated attempts and update mastery."""
+    """Update attempt aggregates and mastery after creation."""
     if not created:
         return
 
-    five_minutes_ago = timezone.now() - timedelta(minutes=5)
-    previous = (
-        Attempt.objects.filter(
-            user=instance.user,
-            task=instance.task,
-            created_at__gte=five_minutes_ago,
-        )
-        .exclude(pk=instance.pk)
-        .order_by("-created_at")
-        .first()
-    )
+    base_filter = {"user": instance.user, "task": instance.task}
 
-    attempt_for_mastery = instance
-    if previous:
-        previous.attempts_count += instance.attempts_count
-        previous.is_correct = instance.is_correct
-        previous.save(update_fields=["attempts_count", "is_correct", "updated_at"])
-        instance.delete()
-        attempt_for_mastery = previous
+    if instance.variant_task_attempt_id is not None:
+        related_attempts = Attempt.objects.filter(
+            variant_task_attempt=instance.variant_task_attempt,
+            **base_filter,
+        )
+    else:
+        five_minutes_ago = timezone.now() - timedelta(minutes=5)
+        related_attempts = Attempt.objects.filter(
+            created_at__gte=five_minutes_ago,
+            variant_task_attempt__isnull=True,
+            **base_filter,
+        )
+
+    total_attempts = related_attempts.count()
+    weight = 1.0 / total_attempts if total_attempts else 1.0
+
+    Attempt.objects.filter(pk=instance.pk).update(
+        attempts_count=total_attempts or 1,
+        weight=weight,
+    )
+    instance.refresh_from_db(fields=["attempts_count", "weight"])
 
     with transaction.atomic():
-        update_mastery(attempt_for_mastery)
+        update_mastery(instance)
 

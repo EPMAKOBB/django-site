@@ -69,7 +69,24 @@ class ExamVersionAdmin(admin.ModelAdmin):
 
 
 admin.site.register(TaskSkill)
-admin.site.register(Attempt)
+
+
+@admin.register(Attempt)
+class AttemptAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "task",
+        "is_correct",
+        "attempts_count",
+        "weight",
+        "variant_task_attempt",
+        "created_at",
+    )
+    list_filter = ("is_correct", "task__type", "task__subject")
+    search_fields = ("user__username", "task__title")
+    autocomplete_fields = ("user", "task", "variant_task_attempt")
+
+
 admin.site.register(SkillMastery)
 admin.site.register(TypeMastery)
 admin.site.register(RecommendationLog)
@@ -127,3 +144,7 @@ class VariantTaskAttemptAdmin(admin.ModelAdmin):
     )
     ordering = ("variant_attempt", "variant_task", "attempt_number")
     list_filter = ("variant_attempt__assignment__template", "is_correct")
+    search_fields = (
+        "variant_attempt__assignment__user__username",
+        "variant_task__task__title",
+    )
