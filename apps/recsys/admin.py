@@ -27,8 +27,8 @@ class SkillAdmin(admin.ModelAdmin):
 
 @admin.register(TaskType)
 class TaskTypeAdmin(admin.ModelAdmin):
-    list_display = ("name", "subject")
-    list_filter = ("subject",)
+    list_display = ("name", "subject", "exam_version")
+    list_filter = ("subject", "exam_version")
 
 
 @admin.register(Task)
