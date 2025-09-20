@@ -33,6 +33,8 @@ class VariantGenerationTests(TestCase):
         self.static_task = factories.create_task(
             title="Static",
             default_payload={"answers": ["A"]},
+            difficulty_level=25,
+            correct_answer={"value": "A"},
         )
         self.dynamic_task = factories.create_task(
             subject=self.static_task.subject,
@@ -40,6 +42,8 @@ class VariantGenerationTests(TestCase):
             is_dynamic=True,
             generator_slug="math/addition",
             default_payload={"min": 2, "max": 5},
+            difficulty_level=80,
+            correct_answer={"formula": "a + b"},
         )
         self.static_variant_task = factories.add_variant_task(
             template=self.template, task=self.static_task, order=1
@@ -68,9 +72,14 @@ class VariantGenerationTests(TestCase):
 
         self.assertEqual(static_snapshot["type"], "static")
         self.assertEqual(static_snapshot["title"], self.static_task.title)
+        self.assertEqual(static_snapshot["difficulty_level"], 25)
+        self.assertEqual(static_snapshot["correct_answer"], {"value": "A"})
+        self.assertIsNone(static_snapshot["image"])
         self.assertEqual(dynamic_snapshot["type"], "dynamic")
         self.assertEqual(dynamic_snapshot["generator_slug"], "math/addition")
         self.assertIn("content", dynamic_snapshot)
+        self.assertEqual(dynamic_snapshot["difficulty_level"], 80)
+        self.assertEqual(dynamic_snapshot["correct_answer"], {"formula": "a + b"})
 
         attempt = variant_service.get_attempt_with_prefetch(
             self.assignment.user, attempt.id
@@ -111,3 +120,23 @@ class VariantGenerationTests(TestCase):
         attempt_snapshot = entry["attempts"][0].task_snapshot
         self.assertEqual(attempt_snapshot["response"], response_payload)
         self.assertEqual(attempt_snapshot["task"], entry["task_snapshot"])
+        self.assertEqual(attempt_snapshot["task"]["difficulty_level"], 80)
+        self.assertEqual(attempt_snapshot["task"]["correct_answer"], {"formula": "a + b"})
+
+    def test_submit_task_answer_without_generated_snapshot_includes_metadata(self):
+        attempt = variant_service.start_new_attempt(
+            self.assignment.user, self.assignment.id
+        )
+
+        response = variant_service.submit_task_answer(
+            self.assignment.user,
+            attempt.id,
+            self.static_variant_task.id,
+            is_correct=True,
+        )
+
+        snapshot = response.task_attempt.task_snapshot["task"]
+        self.assertEqual(snapshot["type"], "static")
+        self.assertEqual(snapshot["difficulty_level"], 25)
+        self.assertEqual(snapshot["correct_answer"], {"value": "A"})
+        self.assertIn("rendering_strategy", snapshot)

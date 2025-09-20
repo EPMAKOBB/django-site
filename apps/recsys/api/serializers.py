@@ -45,6 +45,7 @@ class TaskSerializer(serializers.ModelSerializer):
     skills = SkillSerializer(many=True, read_only=True)
     subject = serializers.PrimaryKeyRelatedField(read_only=True)
     exam_version = serializers.PrimaryKeyRelatedField(read_only=True)
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -60,7 +61,19 @@ class TaskSerializer(serializers.ModelSerializer):
             "generator_slug",
             "default_payload",
             "rendering_strategy",
+            "image",
+            "difficulty_level",
+            "correct_answer",
         ]
+
+    def get_image(self, obj):
+        if not obj.image:
+            return None
+        request = self.context.get("request") if isinstance(self.context, dict) else None
+        url = obj.image.url
+        if request is not None:
+            return request.build_absolute_uri(url)
+        return url
 
 
 class AttemptSerializer(serializers.ModelSerializer):

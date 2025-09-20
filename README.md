@@ -53,10 +53,13 @@ curl "http://localhost:8000/api/next-task/?n=5"
     "title": "Задание",
     "description": "Условие",
     "rendering_strategy": "markdown",
+    "image": "https://example.com/media/tasks/screenshots/1.png",
     "generator_slug": "math/addition",
     "seed": 123456,
     "payload": {"min": 1, "max": 5},
     "content": {"question": "2 + 2", "choices": [3, 4, 5]},
+    "difficulty_level": 40,
+    "correct_answer": {"value": 4},
     "answers": {"value": 4},
     "meta": {"difficulty": "base"}
   },
@@ -66,12 +69,15 @@ curl "http://localhost:8000/api/next-task/?n=5"
 
 * Для статических заданий `task.type = "static"`, а содержимое заполняется из
   полей модели `Task` (`title`, `description`, `rendering_strategy`) и
-  `default_payload`.
+  `default_payload`. Поле `difficulty_level` хранит сложность от 0 до 100,
+  `correct_answer` содержит эталонный ответ, а `image` — ссылку на скриншот,
+  если он загружен.
 * Для динамических заданий `task.type = "dynamic"`; поле
   `generator_slug` указывает выбранный генератор, `seed` — детерминированное
   значение, используемое генератором, `payload` и `content` — фактически
   сгенерированные данные, а в `answers` и `meta` хранятся дополнительные
-  сведения от генератора (если они есть).
+  сведения от генератора (если они есть). Поля `difficulty_level`,
+  `correct_answer` и `image` также передаются из исходного задания.
 * Объект `response` содержит данные, отправленные студентом при решении. Если
   попытка ещё не совершена, ключ `response` отсутствует.
 
