@@ -9,7 +9,13 @@
         {% if exams_list|length %}
           <div class="flex items-center gap-8" role="group" aria-label="{% trans 'Экзамены пользователя' %}">
             {% for exam in exams_list %}
-              <button type="button" class="btn">{{ exam.name }}</button>
+              <button type="button" class="btn">
+                {% if active_tab == 'statistics' %}
+                  {{ exam.subject.name }} — {{ exam.name }}
+                {% else %}
+                  {{ exam.name }}
+                {% endif %}
+              </button>
             {% endfor %}
           </div>
         {% else %}
@@ -23,6 +29,11 @@
       <li class="{% if active_tab == 'tasks' %}active{% endif %}" role="presentation">
         <a role="tab" aria-selected="{% if active_tab == 'tasks' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard' %}">{% trans 'Задания' %}</a>
       </li>
+      {% if role == 'teacher' %}
+      <li class="{% if active_tab == 'teacher-room' %}active{% endif %}" role="presentation">
+        <a role="tab" aria-selected="{% if active_tab == 'teacher-room' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-teacher-room' %}">{% trans 'Учительская' %}</a>
+      </li>
+      {% endif %}
       <li class="{% if active_tab == 'statistics' %}active{% endif %}" role="presentation">
         <a role="tab" aria-selected="{% if active_tab == 'statistics' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-subjects' %}">{% trans 'Статистика' %}</a>
       </li>
