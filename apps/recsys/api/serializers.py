@@ -27,9 +27,11 @@ class SkillSerializer(serializers.ModelSerializer):
 
 
 class TaskTypeSerializer(serializers.ModelSerializer):
+    exam_version = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = TaskType
-        fields = ["id", "subject", "name", "description"]
+        fields = ["id", "subject", "exam_version", "name", "description"]
 
 
 class TaskSkillSerializer(serializers.ModelSerializer):
