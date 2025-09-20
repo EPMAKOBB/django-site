@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from subjects.models import Subject
 
@@ -210,3 +211,133 @@ class RecommendationLog(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.user} - {self.task}"
+
+
+class VariantTemplate(TimeStampedModel):
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True)
+    time_limit = models.DurationField(null=True, blank=True)
+    max_attempts = models.PositiveIntegerField(null=True, blank=True)
+    tasks = models.ManyToManyField(
+        Task, through="VariantTask", related_name="variant_templates"
+    )
+
+    class Meta:
+        ordering = ["name"]
+        indexes = [models.Index(fields=["name"])]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class VariantTask(TimeStampedModel):
+    template = models.ForeignKey(
+        VariantTemplate, on_delete=models.CASCADE, related_name="template_tasks"
+    )
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="variant_tasks")
+    order = models.PositiveIntegerField()
+    max_attempts = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["template", "order"]
+        unique_together = (
+            ("template", "order"),
+            ("template", "task"),
+        )
+        indexes = [
+            models.Index(fields=["template", "order"]),
+            models.Index(fields=["template", "task"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.template} -> {self.task}"
+
+
+class VariantAssignment(TimeStampedModel):
+    template = models.ForeignKey(
+        VariantTemplate, on_delete=models.CASCADE, related_name="assignments"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="variant_assignments",
+    )
+    deadline = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user"]),
+            models.Index(fields=["template"]),
+            models.Index(fields=["user", "template"]),
+        ]
+
+    def mark_started(self) -> None:
+        if self.started_at is None:
+            self.started_at = timezone.now()
+            self.save(update_fields=["started_at", "updated_at"])
+
+    def __str__(self) -> str:
+        return f"{self.user} - {self.template}"
+
+
+class VariantAttempt(TimeStampedModel):
+    assignment = models.ForeignKey(
+        VariantAssignment, on_delete=models.CASCADE, related_name="attempts"
+    )
+    attempt_number = models.PositiveIntegerField(default=1)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    time_spent = models.DurationField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["assignment", "attempt_number"]
+        unique_together = ("assignment", "attempt_number")
+        indexes = [
+            models.Index(fields=["assignment", "attempt_number"]),
+            models.Index(fields=["assignment"]),
+        ]
+
+    def mark_completed(self) -> None:
+        if self.completed_at is None:
+            self.completed_at = timezone.now()
+            if self.time_spent is None:
+                self.time_spent = self.completed_at - self.started_at
+            self.save(update_fields=["completed_at", "time_spent", "updated_at"])
+
+    def __str__(self) -> str:
+        return f"Attempt {self.attempt_number} for {self.assignment}"
+
+
+class VariantTaskAttempt(TimeStampedModel):
+    variant_attempt = models.ForeignKey(
+        VariantAttempt, on_delete=models.CASCADE, related_name="task_attempts"
+    )
+    variant_task = models.ForeignKey(
+        VariantTask, on_delete=models.CASCADE, related_name="task_attempts"
+    )
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="variant_task_attempts",
+    )
+    attempt_number = models.PositiveIntegerField(default=1)
+    is_correct = models.BooleanField(default=False)
+    task_snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["variant_attempt", "variant_task", "attempt_number"]
+        unique_together = ("variant_attempt", "variant_task", "attempt_number")
+        indexes = [
+            models.Index(fields=["variant_attempt"]),
+            models.Index(fields=["variant_task"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"Task attempt {self.attempt_number} for {self.variant_task} "
+            f"(variant attempt {self.variant_attempt.attempt_number})"
+        )
