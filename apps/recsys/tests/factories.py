@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import timedelta
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from apps.recsys.models import (
     VariantTaskAttempt,
     VariantTemplate,
 )
+from apps.recsys.service_utils import variants as variant_service
 from subjects.models import Subject
 
 
@@ -28,6 +30,10 @@ def create_task(
     subject: Subject | None = None,
     title: str | None = None,
     task_type_name: str = "Базовый тип",
+    is_dynamic: bool = False,
+    generator_slug: str = "",
+    default_payload: dict | None = None,
+    rendering_strategy: str | None = None,
 ) -> Task:
     subject = subject or create_subject()
     task_type, _ = TaskType.objects.get_or_create(
@@ -36,11 +42,17 @@ def create_task(
         defaults={"description": ""},
     )
     title = title or f"Задание {uuid4()}"
+    payload = deepcopy(default_payload) if default_payload else {}
+    strategy = rendering_strategy or Task.RenderingStrategy.MARKDOWN
     return Task.objects.create(
         subject=subject,
         type=task_type,
         title=title,
         description="",
+        is_dynamic=is_dynamic,
+        generator_slug=generator_slug if is_dynamic else "",
+        default_payload=payload,
+        rendering_strategy=strategy,
     )
 
 
@@ -96,10 +108,11 @@ def start_attempt(
     assignment: VariantAssignment,
     attempt_number: int = 1,
 ) -> VariantAttempt:
-    return VariantAttempt.objects.create(
-        assignment=assignment,
-        attempt_number=attempt_number,
-    )
+    attempt = variant_service.start_new_attempt(assignment.user, assignment.id)
+    if attempt.attempt_number != attempt_number:
+        attempt.attempt_number = attempt_number
+        attempt.save(update_fields=["attempt_number"])
+    return attempt
 
 
 def add_task_attempt(
@@ -110,13 +123,23 @@ def add_task_attempt(
     is_correct: bool = False,
     task_snapshot: dict | None = None,
 ) -> VariantTaskAttempt:
+    if task_snapshot is None:
+        task_snapshot = {
+            "task": {
+                "type": "static",
+                "task_id": variant_task.task_id,
+                "title": variant_task.task.title,
+                "description": variant_task.task.description,
+                "rendering_strategy": variant_task.task.rendering_strategy,
+            }
+        }
     return VariantTaskAttempt.objects.create(
         variant_attempt=variant_attempt,
         variant_task=variant_task,
         task=variant_task.task,
         attempt_number=attempt_number,
         is_correct=is_correct,
-        task_snapshot=task_snapshot or {"title": variant_task.task.title},
+        task_snapshot=deepcopy(task_snapshot),
     )
 
 
