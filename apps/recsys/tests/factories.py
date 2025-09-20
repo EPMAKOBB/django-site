@@ -34,6 +34,8 @@ def create_task(
     generator_slug: str = "",
     default_payload: dict | None = None,
     rendering_strategy: str | None = None,
+    difficulty_level: int = 0,
+    correct_answer: dict | None = None,
 ) -> Task:
     subject = subject or create_subject()
     task_type, _ = TaskType.objects.get_or_create(
@@ -53,6 +55,8 @@ def create_task(
         generator_slug=generator_slug if is_dynamic else "",
         default_payload=payload,
         rendering_strategy=strategy,
+        difficulty_level=difficulty_level,
+        correct_answer=deepcopy(correct_answer) if correct_answer else {},
     )
 
 

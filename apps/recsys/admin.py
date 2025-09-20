@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django.utils.html import format_html
 
 from .models import (
     Skill,
@@ -27,6 +28,14 @@ class TaskAdminForm(forms.ModelForm):
         required=False,
         widget=forms.Textarea(attrs={"rows": 6, "cols": 80}),
     )
+    correct_answer = forms.JSONField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 6, "cols": 80}),
+        help_text=(
+            "Структура ответа зависит от типа задания. Например: "
+            '{"value": 42} или {"choices": [1, 2, 3]}.'
+        ),
+    )
 
     class Meta:
         model = Task
@@ -39,6 +48,7 @@ class TaskAdminForm(forms.ModelForm):
         )
         self.fields["generator_slug"].widget = forms.Select(choices=generator_choices)
         self.fields["generator_slug"].required = False
+        self.fields["difficulty_level"].help_text = "Число от 0 до 100"
 
     def clean_generator_slug(self):
         slug = self.cleaned_data.get("generator_slug") or ""
@@ -74,6 +84,7 @@ class TaskAdmin(admin.ModelAdmin):
         "exam_version",
         "is_dynamic",
         "generator_slug",
+        "difficulty_level",
         "rendering_strategy",
     )
     search_fields = ("title", "generator_slug")
@@ -84,6 +95,7 @@ class TaskAdmin(admin.ModelAdmin):
         "is_dynamic",
         "rendering_strategy",
     )
+    readonly_fields = ("image_preview", "first_attempt_total", "first_attempt_failed")
     fieldsets = (
         (
             None,
@@ -95,6 +107,10 @@ class TaskAdmin(admin.ModelAdmin):
                     "type",
                     "description",
                     "rendering_strategy",
+                    "difficulty_level",
+                    "image",
+                    "image_preview",
+                    "correct_answer",
                 )
             },
         ),
@@ -105,7 +121,20 @@ class TaskAdmin(admin.ModelAdmin):
                 "classes": ("collapse",),
             },
         ),
+        (
+            "Статистика",
+            {
+                "fields": ("first_attempt_total", "first_attempt_failed"),
+                "classes": ("collapse",),
+            },
+        ),
     )
+
+    @admin.display(description="Предпросмотр")
+    def image_preview(self, obj):
+        if obj and obj.image:
+            return format_html('<img src="{}" style="max-width: 200px;" />', obj.image.url)
+        return "—"
 
 
 class SkillGroupItemInline(admin.TabularInline):
