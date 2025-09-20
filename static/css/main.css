@@ -331,6 +331,45 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .dashboard-content form h2 { margin-top:0; }
 .dashboard-content label { display:block; margin-bottom:var(--space-xs); }
 .dashboard-content input, .dashboard-content select { width:100%; padding:var(--space-sm); border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
+.teacher-skills { max-width:640px; }
+.skill-fields { display:flex; flex-direction:column; gap:var(--space-sm); }
+.skill-field { display:flex; flex-direction:column; gap:var(--space-xs); }
+.skill-field__control { display:flex; align-items:center; gap:var(--space-xs); }
+.skill-select { flex:1; }
+.skill-add-btn, .skill-remove-btn {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:40px;
+  height:40px;
+  border-radius:999px;
+  border:1px solid var(--accent);
+  background:transparent;
+  color:var(--accent);
+  font-size:1.5rem;
+  cursor:pointer;
+  transition:transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+.skill-add-btn:hover,
+.skill-add-btn:focus-visible,
+.skill-remove-btn:hover,
+.skill-remove-btn:focus-visible {
+  background:color-mix(in srgb, var(--accent) 15%, transparent);
+  color:color-mix(in srgb, var(--accent) 80%, black);
+  transform:translateY(-1px);
+  outline:none;
+}
+.skill-remove-btn {
+  border-color:var(--border);
+  color:var(--muted);
+  font-size:1.25rem;
+}
+.skill-remove-btn:hover,
+.skill-remove-btn:focus-visible {
+  border-color:color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+.skill-actions { margin:var(--space-sm) 0; }
+.skill-submit { margin-top:var(--space-md); }
 .role-toggle { display:flex; gap:var(--space-sm); }
 .role-toggle input { display:none; }
 .role-toggle label { flex:1; text-align:center; padding:10px 0; border:1px solid var(--border); border-radius:10px; background:var(--card); cursor:pointer; }
