@@ -23,7 +23,7 @@ class SkillSerializer(serializers.ModelSerializer):
 class TaskTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskType
-        fields = ["id", "subject", "name", "description"]
+        fields = ["id", "subject", "exam_version", "name", "description"]
 
 
 class TaskSkillSerializer(serializers.ModelSerializer):

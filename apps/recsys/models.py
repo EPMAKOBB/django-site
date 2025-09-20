@@ -33,16 +33,36 @@ class TaskType(TimeStampedModel):
     subject = models.ForeignKey(
         Subject, on_delete=models.CASCADE, related_name="task_types"
     )
+    exam_version = models.ForeignKey(
+        "ExamVersion",
+        on_delete=models.CASCADE,
+        related_name="task_types",
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
 
     class Meta:
         ordering = ["name"]
-        unique_together = ("subject", "name")
-        indexes = [models.Index(fields=["subject", "name"])]
+        unique_together = ("subject", "exam_version", "name")
+        indexes = [models.Index(fields=["subject", "exam_version", "name"])]
 
     def __str__(self) -> str:
         return self.name
+
+    def clean(self):
+        if (
+            self.exam_version_id is not None
+            and self.exam_version.subject_id != self.subject_id
+        ):
+            raise ValidationError(
+                "TaskType exam version must have the same subject as the task type"
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class Task(TimeStampedModel):
