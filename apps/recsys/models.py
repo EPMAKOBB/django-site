@@ -87,6 +87,11 @@ class Task(TimeStampedModel):
     is_dynamic = models.BooleanField(default=False)
     generator_slug = models.CharField(max_length=255, blank=True)
     default_payload = models.JSONField(default=dict, blank=True)
+    image = models.ImageField(upload_to="tasks/screenshots/", blank=True)
+    correct_answer = models.JSONField(blank=True, default=dict)
+    difficulty_level = models.PositiveSmallIntegerField(default=0)
+    first_attempt_total = models.PositiveIntegerField(default=0)
+    first_attempt_failed = models.PositiveIntegerField(default=0)
 
     class RenderingStrategy(models.TextChoices):
         PLAIN = "plain", "Plain text"
@@ -118,6 +123,18 @@ class Task(TimeStampedModel):
             )
         # Normalise JSON field to avoid shared mutable defaults
         self.default_payload = deepcopy(payload)
+
+        answer = self.correct_answer or {}
+        if not isinstance(answer, dict):
+            raise ValidationError(
+                {"correct_answer": "Правильный ответ должен быть объектом JSON"}
+            )
+        self.correct_answer = deepcopy(answer)
+
+        if not 0 <= self.difficulty_level <= 100:
+            raise ValidationError(
+                {"difficulty_level": "Сложность должна быть в диапазоне 0–100"}
+            )
 
         if self.is_dynamic:
             if not self.generator_slug:
