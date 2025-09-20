@@ -58,10 +58,28 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 class AttemptSerializer(serializers.ModelSerializer):
+    variant_task_attempt = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = Attempt
-        fields = ["id", "task", "is_correct", "created_at", "updated_at"]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        fields = [
+            "id",
+            "task",
+            "is_correct",
+            "attempts_count",
+            "weight",
+            "variant_task_attempt",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "attempts_count",
+            "weight",
+            "variant_task_attempt",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class SkillMasterySerializer(serializers.ModelSerializer):

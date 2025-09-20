@@ -154,6 +154,14 @@ class Attempt(TimeStampedModel):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attempts")
     is_correct = models.BooleanField(default=False)
     attempts_count = models.PositiveIntegerField(default=1)
+    variant_task_attempt = models.ForeignKey(
+        "VariantTaskAttempt",
+        on_delete=models.CASCADE,
+        related_name="attempts",
+        null=True,
+        blank=True,
+    )
+    weight = models.FloatField(default=1.0)
 
     class Meta:
         indexes = [models.Index(fields=["user", "task"])]
