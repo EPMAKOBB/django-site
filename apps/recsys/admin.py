@@ -12,6 +12,11 @@ from .models import (
     SkillMastery,
     TypeMastery,
     RecommendationLog,
+    VariantTemplate,
+    VariantTask,
+    VariantAssignment,
+    VariantAttempt,
+    VariantTaskAttempt,
 )
 
 
@@ -68,3 +73,57 @@ admin.site.register(Attempt)
 admin.site.register(SkillMastery)
 admin.site.register(TypeMastery)
 admin.site.register(RecommendationLog)
+
+
+class VariantTaskInline(admin.TabularInline):
+    model = VariantTask
+    extra = 1
+    ordering = ("order",)
+
+
+@admin.register(VariantTemplate)
+class VariantTemplateAdmin(admin.ModelAdmin):
+    inlines = [VariantTaskInline]
+    list_display = ("name", "time_limit", "max_attempts", "created_at")
+    search_fields = ("name",)
+    ordering = ("name",)
+
+
+@admin.register(VariantTask)
+class VariantTaskAdmin(admin.ModelAdmin):
+    list_display = ("template", "task", "order", "max_attempts")
+    ordering = ("template", "order")
+    list_filter = ("template",)
+
+
+@admin.register(VariantAssignment)
+class VariantAssignmentAdmin(admin.ModelAdmin):
+    list_display = ("template", "user", "deadline", "started_at", "created_at")
+    ordering = ("-created_at",)
+    list_filter = ("template", "deadline")
+    search_fields = ("user__username", "template__name")
+
+
+@admin.register(VariantAttempt)
+class VariantAttemptAdmin(admin.ModelAdmin):
+    list_display = (
+        "assignment",
+        "attempt_number",
+        "started_at",
+        "completed_at",
+        "time_spent",
+    )
+    ordering = ("assignment", "attempt_number")
+    list_filter = ("assignment__template",)
+
+
+@admin.register(VariantTaskAttempt)
+class VariantTaskAttemptAdmin(admin.ModelAdmin):
+    list_display = (
+        "variant_attempt",
+        "variant_task",
+        "attempt_number",
+        "is_correct",
+    )
+    ordering = ("variant_attempt", "variant_task", "attempt_number")
+    list_filter = ("variant_attempt__assignment__template", "is_correct")
