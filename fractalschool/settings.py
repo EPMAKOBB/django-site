@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "accounts",
     "apps.recsys",
     "applications",
+    "courses",
 ]
 
 MIDDLEWARE = [
