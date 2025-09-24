@@ -18,12 +18,10 @@ body{
   margin:0;
   font: 16px/1.5 'JetBrains Mono', Consolas, Menlo, Monaco, 'SFMono-Regular', monospace;
   background:
-    radial-gradient(1200px 600px at 10% 100%, #00140c 0%, transparent 70%),
-    radial-gradient(1200px 600px at 90% 0%, #00140c 0%, transparent 70%),
     linear-gradient(transparent 23px, var(--grid) 24px),
     linear-gradient(90deg, transparent 23px, var(--grid) 24px),
     var(--bg);
-  background-size: auto, auto, 24px 24px, 24px 24px, auto;
+  background-size: 24px 24px, 24px 24px, auto;
   color:var(--text);
 }
 header{
