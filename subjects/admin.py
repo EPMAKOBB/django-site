@@ -7,3 +7,4 @@ from .models import Subject
 class SubjectAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     list_display = ("name",)
+    search_fields = ("name", "slug")
