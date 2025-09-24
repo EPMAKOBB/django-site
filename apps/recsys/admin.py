@@ -61,7 +61,6 @@ class ExamVersionAdmin(admin.ModelAdmin):
     inlines = [SkillGroupInline]
     list_display = ("name", "subject")
     list_filter = ("subject",)
-    search_fields = ("name", "subject__name")
 
 
 admin.site.register(TaskSkill)
