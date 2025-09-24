@@ -27,9 +27,14 @@
         {{ application_price.current }} ₽/мес
       </span>
       <span class="price-note">
-        {% if subjects_count >= 2 %}скидка при нескольких предметах{% endif %}
-        {% if application_price.promo_until %}
-          Акция действует до {{ application_price.promo_until|date:"j E" }}
+        {% if subjects_count >= 2 %}
+          {% if application_price.promo_until %}
+            за два предмета при записи до {{ application_price.promo_until|date:"j E" }}
+          {% else %}
+            за два предмета
+          {% endif %}
+        {% elif application_price.promo_until %}
+          при записи до {{ application_price.promo_until|date:"j E" }}
         {% endif %}
       </span>
     </p>
