@@ -65,12 +65,14 @@ class TaskSkillInline(admin.TabularInline):
 class SkillAdmin(admin.ModelAdmin):
     list_display = ("name", "subject")
     list_filter = ("subject",)
+    search_fields = ("name", "subject__name")
 
 
 @admin.register(TaskType)
 class TaskTypeAdmin(admin.ModelAdmin):
     list_display = ("name", "subject", "exam_version")
     list_filter = ("subject", "exam_version")
+    search_fields = ("name", "subject__name", "exam_version__name")
 
 
 @admin.register(Task)
