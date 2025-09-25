@@ -1,11 +1,137 @@
 {% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
 
-{% block dashboard_title %}{% if role == 'teacher' %}Мои ученики{% else %}Мои учителя{% endif %}{% endblock %}
+{% block dashboard_title %}{% trans "Учительская" %}{% endblock %}
 
 {% block dashboard_content %}
-{% if role == 'teacher' %}
-<p>Здесь будет список учеников.</p>
-{% else %}
-<p>Здесь будет список учителей.</p>
-{% endif %}
+  {% if role != 'teacher' %}
+    <section class="card">
+      <h2 class="mb-8">{% trans "Доступ ограничен" %}</h2>
+      <p class="muted">{% trans "Учительская доступна только пользователям с ролью преподавателя." %}</p>
+    </section>
+  {% else %}
+    <section class="card">
+      <h2 class="mb-16">{% trans "Добавить задачу" %}</h2>
+      <form method="post" enctype="multipart/form-data" class="teacher-task-form">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="{{ form.subject.id_for_label }}">{{ form.subject.label }}</label>
+            {{ form.subject }}
+            {% if form.subject.errors %}<div class="errorlist">{{ form.subject.errors }}</div>{% endif %}
+          </div>
+          <div class="form-field">
+            <label for="{{ form.exam_version.id_for_label }}">{{ form.exam_version.label }}</label>
+            {{ form.exam_version }}
+            {% if form.exam_version.help_text %}<p class="hint">{{ form.exam_version.help_text }}</p>{% endif %}
+            {% if form.exam_version.errors %}<div class="errorlist">{{ form.exam_version.errors }}</div>{% endif %}
+          </div>
+          <div class="form-field">
+            <label for="{{ form.type.id_for_label }}">{{ form.type.label }}</label>
+            {{ form.type }}
+            {% if form.type.errors %}<div class="errorlist">{{ form.type.errors }}</div>{% endif %}
+          </div>
+          <div class="form-field">
+            <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+            {{ form.title }}
+            {% if form.title.errors %}<div class="errorlist">{{ form.title.errors }}</div>{% endif %}
+          </div>
+          <div class="form-field form-field--wide">
+            <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+            {{ form.description }}
+            {% if form.description.errors %}<div class="errorlist">{{ form.description.errors }}</div>{% endif %}
+          </div>
+          <div class="form-field">
+            <label for="{{ form.image.id_for_label }}">{{ form.image.label }}</label>
+            {{ form.image }}
+            {% if form.image.errors %}<div class="errorlist">{{ form.image.errors }}</div>{% endif %}
+          </div>
+          <div class="form-field">
+            <label for="{{ form.difficulty_level.id_for_label }}">{{ form.difficulty_level.label }}</label>
+            {{ form.difficulty_level }}
+            {% if form.difficulty_level.help_text %}<p class="hint">{{ form.difficulty_level.help_text }}</p>{% endif %}
+            {% if form.difficulty_level.errors %}<div class="errorlist">{{ form.difficulty_level.errors }}</div>{% endif %}
+          </div>
+          <div class="form-field">
+            <label for="{{ form.preliminary_difficulty.id_for_label }}">{{ form.preliminary_difficulty.label }}</label>
+            {{ form.preliminary_difficulty }}
+            {% if form.preliminary_difficulty.help_text %}<p class="hint">{{ form.preliminary_difficulty.help_text }}</p>{% endif %}
+            {% if form.preliminary_difficulty.errors %}<div class="errorlist">{{ form.preliminary_difficulty.errors }}</div>{% endif %}
+          </div>
+          <div class="form-field form-field--wide">
+            <label for="{{ form.correct_answer.id_for_label }}">{{ form.correct_answer.label }}</label>
+            {{ form.correct_answer }}
+            {% if form.correct_answer.help_text %}<p class="hint">{{ form.correct_answer.help_text }}</p>{% endif %}
+            {% if form.correct_answer.errors %}<div class="errorlist">{{ form.correct_answer.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        <fieldset class="teacher-skillset" data-formset-prefix="{{ skill_formset.prefix }}">
+          <legend>{% trans "Умения" %}</legend>
+          <p class="hint mb-12">{% trans "Выберите умения и при необходимости укажите вес каждого умения." %}</p>
+          {{ skill_formset.management_form }}
+          <div class="teacher-skillset__rows" data-formset-container>
+            {% for skill_form in skill_formset %}
+              <div class="teacher-skillset__row" data-formset-form>
+                {{ skill_form.non_field_errors }}
+                <div class="form-field">
+                  <label for="{{ skill_form.skill.id_for_label }}">{{ skill_form.skill.label }}</label>
+                  {{ skill_form.skill }}
+                  {% if skill_form.skill.errors %}<div class="errorlist">{{ skill_form.skill.errors }}</div>{% endif %}
+                </div>
+                <div class="form-field teacher-skillset__weight">
+                  <label for="{{ skill_form.weight.id_for_label }}">{{ skill_form.weight.label }}</label>
+                  {{ skill_form.weight }}
+                  {% if skill_form.weight.help_text %}<p class="hint">{{ skill_form.weight.help_text }}</p>{% endif %}
+                  {% if skill_form.weight.errors %}<div class="errorlist">{{ skill_form.weight.errors }}</div>{% endif %}
+                </div>
+                <div class="teacher-skillset__controls">
+                  <button type="button" class="teacher-skillset__remove" data-formset-delete aria-label="{% trans 'Удалить умение' %}">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                  <div class="teacher-skillset__delete">
+                    {{ skill_form.DELETE }}
+                  </div>
+                </div>
+              </div>
+            {% empty %}
+              <p class="hint">{% trans "Нет доступных полей для умений." %}</p>
+            {% endfor %}
+          </div>
+          <template data-formset-empty>
+            <div class="teacher-skillset__row" data-formset-form>
+              <div class="form-field">
+                <label for="{{ skill_formset.empty_form.skill.id_for_label }}">{{ skill_formset.empty_form.skill.label }}</label>
+                {{ skill_formset.empty_form.skill }}
+              </div>
+              <div class="form-field teacher-skillset__weight">
+                <label for="{{ skill_formset.empty_form.weight.id_for_label }}">{{ skill_formset.empty_form.weight.label }}</label>
+                {{ skill_formset.empty_form.weight }}
+                {% if skill_formset.empty_form.weight.help_text %}<p class="hint">{{ skill_formset.empty_form.weight.help_text }}</p>{% endif %}
+              </div>
+              <div class="teacher-skillset__controls">
+                <button type="button" class="teacher-skillset__remove" data-formset-delete aria-label="{% trans 'Удалить умение' %}">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+                <div class="teacher-skillset__delete">
+                  {{ skill_formset.empty_form.DELETE }}
+                </div>
+              </div>
+            </div>
+          </template>
+          <div class="teacher-skillset__footer">
+            <button type="button" class="btn-icon" data-formset-add>
+              <span aria-hidden="true">+</span>
+              <span class="sr-only">{% trans "Добавить умение" %}</span>
+            </button>
+          </div>
+        </fieldset>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">{% trans "Сохранить задачу" %}</button>
+        </div>
+      </form>
+    </section>
+  {% endif %}
 {% endblock %}

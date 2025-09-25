@@ -9,6 +9,16 @@ app_name = "accounts"
 urlpatterns = [
     path("signup/", views.signup, name="signup"),
     path("dashboard/", views.progress, name="dashboard"),
+    path(
+        "dashboard/assignments/<int:assignment_id>/",
+        views.assignment_detail,
+        name="assignment-detail",
+    ),
+    path(
+        "dashboard/assignments/<int:assignment_id>/results/",
+        views.assignment_result,
+        name="assignment-result",
+    ),
     path("dashboard/subjects/", views.dashboard_subjects, name="dashboard-subjects"),
     path("dashboard/courses/", views.dashboard_courses, name="dashboard-courses"),
     path("dashboard/teachers/", views.dashboard_teachers, name="dashboard-teachers"),
