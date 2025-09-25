@@ -489,10 +489,19 @@ def dashboard_subjects(request):
 
 @login_required
 def dashboard_courses(request):
-    """Display a placeholder courses dashboard."""
+    """Display all courses the current user is enrolled in."""
 
     role = _get_dashboard_role(request)
-    context = {"active_tab": "courses", "role": role}
+
+    enrollments = (
+        request.user.course_enrollments.select_related("course").order_by("-enrolled_at")
+    )
+
+    context = {
+        "active_tab": "courses",
+        "role": role,
+        "enrollments": enrollments,
+    }
     return render(request, "accounts/dashboard/courses.html", context)
 
 
