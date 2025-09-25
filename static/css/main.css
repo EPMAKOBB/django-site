@@ -204,6 +204,97 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
   box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
+.courses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-md);
+}
+
+.course-card {
+  grid-template-rows: auto;
+  gap: var(--space-sm);
+}
+
+.course-card__image {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.course-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.course-card__title {
+  margin: 0;
+  font-size: var(--font-lg);
+  line-height: 1.2;
+}
+
+.course-card__status {
+  font-size: var(--font-sm);
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, #0b1017);
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.course-card__subtitle {
+  margin: 0;
+  color: var(--muted);
+}
+
+.course-card__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-sm);
+  margin: 0;
+}
+
+.course-card__meta div {
+  display: grid;
+  gap: 4px;
+}
+
+.course-card__meta dt {
+  font-size: var(--font-sm);
+  color: var(--muted);
+  margin: 0;
+}
+
+.course-card__meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.course-card__progress {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, #0b1017);
+  overflow: hidden;
+}
+
+.course-card__progress-bar {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
+.course-card__progress-label {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--muted);
+}
+
 /* Custom checkbox inside pill */
 .pill-check .tick {
   width: 18px;
