@@ -1,9 +1,19 @@
+from datetime import timedelta
+
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
-from django.contrib.auth import get_user_model
+from django.utils import timezone
+
 from accounts.models import StudentProfile
+from apps.recsys.models import (
+    ExamVersion,
+    VariantAssignment,
+    VariantAttempt,
+    VariantTaskAttempt,
+)
+from apps.recsys.tests import factories as variant_factories
 from subjects.models import Subject
-from apps.recsys.models import ExamVersion
 
 User = get_user_model()
 
@@ -137,3 +147,162 @@ class DashboardSubjectsTests(TestCase):
             f"{subject.name} — {selected_exam.name}",
         )
         self.assertNotContains(response, other_exam.name)
+
+
+class DashboardAssignmentsViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="student_assignments",
+            password="pass",
+            email="assignments@example.com",
+        )
+        self.client.login(username="student_assignments", password="pass")
+
+    def _create_assignment(self, *, user=None, max_attempts=2, deadline=None):
+        template = variant_factories.create_variant_template(max_attempts=max_attempts)
+        task_one = variant_factories.create_task()
+        task_two = variant_factories.create_task()
+        variant_factories.add_variant_task(template=template, task=task_one, order=1)
+        variant_factories.add_variant_task(template=template, task=task_two, order=2)
+
+        assignment = VariantAssignment.objects.create(
+            template=template,
+            user=user or self.user,
+            deadline=deadline,
+        )
+        return assignment, list(template.template_tasks.all())
+
+    def test_assignments_are_split_into_current_and_past(self):
+        future_deadline = timezone.now() + timedelta(days=3)
+        past_deadline = timezone.now() - timedelta(days=1)
+
+        open_assignment, _ = self._create_assignment(deadline=future_deadline, max_attempts=3)
+
+        active_assignment, active_variant_tasks = self._create_assignment(
+            deadline=future_deadline,
+            max_attempts=3,
+        )
+        active_attempt = VariantAttempt.objects.create(
+            assignment=active_assignment,
+            attempt_number=1,
+        )
+        VariantTaskAttempt.objects.create(
+            variant_attempt=active_attempt,
+            variant_task=active_variant_tasks[0],
+            task=active_variant_tasks[0].task,
+            attempt_number=1,
+            is_correct=True,
+        )
+
+        past_assignment, past_variant_tasks = self._create_assignment(
+            deadline=past_deadline,
+            max_attempts=1,
+        )
+        VariantAttempt.objects.create(
+            assignment=past_assignment,
+            attempt_number=1,
+            completed_at=timezone.now() - timedelta(hours=1),
+            time_spent=timedelta(minutes=30),
+        )
+        VariantTaskAttempt.objects.create(
+            variant_attempt=past_assignment.attempts.first(),
+            variant_task=past_variant_tasks[0],
+            task=past_variant_tasks[0].task,
+            attempt_number=1,
+            is_correct=True,
+        )
+
+        other_user = User.objects.create_user(
+            username="other-student",
+            password="pass",
+        )
+        self._create_assignment(user=other_user)
+
+        response = self.client.get(reverse("accounts:dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        current_assignments = response.context["current_assignments"]
+        past_assignments = response.context["past_assignments"]
+
+        self.assertSetEqual(
+            {item["assignment"].pk for item in current_assignments},
+            {open_assignment.pk, active_assignment.pk},
+        )
+        self.assertSetEqual(
+            {item["assignment"].pk for item in past_assignments},
+            {past_assignment.pk},
+        )
+
+        active_info = next(
+            item for item in current_assignments if item["assignment"].pk == active_assignment.pk
+        )
+        self.assertEqual(active_info["progress"]["solved_tasks"], 1)
+        self.assertIsNotNone(active_info["active_attempt"])
+        self.assertFalse(active_info["can_start"])
+
+        past_info = past_assignments[0]
+        self.assertTrue(past_info["deadline_passed"])
+
+    def test_assignment_detail_permissions_and_context(self):
+        assignment, _ = self._create_assignment()
+        url = reverse("accounts:assignment-detail", args=[assignment.pk])
+
+        self.client.logout()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("login", response["Location"])
+
+        other_user = User.objects.create_user(
+            username="second-student",
+            password="pass",
+        )
+        self.client.login(username="second-student", password="pass")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+        self.client.login(username="student_assignments", password="pass")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["assignment"], assignment)
+        self.assertIn("progress", response.context["assignment_info"])
+
+    def test_assignment_detail_start_attempt(self):
+        assignment, _ = self._create_assignment()
+        url = reverse("accounts:assignment-detail", args=[assignment.pk])
+
+        response = self.client.post(url, {"start_attempt": "1"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], url)
+
+        assignment.refresh_from_db()
+        self.assertEqual(assignment.attempts.count(), 1)
+        attempt = assignment.attempts.first()
+        self.assertEqual(attempt.attempt_number, 1)
+        self.assertIsNotNone(attempt.started_at)
+
+    def test_assignment_result_contains_attempts(self):
+        assignment, variant_tasks = self._create_assignment()
+        attempt = VariantAttempt.objects.create(
+            assignment=assignment,
+            attempt_number=1,
+            completed_at=timezone.now(),
+            time_spent=timedelta(minutes=15),
+        )
+        VariantTaskAttempt.objects.create(
+            variant_attempt=attempt,
+            variant_task=variant_tasks[0],
+            task=variant_tasks[0].task,
+            attempt_number=1,
+            is_correct=True,
+        )
+
+        url = reverse("accounts:assignment-result", args=[assignment.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["assignment"], assignment)
+        self.assertEqual(len(response.context["attempts"]), 1)
+
+        other_user = User.objects.create_user("forbidden", password="pass")
+        self.client.login(username="forbidden", password="pass")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)

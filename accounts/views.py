@@ -1,23 +1,85 @@
 import logging
+
 from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
-from django.db import connection
-from django.shortcuts import render, redirect
+from django.core.exceptions import PermissionDenied
+from django.db import connection, transaction
+from django.http import Http404
+from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from .forms import SignupForm, UserUpdateForm, PasswordChangeForm
+from rest_framework import exceptions as drf_exceptions
+
+from apps.recsys.models import (
+    ExamVersion,
+    Skill,
+    SkillMastery,
+    Task,
+    TaskSkill,
+    TaskType,
+    TypeMastery,
+)
+from apps.recsys.service_utils import variants as variant_services
+from subjects.models import Subject
+
+from .forms import (
+    PasswordChangeForm,
+    SignupForm,
+    TaskCreateForm,
+    UserUpdateForm,
+    build_task_skill_formset,
+)
 from .forms_exams import ExamPreferencesForm
 from .models import StudentProfile
-from subjects.models import Subject
-from apps.recsys.models import (
-    SkillMastery,
-    TypeMastery,
-    ExamVersion,
-    TaskType,
-)
 
 
 logger = logging.getLogger("accounts")
+
+
+def _format_error_detail(detail) -> str:
+    if isinstance(detail, (list, tuple)):
+        return " ".join(str(item) for item in detail)
+    if isinstance(detail, dict):
+        return " ".join(str(value) for value in detail.values())
+    return str(detail)
+
+
+def _active_attempt(assignment):
+    for attempt in assignment.attempts.all():
+        if attempt.completed_at is None:
+            return attempt
+    return None
+
+
+def _build_assignment_context(assignment):
+    progress = variant_services.calculate_assignment_progress(assignment)
+    total_tasks = progress.get("total_tasks") or 0
+    solved_tasks = progress.get("solved_tasks") or 0
+    if total_tasks:
+        progress_percentage = int(round((solved_tasks / total_tasks) * 100))
+    else:
+        progress_percentage = 0
+
+    active_attempt = _active_attempt(assignment)
+    attempts_used = assignment.attempts.count()
+    attempts_total = assignment.template.max_attempts
+    attempts_left = variant_services.get_attempts_left(assignment)
+    deadline = assignment.deadline
+    deadline_passed = bool(deadline and deadline < timezone.now())
+
+    return {
+        "assignment": assignment,
+        "progress": progress,
+        "progress_percentage": progress_percentage,
+        "active_attempt": active_attempt,
+        "attempts_used": attempts_used,
+        "attempts_total": attempts_total,
+        "attempts_left": attempts_left,
+        "can_start": variant_services.can_start_attempt(assignment),
+        "deadline": deadline,
+        "deadline_passed": deadline_passed,
+    }
 
 def _get_dashboard_role(request):
     """Return the current dashboard role stored in the session."""
@@ -73,22 +135,156 @@ def signup(request):
 
 @login_required
 def progress(request):
-    """Temporary placeholder for the dashboard page."""
+    """Render the assignments dashboard with current and past items."""
 
     role = _get_dashboard_role(request)
+    assignments = variant_services.get_assignments_for_user(request.user)
+    current_assignments, past_assignments = variant_services.split_assignments(assignments)
+
     context = {
         "active_tab": "tasks",
         "role": role,
+        "current_assignments": [
+            _build_assignment_context(assignment) for assignment in current_assignments
+        ],
+        "past_assignments": [
+            _build_assignment_context(assignment) for assignment in past_assignments
+        ],
     }
     return render(request, "accounts/dashboard.html", context)
 
 
 @login_required
-def dashboard_teachers(request):
-    """Display a placeholder teachers dashboard."""
+def assignment_detail(request, assignment_id: int):
+    """Show assignment details and allow starting a new attempt."""
 
     role = _get_dashboard_role(request)
-    context = {"active_tab": "teachers", "role": role}
+    try:
+        assignment = variant_services.get_assignment_or_404(request.user, assignment_id)
+    except drf_exceptions.NotFound as exc:
+        raise Http404(str(exc)) from exc
+
+    if request.method == "POST" and "start_attempt" in request.POST:
+        try:
+            variant_services.start_new_attempt(request.user, assignment_id)
+        except drf_exceptions.ValidationError as exc:
+            messages.error(request, _format_error_detail(exc.detail))
+        else:
+            messages.success(request, _("Новая попытка по варианту начата"))
+            return redirect("accounts:assignment-detail", assignment_id=assignment_id)
+
+    context = {
+        "active_tab": "tasks",
+        "role": role,
+        "assignment": assignment,
+        "assignment_info": _build_assignment_context(assignment),
+        "attempts": assignment.attempts.all(),
+    }
+    return render(
+        request,
+        "accounts/dashboard/assignment_detail.html",
+        context,
+    )
+
+
+@login_required
+def assignment_result(request, assignment_id: int):
+    """Display the attempts history for the assignment."""
+
+    role = _get_dashboard_role(request)
+    try:
+        assignment = variant_services.get_assignment_history(request.user, assignment_id)
+    except drf_exceptions.NotFound as exc:
+        raise Http404(str(exc)) from exc
+
+    context = {
+        "active_tab": "tasks",
+        "role": role,
+        "assignment": assignment,
+        "assignment_info": _build_assignment_context(assignment),
+        "attempts": assignment.attempts.all(),
+    }
+    return render(
+        request,
+        "accounts/dashboard/assignment_result.html",
+        context,
+    )
+
+
+@login_required
+def dashboard_teachers(request):
+    """Display the teacher dashboard with a form for creating tasks."""
+
+    if not hasattr(request.user, "teacherprofile"):
+        raise PermissionDenied("Only teachers can access this section")
+
+    role = _get_dashboard_role(request)
+    if role != "teacher":
+        role = "teacher"
+        request.session["dashboard_role"] = role
+
+    subject_obj = None
+    if request.method == "POST":
+        form = TaskCreateForm(request.POST, request.FILES)
+        subject_id = request.POST.get("subject")
+        if subject_id:
+            try:
+                subject_obj = Subject.objects.get(pk=subject_id)
+            except (Subject.DoesNotExist, ValueError, TypeError):
+                subject_obj = None
+        skill_formset = build_task_skill_formset(
+            subject=subject_obj, data=request.POST, prefix="skills"
+        )
+        if form.is_valid() and skill_formset.is_valid():
+            subject = form.cleaned_data["subject"]
+            cleaned_skills: list[tuple[Skill, float]] = []
+            seen_skill_ids: set[int] = set()
+            formset_has_errors = False
+
+            for skill_form in skill_formset:
+                if not getattr(skill_form, "cleaned_data", None):
+                    continue
+                if skill_form.cleaned_data.get("DELETE"):
+                    continue
+                skill = skill_form.cleaned_data.get("skill")
+                if not skill:
+                    continue
+                if skill.subject_id != subject.id:
+                    skill_form.add_error(
+                        "skill",
+                        _("Умение должно относиться к выбранному предмету."),
+                    )
+                    formset_has_errors = True
+                    continue
+                if skill.id in seen_skill_ids:
+                    skill_form.add_error(
+                        "skill",
+                        _("Это умение уже добавлено."),
+                    )
+                    formset_has_errors = True
+                    continue
+                weight = float(skill_form.cleaned_data.get("weight") or 1)
+                cleaned_skills.append((skill, weight))
+                seen_skill_ids.add(skill.id)
+
+            if not formset_has_errors:
+                with transaction.atomic():
+                    task = form.save()
+                    TaskSkill.objects.filter(task=task).delete()
+                    for skill, weight in cleaned_skills:
+                        TaskSkill.objects.create(task=task, skill=skill, weight=weight)
+                messages.success(request, _("Задача успешно сохранена."))
+                return redirect("accounts:dashboard-teachers")
+    else:
+        form = TaskCreateForm()
+        skill_formset = build_task_skill_formset(subject=None, prefix="skills")
+
+    context = {
+        "active_tab": "teachers",
+        "role": role,
+        "form": form,
+        "skill_formset": skill_formset,
+    }
     return render(request, "accounts/dashboard/teachers.html", context)
 
 

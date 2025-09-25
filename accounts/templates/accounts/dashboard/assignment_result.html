@@ -1,0 +1,72 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
+
+{% block dashboard_title %}{{ assignment.template.name }} — {% trans "История" %}{% endblock %}
+
+{% block dashboard_content %}
+  <nav class="assignment-breadcrumbs" aria-label="{% trans 'Навигация по заданиям' %}">
+    <a class="assignment-breadcrumbs__link" href="{% url 'accounts:dashboard' %}">{% trans "К заданиям" %}</a>
+    <a class="assignment-breadcrumbs__link" href="{% url 'accounts:assignment-detail' assignment.id %}">{% trans "К варианту" %}</a>
+  </nav>
+
+  <article class="assignment-results">
+    <header class="assignment-results__header">
+      <h2 class="assignment-results__title">{{ assignment.template.name }}</h2>
+      <p class="assignment-results__summary">
+        {% blocktrans with solved=assignment_info.progress.solved_tasks total=assignment_info.progress.total_tasks %}
+          Решено {{ solved }} из {{ total }} заданий
+        {% endblocktrans %}
+      </p>
+    </header>
+
+    <section class="assignment-results__attempts" aria-label="{% trans 'История попыток' %}">
+      <h3>{% trans "Попытки" %}</h3>
+      {% if attempts %}
+        <table class="assignment-results__table">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">{% trans "Статус" %}</th>
+              <th scope="col">{% trans "Начало" %}</th>
+              <th scope="col">{% trans "Завершение" %}</th>
+              <th scope="col">{% trans "Длительность" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for attempt in attempts %}
+              <tr class="assignment-results__row{% if not attempt.completed_at %} assignment-results__row--active{% endif %}">
+                <th scope="row">{{ attempt.attempt_number }}</th>
+                <td>
+                  {% if attempt.completed_at %}
+                    <span class="assignment-results__status assignment-results__status--success">{% trans "Завершена" %}</span>
+                  {% else %}
+                    <span class="assignment-results__status assignment-results__status--active">{% trans "Активна" %}</span>
+                  {% endif %}
+                </td>
+                <td>{{ attempt.started_at|date:"d E Y H:i" }}</td>
+                <td>
+                  {% if attempt.completed_at %}
+                    {{ attempt.completed_at|date:"d E Y H:i" }}
+                  {% else %}
+                    {% trans "—" %}
+                  {% endif %}
+                </td>
+                <td>
+                  {% if attempt.time_spent %}
+                    {{ attempt.time_spent }}
+                  {% elif attempt.completed_at %}
+                    {% trans "не сохранено" %}
+                  {% else %}
+                    {% trans "в процессе" %}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="assignment-results__empty">{% trans "История попыток пока пуста." %}</p>
+      {% endif %}
+    </section>
+  </article>
+{% endblock %}

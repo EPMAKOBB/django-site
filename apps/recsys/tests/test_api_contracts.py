@@ -32,6 +32,11 @@ class ApiContractsTests(TestCase):
         # next task
         resp = self.client.get("/api/next-task/", {"user": self.user.id})
         self.assertEqual(resp.status_code, 200)
+        task_payload = resp.json()
+        self.assertEqual(task_payload["id"], self.task.id)
+        self.assertEqual(task_payload["difficulty_level"], 0)
+        self.assertEqual(task_payload["correct_answer"], {})
+        self.assertIsNone(task_payload["image"])
         # attempt
         payload = {"user": self.user.id, "task": self.task.id, "is_correct": True}
         resp = self.client.post("/api/attempts/", data=json.dumps(payload), content_type="application/json")

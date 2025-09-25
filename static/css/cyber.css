@@ -2,6 +2,7 @@
 
 :root{
   --bg:#0a0f0d;           /* глубокий тёмный */
+  --grid:#062b1e;         /* линии сетки */
   --panel:#0f1613;        /* тёмная панель */
   --muted:#8aa39b;        /* приглушённый текст */
   --text:#e6fff5;         /* основной текст */
@@ -16,7 +17,11 @@ html,body{height:100%;}
 body{
   margin:0;
   font: 16px/1.5 'JetBrains Mono', Consolas, Menlo, Monaco, 'SFMono-Regular', monospace;
-  background: radial-gradient(1200px 600px at 10% 0%, #0b1310 0%, var(--bg) 45%) fixed;
+  background:
+    linear-gradient(transparent 23px, var(--grid) 24px),
+    linear-gradient(90deg, transparent 23px, var(--grid) 24px),
+    var(--bg);
+  background-size: 24px 24px, 24px 24px, auto;
   color:var(--text);
 }
 header{
