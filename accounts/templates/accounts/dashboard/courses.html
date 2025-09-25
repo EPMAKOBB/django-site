@@ -1,7 +1,51 @@
 {% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
 
-{% block dashboard_title %}Курсы{% endblock %}
+{% block dashboard_title %}{% trans "Курсы" %}{% endblock %}
 
 {% block dashboard_content %}
-<p>Здесь будут мои курсы.</p>
+  {% if enrollments %}
+    <div class="courses-grid" role="list">
+      {% for enrollment in enrollments %}
+        {% with course=enrollment.course %}
+          <article class="card course-card" role="listitem">
+            {% if course.cover_image %}
+              <img class="course-card__image" src="{{ course.cover_image.url }}" alt="{{ course.title }}" loading="lazy">
+            {% endif %}
+            <header class="course-card__header">
+              <h3 class="course-card__title">{{ course.title }}</h3>
+              <span class="course-card__status" aria-label="{% trans 'Статус обучения' %}">
+                {{ enrollment.get_status_display }}
+              </span>
+            </header>
+            {% if course.subtitle %}
+              <p class="course-card__subtitle">{{ course.subtitle }}</p>
+            {% elif course.short_description %}
+              <p class="course-card__subtitle">{{ course.short_description }}</p>
+            {% endif %}
+            <dl class="course-card__meta">
+              {% if course.duration_weeks %}
+                <div>
+                  <dt>{% trans "Длительность" %}</dt>
+                  <dd>{% blocktrans with weeks=course.duration_weeks %}{{ weeks }} нед.{% endblocktrans %}</dd>
+                </div>
+              {% endif %}
+              <div>
+                <dt>{% trans "Язык" %}</dt>
+                <dd>{{ course.get_language_display }}</dd>
+              </div>
+            </dl>
+            <div class="course-card__progress" role="progressbar" aria-valuenow="{{ enrollment.progress|floatformat:'-2' }}" aria-valuemin="0" aria-valuemax="100">
+              <span class="course-card__progress-bar" style="width: {{ enrollment.progress|floatformat:'-2' }}%;"></span>
+            </div>
+            <p class="course-card__progress-label">
+              {% blocktrans with progress=enrollment.progress|floatformat:'-1' %}Прогресс: {{ progress }}%{% endblocktrans %}
+            </p>
+          </article>
+        {% endwith %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">{% trans "Вы ещё не записаны ни на один курс." %}</p>
+  {% endif %}
 {% endblock %}
