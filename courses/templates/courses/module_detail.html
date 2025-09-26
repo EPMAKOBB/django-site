@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ module.title }} — {{ course.title }}{% endblock %}
+
+{% block content %}
+  <div class="container module-detail">
+    <nav class="module-detail__breadcrumbs" aria-label="{% trans 'Навигация по курсу' %}">
+      <a class="module-detail__breadcrumb" href="{% url 'accounts:dashboard-courses' %}">{% trans 'Курсы' %}</a>
+      <span aria-hidden="true">/</span>
+      <a class="module-detail__breadcrumb" href="{% url 'accounts:dashboard-courses' %}?course={{ course.slug }}">{{ course.title }}</a>
+      <span aria-hidden="true">/</span>
+      <span class="module-detail__breadcrumb module-detail__breadcrumb--current">{{ module.title }}</span>
+    </nav>
+
+    <header class="module-detail__header">
+      <h2 class="module-detail__title">{{ module.title }}</h2>
+      {% if module.subtitle %}
+        <p class="module-detail__subtitle">{{ module.subtitle }}</p>
+      {% endif %}
+    </header>
+
+    {% if module.description %}
+      <div class="module-detail__description">{{ module.description|linebreaks }}</div>
+    {% endif %}
+
+    {% if incoming_edges or outgoing_edges %}
+      <section class="module-detail__relations" aria-label="{% trans 'Связи модуля' %}">
+        {% if incoming_edges %}
+          <div>
+            <h3>{% trans 'Требуется перед' %}</h3>
+            <ul>
+              {% for edge in incoming_edges %}
+                <li>{{ edge.src.title }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+        {% if outgoing_edges %}
+          <div>
+            <h3>{% trans 'Открывает путь к' %}</h3>
+            <ul>
+              {% for edge in outgoing_edges %}
+                <li>{{ edge.dst.title }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    {% if items %}
+      <section class="module-detail__items" aria-label="{% trans 'Содержимое модуля' %}">
+        <h3>{% trans 'Элементы модуля' %}</h3>
+        <ol>
+          {% for item in items %}
+            <li>
+              <strong>
+                {% if item.kind == item.ItemKind.THEORY %}
+                  {% trans 'Теория' %}
+                {% elif item.kind == item.ItemKind.TASK %}
+                  {% trans 'Задание' %}
+                {% else %}
+                  {{ item.get_kind_display }}
+                {% endif %}
+              </strong>
+              {% if item.theory_card %}
+                — {{ item.theory_card.title }}
+              {% elif item.task %}
+                — {{ item.task.name|default:item.task.pk }}
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      </section>
+    {% endif %}
+  </div>
+{% endblock %}

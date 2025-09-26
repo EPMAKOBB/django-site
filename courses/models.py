@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.urls import reverse
 
 
 class TimeStampedModel(models.Model):
@@ -220,6 +221,12 @@ class CourseModule(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.course}: {self.title}"
+
+    def get_absolute_url(self) -> str:
+        return reverse(
+            "courses:module-detail",
+            kwargs={"course_slug": self.course.slug, "module_slug": self.slug},
+        )
 
 
 class CourseGraphEdge(TimeStampedModel):
