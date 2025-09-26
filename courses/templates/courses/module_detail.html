@@ -18,6 +18,16 @@
       {% if module.subtitle %}
         <p class="module-detail__subtitle">{{ module.subtitle }}</p>
       {% endif %}
+      <dl class="module-detail__stats">
+        <div>
+          <dt>{% trans 'Освоение модуля' %}</dt>
+          <dd>{{ module_mastery_percent|floatformat:'-1' }}%</dd>
+        </div>
+        <div>
+          <dt>{% trans 'Количество элементов' %}</dt>
+          <dd>{{ items|length }}</dd>
+        </div>
+      </dl>
     </header>
 
     {% if module.description %}
@@ -28,7 +38,7 @@
       <section class="module-detail__relations" aria-label="{% trans 'Связи модуля' %}">
         {% if incoming_edges %}
           <div>
-            <h3>{% trans 'Требуется перед' %}</h3>
+            <h3>{% trans 'Требует перед собой' %}</h3>
             <ul>
               {% for edge in incoming_edges %}
                 <li>{{ edge.src.title }}</li>
@@ -38,7 +48,7 @@
         {% endif %}
         {% if outgoing_edges %}
           <div>
-            <h3>{% trans 'Открывает путь к' %}</h3>
+            <h3>{% trans 'Открывает после прохождения' %}</h3>
             <ul>
               {% for edge in outgoing_edges %}
                 <li>{{ edge.dst.title }}</li>
@@ -49,30 +59,156 @@
       </section>
     {% endif %}
 
-    {% if items %}
-      <section class="module-detail__items" aria-label="{% trans 'Содержимое модуля' %}">
-        <h3>{% trans 'Элементы модуля' %}</h3>
-        <ol>
-          {% for item in items %}
-            <li>
-              <strong>
-                {% if item.kind == item.ItemKind.THEORY %}
-                  {% trans 'Теория' %}
-                {% elif item.kind == item.ItemKind.TASK %}
-                  {% trans 'Задание' %}
+    <div class="module-detail__layout">
+      <aside class="module-detail__sidebar" aria-label="{% trans 'Элементы модуля' %}">
+        <h3>{% trans 'Содержимое модуля' %}</h3>
+        {% if items_with_state %}
+          <ol class="module-detail__items-list">
+            {% for entry in items_with_state %}
+              {% with item=entry.item %}
+                <li
+                  class="module-detail__item{% if entry.is_current %} module-detail__item--current{% endif %}{% if entry.is_visible %} module-detail__item--visible{% else %} module-detail__item--hidden{% endif %}"
+                  {% if entry.is_current %}aria-current="step"{% endif %}
+                >
+                  <span class="module-detail__item-index">{{ entry.position }}</span>
+                  <div class="module-detail__item-body">
+                    <span class="module-detail__item-kind">
+                      {% if item.kind == item.ItemKind.THEORY %}
+                        {% trans 'Теория' %}
+                      {% elif item.kind == item.ItemKind.TASK %}
+                        {% trans 'Задание' %}
+                      {% else %}
+                        {{ item.get_kind_display }}
+                      {% endif %}
+                    </span>
+                    <span class="module-detail__item-title">
+                      {% if item.theory_card %}
+                        {{ item.theory_card.title }}
+                      {% elif item.task %}
+                        {{ item.task.title|default:item.task.pk }}
+                      {% else %}
+                        #{{ item.pk }}
+                      {% endif %}
+                    </span>
+                    <span class="module-detail__item-range">
+                      {% blocktrans with min=item.min_mastery_percent max=item.max_mastery_percent %}от {{ min }}% до {{ max }}%{% endblocktrans %}
+                    </span>
+                    {% if entry.is_visible and not entry.is_current %}
+                      <a class="module-detail__item-link" href="?item={{ item.id }}">{% trans 'Перейти' %}</a>
+                    {% elif not entry.is_visible %}
+                      <span class="module-detail__item-locked">{% trans 'Недоступно при текущем прогрессе' %}</span>
+                    {% endif %}
+                  </div>
+                </li>
+              {% endwith %}
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="muted">{% trans 'В модуле пока нет элементов.' %}</p>
+        {% endif %}
+      </aside>
+
+      <section class="module-detail__content" aria-live="polite">
+        {% if current_item %}
+          {% if not current_item_accessible %}
+            <div class="module-detail__alert module-detail__alert--warning">
+              {% blocktrans %}Текущий элемент недоступен при уровне освоения {{ module_mastery_percent|floatformat:'-1' }}%.{% endblocktrans %}
+            </div>
+          {% endif %}
+
+          <article class="module-detail__card">
+            <header class="module-detail__card-header">
+              <h3 class="module-detail__card-title">
+                {% if current_item.kind == current_item.ItemKind.THEORY and current_item.theory_card %}
+                  {{ current_item.theory_card.title }}
+                {% elif current_item.kind == current_item.ItemKind.TASK and current_item.task %}
+                  {{ current_item.task.title|default:current_item.task.pk }}
                 {% else %}
-                  {{ item.get_kind_display }}
+                  {% trans 'Элемент модуля' %}
                 {% endif %}
-              </strong>
-              {% if item.theory_card %}
-                — {{ item.theory_card.title }}
-              {% elif item.task %}
-                — {{ item.task.name|default:item.task.pk }}
+              </h3>
+              <p class="module-detail__card-meta">
+                {% if current_item.kind == current_item.ItemKind.THEORY %}
+                  {% trans 'Карточка теории' %}
+                {% elif current_item.kind == current_item.ItemKind.TASK %}
+                  {% trans 'Практическое задание' %}
+                {% endif %}
+              </p>
+            </header>
+
+            <div class="module-detail__card-body">
+              {% if current_item.kind == current_item.ItemKind.THEORY and current_item.theory_card %}
+                {% if current_item.theory_card.content_format == current_item.theory_card.ContentFormat.HTML %}
+                  <div class="module-detail__theory" data-format="html">
+                    {{ current_item.theory_card.content|safe }}
+                  </div>
+                {% else %}
+                  <div class="module-detail__theory" data-format="text">
+                    {{ current_item.theory_card.content|linebreaks }}
+                  </div>
+                {% endif %}
+              {% elif current_item.kind == current_item.ItemKind.TASK and current_item.task %}
+                <div class="module-detail__task">
+                  {% if current_item.task.description %}
+                    {% if current_item.task.rendering_strategy == current_item.task.RenderingStrategy.HTML %}
+                      <div class="module-detail__task-description" data-format="html">
+                        {{ current_item.task.description|safe }}
+                      </div>
+                    {% else %}
+                      <div class="module-detail__task-description" data-format="text">
+                        {{ current_item.task.description|linebreaks }}
+                      </div>
+                    {% endif %}
+                  {% else %}
+                    <p class="muted">{% trans 'Описание задания пока отсутствует.' %}</p>
+                  {% endif %}
+                  <dl class="module-detail__task-meta">
+                    {% if current_item.task.type %}
+                      <div>
+                        <dt>{% trans 'Тип задания' %}</dt>
+                        <dd>{{ current_item.task.type.name }}</dd>
+                      </div>
+                    {% endif %}
+                    {% if current_item.task.subject %}
+                      <div>
+                        <dt>{% trans 'Предмет' %}</dt>
+                        <dd>{{ current_item.task.subject.name }}</dd>
+                      </div>
+                    {% endif %}
+                  </dl>
+                </div>
+              {% else %}
+                <p class="muted">{% trans 'Для этого элемента пока нет содержимого.' %}</p>
               {% endif %}
-            </li>
-          {% endfor %}
-        </ol>
+            </div>
+
+            <footer class="module-detail__card-footer">
+              <form method="post" class="module-detail__action-form">
+                {% csrf_token %}
+                <input type="hidden" name="item_id" value="{{ current_item.id }}">
+                <div class="module-detail__action-buttons">
+                  <button type="submit" name="action" value="success" class="btn btn--success">
+                    {% trans 'Завершено успешно' %}
+                  </button>
+                  <button type="submit" name="action" value="failure" class="btn btn--secondary">
+                    {% trans 'Нужна повторная попытка' %}
+                  </button>
+                </div>
+              </form>
+              <nav class="module-detail__card-navigation" aria-label="{% trans 'Навигация по элементам модуля' %}">
+                {% if previous_item %}
+                  <a class="module-detail__nav-link" href="?item={{ previous_item.id }}">{% trans '← Предыдущий доступный элемент' %}</a>
+                {% endif %}
+                {% if next_item %}
+                  <a class="module-detail__nav-link" href="?item={{ next_item.id }}">{% trans 'Следующий доступный элемент →' %}</a>
+                {% endif %}
+              </nav>
+            </footer>
+          </article>
+        {% else %}
+          <p class="muted">{% trans 'Доступные элементы не найдены. Попробуйте позже.' %}</p>
+        {% endif %}
       </section>
-    {% endif %}
+    </div>
   </div>
 {% endblock %}
