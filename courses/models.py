@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -62,6 +64,39 @@ class Course(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+class CourseLayout(models.Model):
+    DEFAULT_BREAKPOINTS = {
+        "lg": {"columns": 12, "rowHeight": 60},
+        "md": {"columns": 8, "rowHeight": 60},
+        "sm": {"columns": 4, "rowHeight": 60},
+    }
+
+    course = models.OneToOneField(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="layout",
+    )
+    preset_name = models.CharField(max_length=100, blank=True)
+    row_h = models.PositiveIntegerField(default=60)
+    col_w = models.PositiveIntegerField(default=60)
+    margin_x = models.PositiveIntegerField(default=24)
+    margin_y = models.PositiveIntegerField(default=24)
+    node_r = models.PositiveIntegerField(default=24)
+    breakpoints = models.JSONField(default=dict)
+
+    class Meta:
+        verbose_name = "Course layout"
+        verbose_name_plural = "Course layouts"
+
+    def __str__(self) -> str:
+        return f"Layout for {self.course} ({self.preset_name or 'custom'})"
+
+    def save(self, *args, **kwargs):
+        if not self.breakpoints:
+            self.breakpoints = deepcopy(self.DEFAULT_BREAKPOINTS)
+        super().save(*args, **kwargs)
 
 
 class CourseEnrollment(models.Model):
@@ -185,6 +220,47 @@ class CourseModule(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.course}: {self.title}"
+
+
+class CourseGraphEdge(TimeStampedModel):
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="graph_edges",
+    )
+    src = models.ForeignKey(
+        CourseModule,
+        on_delete=models.CASCADE,
+        related_name="outgoing_edges",
+    )
+    dst = models.ForeignKey(
+        CourseModule,
+        on_delete=models.CASCADE,
+        related_name="incoming_edges",
+    )
+    kind = models.CharField(max_length=50, blank=True)
+    weight = models.DecimalField(max_digits=5, decimal_places=2, default=1.00)
+    is_locked = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ("course", "src_id", "dst_id")
+        indexes = [
+            models.Index(fields=["course", "src"], name="courses_edge_course_src"),
+            models.Index(fields=["course", "dst"], name="courses_edge_course_dst"),
+        ]
+
+    def clean(self):
+        super().clean()
+
+        if self.src_id and self.src.course_id != self.course_id:
+            raise ValidationError({"src": "Source module must belong to the same course."})
+        if self.dst_id and self.dst.course_id != self.course_id:
+            raise ValidationError({"dst": "Destination module must belong to the same course."})
+        if self.src_id and self.dst_id and self.src_id == self.dst_id:
+            raise ValidationError("Edge cannot connect a module to itself.")
+
+    def __str__(self) -> str:
+        return f"{self.course} [{self.src} → {self.dst}]"
 
 
 class CourseTheoryCard(TimeStampedModel):
