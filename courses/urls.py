@@ -5,5 +5,9 @@ from . import views
 app_name = "courses"
 
 urlpatterns = [
-    path("<slug:course_slug>/<slug:module_slug>/", views.module_detail, name="module-detail"),
+    path(
+        "<slug:course_slug>/modules/<slug:module_slug>/",
+        views.module_detail,
+        name="module-detail",
+    ),
 ]
