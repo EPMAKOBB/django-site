@@ -188,6 +188,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+document.addEventListener('click', (event) => {
+  const node = event.target.closest('[data-course-module-url]');
+  if (!node) return;
+  const url = node.getAttribute('data-course-module-url');
+  if (!url || node.classList.contains('course-graph__node--locked')) return;
+  if (node.tagName === 'A' && node.getAttribute('href')) return;
+  event.preventDefault();
+  window.location.href = url;
+});
+
 if (typeof module !== 'undefined') {
   module.exports = { updatePrice };
 }

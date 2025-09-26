@@ -5,6 +5,7 @@ from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
+from django.db.models import Prefetch
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -20,6 +21,7 @@ from apps.recsys.models import (
     TaskType,
     TypeMastery,
 )
+from courses.models import CourseModule
 from apps.recsys.service_utils import variants as variant_services
 from subjects.models import Subject
 
@@ -494,7 +496,14 @@ def dashboard_courses(request):
     role = _get_dashboard_role(request)
 
     enrollments = (
-        request.user.course_enrollments.select_related("course").order_by("-enrolled_at")
+        request.user.course_enrollments.select_related("course", "course__layout")
+        .prefetch_related(
+            Prefetch(
+                "course__modules",
+                queryset=CourseModule.objects.order_by("rank", "col", "pk"),
+            )
+        )
+        .order_by("-enrolled_at")
     )
 
     context = {
