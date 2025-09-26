@@ -41,6 +41,25 @@
             <p class="course-card__progress-label">
               {% blocktrans with progress=enrollment.progress|floatformat:'-1' %}Прогресс: {{ progress }}%{% endblocktrans %}
             </p>
+            {% with modules=course.modules.all %}
+              {% if modules %}
+                <div class="course-card__modules" role="group" aria-label="{% trans 'Модули курса' %}">
+                  {% for module in modules %}
+                    {% url 'courses:module-detail' course.slug module.slug as module_url %}
+                    <a
+                      class="course-graph__node{% if module.is_locked %} course-graph__node--locked{% endif %}"
+                      href="{% if module.is_locked %}#{% else %}{{ module_url }}{% endif %}"
+                      data-course-module-url="{{ module_url }}"
+                      data-course-module-slug="{{ module.slug }}"
+                      data-course-module-title="{{ module.title }}"
+                      {% if module.is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                    >
+                      <span class="course-graph__node-title">{{ module.title }}</span>
+                    </a>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% endwith %}
           </article>
         {% endwith %}
       {% endfor %}

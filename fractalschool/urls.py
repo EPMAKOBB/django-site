@@ -25,6 +25,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path('applications/', include(('applications.urls', 'applications'), namespace='applications')),
+    path('', include(('courses.urls', 'courses'), namespace='courses')),
 
     path('', include('apps.recsys.api.urls')),
 
