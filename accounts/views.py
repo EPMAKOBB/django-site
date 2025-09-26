@@ -493,9 +493,14 @@ def dashboard_courses(request):
 
     role = _get_dashboard_role(request)
 
-    enrollments = (
+    from courses.services import build_course_graph
+
+    enrollments = list(
         request.user.course_enrollments.select_related("course").order_by("-enrolled_at")
     )
+
+    for enrollment in enrollments:
+        enrollment.graph = build_course_graph(request.user, enrollment.course)
 
     context = {
         "active_tab": "courses",
