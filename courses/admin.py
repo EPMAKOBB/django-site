@@ -3,10 +3,32 @@ from django.contrib import admin
 from .models import (
     Course,
     CourseEnrollment,
+    CourseGraphEdge,
+    CourseLayout,
     CourseModule,
     CourseModuleItem,
     CourseTheoryCard,
 )
+
+
+class CourseLayoutInline(admin.StackedInline):
+    model = CourseLayout
+    can_delete = False
+    extra = 0
+    max_num = 1
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "preset_name",
+                    ("row_h", "col_w"),
+                    ("margin_x", "margin_y", "node_r"),
+                    "breakpoints",
+                )
+            },
+        ),
+    )
 
 
 @admin.register(Course)
@@ -24,6 +46,7 @@ class CourseAdmin(admin.ModelAdmin):
     search_fields = ("title", "slug", "short_description")
     prepopulated_fields = {"slug": ("title",)}
     readonly_fields = ("created_at", "updated_at")
+    inlines = (CourseLayoutInline,)
 
 
 @admin.register(CourseEnrollment)
@@ -72,6 +95,14 @@ class CourseModuleAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("title",)}
     inlines = (CourseModuleItemInline,)
     autocomplete_fields = ("course", "skill", "task_type")
+
+
+@admin.register(CourseGraphEdge)
+class CourseGraphEdgeAdmin(admin.ModelAdmin):
+    list_display = ("course", "src", "dst", "kind", "weight", "is_locked")
+    list_filter = ("course", "kind", "is_locked")
+    search_fields = ("course__title", "src__title", "dst__title", "kind")
+    autocomplete_fields = ("course", "src", "dst")
 
 
 @admin.register(CourseTheoryCard)
