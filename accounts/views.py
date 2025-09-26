@@ -5,6 +5,7 @@ from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
+from django.db.models import Prefetch
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -22,6 +23,7 @@ from apps.recsys.models import (
 )
 from apps.recsys.service_utils import variants as variant_services
 from subjects.models import Subject
+from courses.models import CourseGraphEdge, CourseModule
 
 from .forms import (
     PasswordChangeForm,
@@ -493,9 +495,69 @@ def dashboard_courses(request):
 
     role = _get_dashboard_role(request)
 
-    enrollments = (
-        request.user.course_enrollments.select_related("course").order_by("-enrolled_at")
+    enrollments_qs = (
+        request.user.course_enrollments.select_related("course")
+        .prefetch_related(
+            Prefetch(
+                "course__modules",
+                queryset=CourseModule.objects.order_by("col", "rank", "id"),
+            ),
+            Prefetch(
+                "course__graph_edges",
+                queryset=CourseGraphEdge.objects.select_related("src", "dst"),
+            ),
+        )
+        .order_by("-enrolled_at")
     )
+
+    enrollments = []
+    for enrollment in enrollments_qs:
+        course = enrollment.course
+
+        nodes = []
+        for module in course.modules.all():
+            module_progress = None
+            for attr in ("progress_percent", "progress", "completion_percent"):
+                value = getattr(module, attr, None)
+                if value is not None:
+                    module_progress = float(value)
+                    break
+
+            if module_progress is None:
+                module_progress = float(enrollment.progress or 0)
+
+            nodes.append(
+                {
+                    "id": module.id,
+                    "slug": module.slug,
+                    "title": module.title,
+                    "subtitle": module.subtitle,
+                    "col": module.col,
+                    "row": module.rank,
+                    "dx": module.dx,
+                    "dy": module.dy,
+                    "locked": module.is_locked,
+                    "kind": module.kind,
+                    "progress": max(0.0, min(100.0, module_progress)),
+                    "url": module.get_absolute_url() if hasattr(module, "get_absolute_url") else "",
+                }
+            )
+
+        edges = []
+        for edge in course.graph_edges.all():
+            edges.append(
+                {
+                    "id": edge.id,
+                    "src": edge.src_id,
+                    "dst": edge.dst_id,
+                    "kind": edge.kind,
+                    "weight": float(edge.weight),
+                    "locked": edge.is_locked or edge.src.is_locked or edge.dst.is_locked,
+                }
+            )
+
+        enrollment.graph = {"nodes": nodes, "edges": edges}
+        enrollments.append(enrollment)
 
     context = {
         "active_tab": "courses",
