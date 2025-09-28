@@ -76,7 +76,33 @@ function initGraph(graphEl) {
     return line;
   });
 
+  const nodesWrapper = graphEl.querySelector('.course-graph__nodes');
+
+  const updateSizeFromNodes = () => {
+    if (!nodesWrapper) return;
+    const rect = graphEl.getBoundingClientRect();
+    let maxBottom = 0;
+    let maxRight = 0;
+    nodeElements.forEach((node) => {
+      const r = node.getBoundingClientRect();
+      const bottom = r.bottom - rect.top; // relative to graph
+      const right = r.right - rect.left;
+      if (bottom > maxBottom) maxBottom = bottom;
+      if (right > maxRight) maxRight = right;
+    });
+    // Add a small safety padding so shadows aren't clipped
+    const extra = 24;
+    if (maxBottom > 0) {
+      nodesWrapper.style.minHeight = `${Math.ceil(maxBottom + extra)}px`;
+    }
+    // If width exceeds container, allow horizontal scroll instead of clipping
+    if (maxRight > rect.width) {
+      graphEl.style.overflowX = 'auto';
+    }
+  };
+
   const updateEdges = () => {
+    updateSizeFromNodes();
     const rect = graphEl.getBoundingClientRect();
     const width = Math.max(rect.width, 1);
     const height = Math.max(rect.height, 1);

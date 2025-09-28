@@ -1,0 +1,69 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
+
+{% block dashboard_title %}{% trans "Назначить задание" %}{% endblock %}
+
+{% block dashboard_content %}
+  {% if role != 'teacher' %}
+    <section class="card"><p>{% trans "Доступно только учителям." %}</p></section>
+  {% else %}
+    <section class="card">
+      <h2 class="mb-8">{% trans "Назначить шаблон варианта" %}</h2>
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="template">{% trans "Шаблон" %}</label>
+            <select name="template" id="template" required>
+              {% for t in templates %}
+                <option value="{{ t.id }}">{{ t.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="deadline">{% trans "Дедлайн (необязательно)" %}</label>
+            <input type="datetime-local" name="deadline" id="deadline">
+          </div>
+        </div>
+        <fieldset class="mt-16">
+          <legend>{% trans "Получатели: ученики" %}</legend>
+          {% if links %}
+            <ul>
+              {% for link in links %}
+                <li>
+                  <label>
+                    <input type="checkbox" name="students" value="{{ link.student.id }}">
+                    {{ link.student.get_full_name|default:link.student.username }} — {{ link.subject.name }}
+                  </label>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="hint">{% trans "Нет связанных учеников" %}</p>
+          {% endif %}
+        </fieldset>
+        <fieldset class="mt-16">
+          <legend>{% trans "Получатели: классы" %}</legend>
+          {% if classes %}
+            <ul>
+              {% for c in classes %}
+                <li>
+                  <label>
+                    <input type="checkbox" name="classes" value="{{ c.id }}">
+                    {{ c.name }}
+                  </label>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="hint">{% trans "Нет классов" %}</p>
+          {% endif %}
+        </fieldset>
+        <div class="form-actions mt-16">
+          <button type="submit" class="btn btn-primary">{% trans "Назначить" %}</button>
+        </div>
+      </form>
+    </section>
+  {% endif %}
+{% endblock %}
+

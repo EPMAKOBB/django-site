@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans 'Задачи' %}{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <h1 class="mb-16">{% trans 'Задачи' %}</h1>
+
+    <form method="get" class="card mb-16" id="filters">
+      <div class="formats exam-options">
+        {% for subject in exams_by_subject.values %}
+          <div class="exam-panel">
+            <div class="section-title">{{ subject.subject_name }}</div>
+            <div class="formats__list">
+              {% for exam in subject.exams %}
+                <label class="chip">
+                  <input type="checkbox" name="exam" value="{{ exam.id }}" {% if exam.id in selected_exam_ids %}checked="checked"{% endif %}>
+                  <span>{{ exam.name }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="grid" style="align-items:end; gap: 12px;">
+        <div>
+          <label class="block mb-4">{% trans 'Тип задачи' %}</label>
+          <label class="chip"><input type="radio" name="kind" value="all" {% if kind == 'all' %}checked{% endif %}> <span>{% trans 'Все' %}</span></label>
+          <label class="chip"><input type="radio" name="kind" value="static" {% if kind == 'static' %}checked{% endif %}> <span>{% trans 'Статические' %}</span></label>
+          <label class="chip"><input type="radio" name="kind" value="dynamic" {% if kind == 'dynamic' %}checked{% endif %}> <span>{% trans 'Динамические' %}</span></label>
+        </div>
+        <div>
+          <label for="order" class="block mb-4">{% trans 'Сортировка' %}</label>
+          <select id="order" name="order">
+            <option value="new" {% if order == 'new' %}selected{% endif %}>{% trans 'сначала новые' %}</option>
+            <option value="old" {% if order == 'old' %}selected{% endif %}>{% trans 'сначала старые' %}</option>
+            <option value="hard" {% if order == 'hard' %}selected{% endif %}>{% trans 'сначала сложные' %}</option>
+            <option value="easy" {% if order == 'easy' %}selected{% endif %}>{% trans 'сначала легкие' %}</option>
+            <option value="personal" {% if order == 'personal' %}selected{% endif %}>{% trans 'по персональной рекомендации' %}</option>
+          </select>
+        </div>
+        <div>
+          <button type="submit" class="btn">{% trans 'Применить' %}</button>
+        </div>
+      </div>
+    </form>
+
+    <div class="grid">
+      {% for task in tasks %}
+        <article class="card">
+          <div class="section-title">{{ task.title }}</div>
+          {% if task.exam_version %}
+            <div class="hint">{{ task.subject.name }} — {{ task.exam_version.name }}</div>
+          {% else %}
+            <div class="hint">{{ task.subject.name }}</div>
+          {% endif %}
+          <div class="mt-8">
+            <span class="chip">{% if task.is_dynamic %}{% trans 'динамическая' %}{% else %}{% trans 'статическая' %}{% endif %}</span>
+            <span class="chip">{% trans 'сложность' %}: {{ task.difficulty_level }}</span>
+          </div>
+          {% if task.description %}
+            <p class="mt-8">{{ task.description|truncatechars:180 }}</p>
+          {% endif %}
+        </article>
+      {% empty %}
+        <p class="hint">{% trans 'Задачи не найдены. Измените фильтры.' %}</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<script>
+  // Optional: auto-submit on change
+  (function(){
+    var form = document.getElementById('filters');
+    if (!form) return;
+    form.addEventListener('change', function(){
+      form.submit();
+    });
+  })();
+  </script>
+{% endblock %}
+

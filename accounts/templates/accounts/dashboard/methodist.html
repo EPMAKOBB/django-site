@@ -1,0 +1,82 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
+
+{% block dashboard_title %}{% trans "Методист: управление контентом" %}{% endblock %}
+
+{% block dashboard_content %}
+  {% if role != 'methodist' %}
+    <section class="card"><p>{% trans "Доступно только методистам." %}</p></section>
+  {% else %}
+    <section class="card mb-16">
+      <h2 class="mb-8">{% trans "Создать курс" %}</h2>
+      <form method="post" class="form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_course">
+        {{ course_form.non_field_errors }}
+        {% for field in course_form %}
+          <div class="form-field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="errorlist">{{ field.errors }}</div>{% endif %}
+          </div>
+        {% endfor %}
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">{% trans "Создать курс" %}</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card mb-16">
+      <h2 class="mb-8">{% trans "Создать карточку теории" %}</h2>
+      <form method="post" class="form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_theory">
+        {{ theory_form.non_field_errors }}
+        {% for field in theory_form %}
+          <div class="form-field{% if field.name == 'content' %} form-field--wide{% endif %}">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="errorlist">{{ field.errors }}</div>{% endif %}
+          </div>
+        {% endfor %}
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">{% trans "Создать карточку" %}</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card mb-16">
+      <h2 class="mb-8">{% trans "Курсы" %}</h2>
+      {% if courses %}
+        <ul>
+          {% for c in courses %}
+            <li>
+              <strong>{{ c.title }}</strong>
+              <span class="muted">({{ c.slug }})</span>
+              {% if c.subtitle %}<div class="muted">{{ c.subtitle }}</div>{% endif %}
+              <div class="hint"><a href="/admin/courses/course/{{ c.id }}/change/" target="_blank">{% trans "Править в админке" %}</a></div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="hint">{% trans "Пока курсов нет" %}</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2 class="mb-8">{% trans "Карточки теории" %}</h2>
+      {% if theory_cards %}
+        <ul>
+          {% for t in theory_cards %}
+            <li>
+              {{ t.course.title }} — <strong>{{ t.title }}</strong> ({{ t.slug }})
+              <div class="hint"><a href="/admin/courses/coursetheorycard/{{ t.id }}/change/" target="_blank">{% trans "Править в админке" %}</a></div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="hint">{% trans "Пока карточек нет" %}</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

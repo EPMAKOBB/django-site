@@ -1,0 +1,8 @@
+﻿{% load i18n %}
+<section id="signup" class="cta-block">
+  <div class="container">
+      <h3 class="mt-0 mb-8">{% trans "Р“РѕС‚РѕРІС‹ РЅР°С‡Р°С‚СЊ?" %}</h3>
+      <p class="muted mt-0 mb-16">{% trans "РћСЃС‚Р°РІСЊС‚Рµ Р·Р°СЏРІРєСѓ вЂ” РїРѕРґР±РµСЂС‘Рј РїСЂРѕРіСЂР°РјРјСѓ Рё С„РѕСЂРјР°С‚ РїРѕРґ РІР°С€Рё С†РµР»Рё." %}</p>
+      <a class="btn" href="#">{% trans "РћС‚РїСЂР°РІРёС‚СЊ Р·Р°СЏРІРєСѓ" %}</a>
+  </div>
+</section>
