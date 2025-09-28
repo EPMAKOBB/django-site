@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from django.core.management.base import BaseCommand
 
 from apps.recsys.models import (
@@ -9,6 +11,7 @@ from apps.recsys.models import (
     TaskSkill,
     TaskType,
 )
+from courses.models import Course, CourseGraphEdge, CourseLayout, CourseModule
 from subjects.models import Subject
 
 
@@ -52,4 +55,32 @@ class Command(BaseCommand):
                     skill=skill,
                     defaults={"label": label, "order": order},
                 )
+        default_breakpoints = CourseLayout.DEFAULT_BREAKPOINTS
+        for course in Course.objects.all():
+            layout_defaults = {
+                "preset_name": "default",
+                "row_h": 60,
+                "col_w": 60,
+                "margin_x": 24,
+                "margin_y": 24,
+                "node_r": 24,
+                "breakpoints": deepcopy(default_breakpoints),
+            }
+            CourseLayout.objects.get_or_create(course=course, defaults=layout_defaults)
+
+            modules = CourseModule.objects.filter(course=course).order_by("rank", "col", "pk")
+            previous_module = None
+            for module in modules:
+                if previous_module and not CourseGraphEdge.objects.filter(
+                    course=course, src=previous_module, dst=module
+                ).exists():
+                    CourseGraphEdge.objects.create(
+                        course=course,
+                        src=previous_module,
+                        dst=module,
+                        kind="sequential",
+                        weight=1,
+                    )
+                previous_module = module
+
         self.stdout.write(self.style.SUCCESS("EGE data seeded"))

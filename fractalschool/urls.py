@@ -24,6 +24,7 @@ urlpatterns = [
     path('', HomeView.as_view(), name='home'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
+    path('courses/', include(('courses.urls', 'courses'), namespace='courses')),
     path('applications/', include(('applications.urls', 'applications'), namespace='applications')),
 
     path('', include('apps.recsys.api.urls')),
@@ -31,5 +32,6 @@ urlpatterns = [
 
     path('recsys/dashboard/', recsys_views.dashboard, name='recsys_dashboard'),
     path('recsys/user/<int:user_id>/', recsys_views.teacher_user, name='recsys_teacher_user'),
+    path('tasks/', recsys_views.tasks_list, name='tasks_list'),
 
 ]
