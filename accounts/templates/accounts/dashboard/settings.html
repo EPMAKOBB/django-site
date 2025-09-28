@@ -34,6 +34,66 @@
   </div>
 </form>
 
+<section class="card mb-16">
+  <h2 class="mb-8">{% trans "Мои учителя" %}</h2>
+  {% if my_teacher_links %}
+    <ul class="mb-12">
+      {% for link in my_teacher_links %}
+        <li>
+          {{ link.subject.name }} — {{ link.teacher.get_full_name|default:link.teacher.username }}
+          <form method="post" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="leave_teacher">
+            <input type="hidden" name="link_id" value="{{ link.id }}">
+            <button type="submit" class="btn btn-link">{% trans "Отказаться" %}</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="hint mb-12">{% trans "Пока нет учителей" %}</p>
+  {% endif %}
+  <form method="post" class="flex items-center gap-8">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="join_teacher_code">
+    <label>
+      {% trans "Код учителя" %}
+      <input type="text" name="code" required>
+    </label>
+    <button type="submit" class="btn">{% trans "Присоединиться" %}</button>
+  </form>
+</section>
+
+<section class="card mb-16">
+  <h2 class="mb-8">{% trans "Мои классы" %}</h2>
+  {% if my_class_memberships %}
+    <ul class="mb-12">
+      {% for m in my_class_memberships %}
+        <li>
+          {{ m.study_class.name }}
+          <form method="post" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="leave_class">
+            <input type="hidden" name="membership_id" value="{{ m.id }}">
+            <button type="submit" class="btn btn-link">{% trans "Выйти" %}</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="hint mb-12">{% trans "Вы еще не состоите ни в одном классе" %}</p>
+  {% endif %}
+  <form method="post" class="flex items-center gap-8">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="join_class_code">
+    <label>
+      {% trans "Код класса" %}
+      <input type="text" name="code" required>
+    </label>
+    <button type="submit" class="btn">{% trans "Присоединиться" %}</button>
+  </form>
+</section>
+
 <h1 class="mb-16">{% trans "Настройки" %}</h1>
 {% if request.user.teacherprofile and request.user.studentprofile %}
 <form method="post" class="card mb-16">

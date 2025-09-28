@@ -1,7 +1,103 @@
 {% extends 'accounts/dashboard/base.html' %}
+{% load i18n static %}
 
-{% block dashboard_title %}Курсы{% endblock %}
+{% block dashboard_title %}{% trans "Курсы" %}{% endblock %}
 
 {% block dashboard_content %}
-<p>Здесь будут мои курсы.</p>
+  {% if enrollments %}
+    <div class="courses-grid" role="list">
+      {% for enrollment in enrollments %}
+        {% with course=enrollment.course %}
+          <article class="card course-card" role="listitem">
+            {% if course.cover_image %}
+              <img class="course-card__image" src="{{ course.cover_image.url }}" alt="{{ course.title }}" loading="lazy">
+            {% endif %}
+            <header class="course-card__header">
+              <h3 class="course-card__title">{{ course.title }}</h3>
+              <span class="course-card__status" aria-label="{% trans 'Статус обучения' %}">
+                {{ enrollment.get_status_display }}
+              </span>
+            </header>
+            {% if course.subtitle %}
+              <p class="course-card__subtitle">{{ course.subtitle }}</p>
+            {% elif course.short_description %}
+              <p class="course-card__subtitle">{{ course.short_description }}</p>
+            {% endif %}
+            <dl class="course-card__meta">
+              {% if course.duration_weeks %}
+                <div>
+                  <dt>{% trans "Длительность" %}</dt>
+                  <dd>{% blocktrans with weeks=course.duration_weeks %}{{ weeks }} нед.{% endblocktrans %}</dd>
+                </div>
+              {% endif %}
+              <div>
+                <dt>{% trans "Язык" %}</dt>
+                <dd>{{ course.get_language_display }}</dd>
+              </div>
+            </dl>
+            <div class="course-card__graph" data-course-graph-wrapper>
+              <div
+                class="course-graph"
+                data-course-graph
+                data-course-id="{{ course.id }}"
+                data-enrollment-id="{{ enrollment.id }}"
+                {% if course.layout %}
+                  style="--course-graph-column-width: {{ course.layout.col_w }}px; --course-graph-row-height: {{ course.layout.row_h }}px;"
+                  data-col-width="{{ course.layout.col_w }}"
+                  data-row-height="{{ course.layout.row_h }}"
+                {% endif %}
+                aria-label="{% trans 'Граф модулей курса' %}"
+              >
+                <svg class="course-graph__edges" role="presentation" aria-hidden="true"></svg>
+                <div class="course-graph__nodes">
+                  {% for node in enrollment.graph.nodes %}
+                    <button
+                      type="button"
+                      class="course-graph__node {% if node.locked %}course-graph__node--locked{% else %}course-graph__node--active{% endif %}"
+                      data-node
+                      data-node-id="{{ node.id }}"
+                      data-kind="{{ node.kind }}"
+                      data-locked="{{ node.locked|yesno:'true,false' }}"
+                      data-url="{{ node.url }}"
+                      style="--graph-col: {{ node.col }}; --graph-row: {{ node.row }}; --graph-offset-x: {{ node.dx }}px; --graph-offset-y: {{ node.dy }}px; --graph-progress: {{ node.progress|floatformat:'-2' }}%;"
+                      {% if node.locked %}disabled{% endif %}
+                      aria-pressed="false"
+                    >
+                      <span class="course-graph__ring" aria-hidden="true">
+                        <span class="course-graph__ring-progress"></span>
+                        <span class="course-graph__ring-label">{{ node.progress|floatformat:'-1' }}%</span>
+                      </span>
+                      <span class="course-graph__node-content">
+                        <span class="course-graph__node-title">{{ node.title }}</span>
+                        {% if node.subtitle %}
+                          <span class="course-graph__node-subtitle">{{ node.subtitle }}</span>
+                        {% endif %}
+                      </span>
+                    </button>
+                  {% empty %}
+                    <p class="course-graph__empty">{% trans "В этом курсе пока нет модулей." %}</p>
+                  {% endfor %}
+                </div>
+                <div class="course-graph__edges-data" hidden aria-hidden="true">
+                  {% for edge in enrollment.graph.edges %}
+                    <span
+                      data-edge
+                      data-edge-id="{{ edge.id }}"
+                      data-src="{{ edge.src }}"
+                      data-dst="{{ edge.dst }}"
+                      data-kind="{{ edge.kind }}"
+                      data-locked="{{ edge.locked|yesno:'true,false' }}"
+                    ></span>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </article>
+        {% endwith %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">{% trans "Вы ещё не записаны ни на один курс." %}</p>
+  {% endif %}
+  <script type="module" src="{% static 'js/course-graph.js' %}"></script>
 {% endblock %}

@@ -22,8 +22,13 @@ urlpatterns = [
     path("dashboard/subjects/", views.dashboard_subjects, name="dashboard-subjects"),
     path("dashboard/courses/", views.dashboard_courses, name="dashboard-courses"),
     path("dashboard/teachers/", views.dashboard_teachers, name="dashboard-teachers"),
+    path("dashboard/students/", views.dashboard_students, name="dashboard-students"),
     path("dashboard/classes/", views.dashboard_classes, name="dashboard-classes"),
+    path("dashboard/assignments/create/", views.assignment_create, name="assignment-create"),
     path("dashboard/settings/", views.dashboard_settings, name="dashboard-settings"),
+    path("dashboard/methodist/", views.dashboard_methodist, name="dashboard-methodist"),
+    path("join/teacher/<str:code>/", views.join_teacher_with_code, name="join-teacher"),
+    path("join/class/<str:code>/", views.join_class_with_code, name="join-class"),
     path(
         "login/",
         auth_views.LoginView.as_view(

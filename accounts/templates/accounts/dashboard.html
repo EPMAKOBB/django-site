@@ -4,6 +4,9 @@
 {% block dashboard_title %}{% trans "Задания" %}{% endblock %}
 
 {% block dashboard_content %}
+  <div class="mb-16">
+    <a href="{% url 'tasks_list' %}" class="btn">{% trans "смотреть все задачи" %}</a>
+  </div>
   <section class="assignments-group" aria-labelledby="current-assignments-title">
     <div class="assignments-group__header">
       <h2 id="current-assignments-title">{% trans "Текущие задания" %}</h2>

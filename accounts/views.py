@@ -5,6 +5,7 @@ from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
+from django.db.models import Prefetch
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -19,9 +20,12 @@ from apps.recsys.models import (
     TaskSkill,
     TaskType,
     TypeMastery,
+    VariantTemplate,
+    VariantAssignment,
 )
 from apps.recsys.service_utils import variants as variant_services
 from subjects.models import Subject
+from courses.models import CourseGraphEdge, CourseModule
 
 from .forms import (
     PasswordChangeForm,
@@ -29,9 +33,19 @@ from .forms import (
     TaskCreateForm,
     UserUpdateForm,
     build_task_skill_formset,
+    CourseForm,
+    CourseTheoryCardForm,
 )
 from .forms_exams import ExamPreferencesForm
-from .models import StudentProfile
+from .models import (
+    StudentProfile,
+    StudyClass,
+    ClassStudentMembership,
+    ClassTeacherSubject,
+    TeacherStudentLink,
+    TeacherSubjectInvite,
+    teacher_has_subject_access,
+)
 
 
 logger = logging.getLogger("accounts")
@@ -84,12 +98,14 @@ def _build_assignment_context(assignment):
 def _get_dashboard_role(request):
     """Return the current dashboard role stored in the session."""
 
+    allowed = {"student", "teacher", "methodist"}
     role = request.session.get("dashboard_role")
-    if role not in {"student", "teacher"}:
-        if hasattr(request.user, "teacherprofile") and not hasattr(
-            request.user, "studentprofile"
-        ):
+    if role not in allowed:
+        # Choose a default based on available profiles: teacher > methodist > student
+        if hasattr(request.user, "teacherprofile") and not hasattr(request.user, "studentprofile"):
             role = "teacher"
+        elif hasattr(request.user, "methodistprofile") and not hasattr(request.user, "studentprofile"):
+            role = "methodist"
         else:
             role = "student"
         request.session["dashboard_role"] = role
@@ -290,11 +306,290 @@ def dashboard_teachers(request):
 
 @login_required
 def dashboard_classes(request):
-    """Display a placeholder classes dashboard."""
+    """Teacher/students classes dashboard: list and create classes, show join links."""
 
     role = _get_dashboard_role(request)
-    context = {"active_tab": "classes", "role": role}
+    if role == "teacher" and not hasattr(request.user, "teacherprofile"):
+        role = "student"
+
+    if role == "teacher":
+        if request.method == "POST":
+            action = request.POST.get("action")
+            if action == "create_class":
+                name = (request.POST.get("name") or "").strip() or _("Новый класс")
+                subject_id = request.POST.get("subject")
+                study_class = StudyClass.objects.create(name=name, created_by=request.user)
+                if subject_id:
+                    try:
+                        subject = Subject.objects.get(pk=int(subject_id))
+                        ClassTeacherSubject.objects.get_or_create(
+                            study_class=study_class, teacher=request.user, subject=subject
+                        )
+                    except (Subject.DoesNotExist, ValueError, TypeError):
+                        pass
+                messages.success(request, _("Класс создан"))
+                return redirect("accounts:dashboard-classes")
+
+        classes = (
+            StudyClass.objects.filter(teacher_subjects__teacher=request.user)
+            .distinct()
+            .prefetch_related("student_memberships__student", "teacher_subjects__subject")
+            .order_by("-created_at")
+        )
+    else:
+        classes = (
+            StudyClass.objects.filter(student_memberships__student=request.user)
+            .distinct()
+            .prefetch_related("teacher_subjects__subject")
+            .order_by("-created_at")
+        )
+
+    context = {
+        "active_tab": "classes",
+        "role": role,
+        "classes": classes,
+        "subjects": Subject.objects.all().order_by("name"),
+    }
     return render(request, "accounts/dashboard/classes.html", context)
+
+
+@login_required
+def dashboard_students(request):
+    """Teacher view: list my students by subject and generate invites."""
+
+    if not hasattr(request.user, "teacherprofile"):
+        raise PermissionDenied("Only teachers can access this section")
+
+    role = _get_dashboard_role(request)
+    if role != "teacher":
+        role = "teacher"
+        request.session["dashboard_role"] = role
+
+    if request.method == "POST":
+        if request.POST.get("action") == "create_invite":
+            try:
+                subject_id = int(request.POST.get("subject") or 0)
+            except (TypeError, ValueError):
+                subject_id = 0
+            if subject_id:
+                try:
+                    subject = Subject.objects.get(pk=subject_id)
+                    invite = TeacherSubjectInvite.objects.create(
+                        teacher=request.user, subject=subject
+                    )
+                    messages.success(
+                        request,
+                        _("Создан код приглашения: ") + invite.code,
+                    )
+                except Subject.DoesNotExist:
+                    messages.error(request, _("Предмет не найден"))
+            return redirect("accounts:dashboard-students")
+
+    # Active links grouped by subject
+    links = (
+        TeacherStudentLink.objects.filter(teacher=request.user, status=TeacherStudentLink.Status.ACTIVE)
+        .select_related("student", "subject")
+        .order_by("subject__name", "student__username")
+    )
+    invites = (
+        TeacherSubjectInvite.objects.filter(teacher=request.user, is_active=True)
+        .select_related("subject")
+        .order_by("-created_at")
+    )
+
+    grouped: dict[int, dict] = {}
+    for link in links:
+        data = grouped.setdefault(
+            link.subject_id,
+            {"subject": link.subject, "students": []},
+        )
+        data["students"].append(link.student)
+
+    context = {
+        "active_tab": "students",
+        "role": role,
+        "grouped_links": grouped,
+        "invites": invites,
+        "subjects": Subject.objects.all().order_by("name"),
+    }
+    return render(request, "accounts/dashboard/students.html", context)
+
+
+@login_required
+def join_teacher_with_code(request, code: str):
+    """Student uses a code to link with a teacher on a subject."""
+
+    try:
+        invite = TeacherSubjectInvite.objects.select_related("teacher", "subject").get(
+            code=code, is_active=True
+        )
+    except TeacherSubjectInvite.DoesNotExist:
+        messages.error(request, _("Неверный или истекший код учителя"))
+        return redirect("accounts:dashboard-settings")
+
+    link, created = TeacherStudentLink.objects.get_or_create(
+        teacher=invite.teacher,
+        student=request.user,
+        subject=invite.subject,
+        defaults={"status": TeacherStudentLink.Status.ACTIVE},
+    )
+    if not created and link.status != TeacherStudentLink.Status.ACTIVE:
+        link.status = TeacherStudentLink.Status.ACTIVE
+        link.save(update_fields=["status", "updated_at"]) if hasattr(link, "updated_at") else link.save()
+
+    invite.is_active = False
+    invite.save(update_fields=["is_active", "updated_at"]) if hasattr(invite, "updated_at") else invite.save()
+
+    messages.success(request, _("Учитель добавлен: ") + str(invite.teacher))
+    return redirect("accounts:dashboard-settings")
+
+
+@login_required
+def join_class_with_code(request, code: str):
+    """Join a class using its join code (from StudyClass)."""
+
+    try:
+        study_class = StudyClass.objects.get(join_code=code, is_active=True)
+    except StudyClass.DoesNotExist:
+        messages.error(request, _("Неверный или недействительный код класса"))
+        return redirect("accounts:dashboard-settings")
+
+    ClassStudentMembership.objects.get_or_create(
+        study_class=study_class, student=request.user
+    )
+    messages.success(request, _("Вы присоединились к классу: ") + study_class.name)
+    return redirect("accounts:dashboard-settings")
+
+
+@login_required
+def assignment_create(request):
+    """Simple form for teachers to assign a variant template to students/classes."""
+
+    if not hasattr(request.user, "teacherprofile"):
+        raise PermissionDenied("Only teachers can access this section")
+
+    role = _get_dashboard_role(request)
+    if role != "teacher":
+        role = "teacher"
+        request.session["dashboard_role"] = role
+
+    # Collect recipients
+    links = (
+        TeacherStudentLink.objects.filter(teacher=request.user, status=TeacherStudentLink.Status.ACTIVE)
+        .select_related("student", "subject")
+        .order_by("student__username")
+    )
+    classes = (
+        StudyClass.objects.filter(teacher_subjects__teacher=request.user)
+        .distinct()
+        .order_by("name")
+    )
+
+    if request.method == "POST":
+        template_id = request.POST.get("template")
+        student_ids = request.POST.getlist("students")
+        class_ids = request.POST.getlist("classes")
+        deadline_str = (request.POST.get("deadline") or "").strip()
+        deadline = None
+        if deadline_str:
+            try:
+                # Expect ISO datetime (YYYY-MM-DDTHH:MM)
+                from datetime import datetime
+
+                deadline = datetime.fromisoformat(deadline_str)
+            except Exception:  # pragma: no cover - defensive
+                deadline = None
+
+        try:
+            template = VariantTemplate.objects.get(pk=int(template_id))
+        except (VariantTemplate.DoesNotExist, TypeError, ValueError):
+            messages.error(request, _("Выберите корректный шаблон варианта"))
+            return redirect("accounts:assignment-create")
+
+        # Build recipient set
+        user_ids: set[int] = set()
+        for sid in student_ids:
+            try:
+                user_ids.add(int(sid))
+            except (TypeError, ValueError):
+                continue
+        for cid in class_ids:
+            try:
+                c = StudyClass.objects.get(pk=int(cid))
+            except (StudyClass.DoesNotExist, TypeError, ValueError):
+                continue
+            for m in c.student_memberships.all():
+                user_ids.add(m.student_id)
+
+        # Create assignments
+        created = 0
+        for uid in user_ids:
+            VariantAssignment.objects.get_or_create(
+                template=template,
+                user_id=uid,
+                defaults={"deadline": deadline},
+            )
+            created += 1
+        messages.success(request, _("Назначено заданий: ") + str(created))
+        return redirect("accounts:dashboard")
+
+    context = {
+        "active_tab": "teachers",
+        "role": role,
+        "templates": VariantTemplate.objects.all().order_by("name"),
+        "links": links,
+        "classes": classes,
+    }
+    return render(request, "accounts/dashboard/assignment_create.html", context)
+
+
+@login_required
+def dashboard_methodist(request):
+    """Methodist dashboard: create/edit courses and theory cards."""
+
+    if not hasattr(request.user, "methodistprofile"):
+        raise PermissionDenied("Only methodists can access this section")
+
+    role = _get_dashboard_role(request)
+    if role != "methodist":
+        role = "methodist"
+        request.session["dashboard_role"] = role
+
+    course_form = CourseForm()
+    theory_form = CourseTheoryCardForm()
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "create_course":
+            course_form = CourseForm(request.POST)
+            if course_form.is_valid():
+                course_form.save()
+                messages.success(request, _("Курс создан"))
+                return redirect("accounts:dashboard-methodist")
+        elif action == "create_theory":
+            theory_form = CourseTheoryCardForm(request.POST)
+            if theory_form.is_valid():
+                theory_form.save()
+                messages.success(request, _("Теоретическая карточка создана"))
+                return redirect("accounts:dashboard-methodist")
+
+    # Lists
+    from courses.models import Course, CourseTheoryCard
+
+    courses = Course.objects.order_by("title")
+    theory_cards = CourseTheoryCard.objects.select_related("course").order_by(
+        "course__title", "slug"
+    )
+
+    context = {
+        "active_tab": "methodist",
+        "role": role,
+        "course_form": course_form,
+        "theory_form": theory_form,
+        "courses": courses,
+        "theory_cards": theory_cards,
+    }
+    return render(request, "accounts/dashboard/methodist.html", context)
 
 
 @login_required
@@ -309,6 +604,36 @@ def dashboard_settings(request):
         password_submit = "password_submit" in request.POST
         role_submit = "role_submit" in request.POST
         exams_submit = "exams_submit" in request.POST
+        action = request.POST.get("action")
+
+        if action == "join_teacher_code":
+            code = (request.POST.get("code") or "").strip()
+            if code:
+                return join_teacher_with_code(request, code)
+        elif action == "join_class_code":
+            code = (request.POST.get("code") or "").strip()
+            if code:
+                return join_class_with_code(request, code)
+        elif action == "leave_teacher":
+            try:
+                link_id = int(request.POST.get("link_id") or 0)
+            except (TypeError, ValueError):
+                link_id = 0
+            if link_id:
+                TeacherStudentLink.objects.filter(id=link_id, student=request.user).update(
+                    status=TeacherStudentLink.Status.REVOKED
+                )
+                messages.success(request, _("Вы отказались от учителя"))
+            return redirect("accounts:dashboard-settings")
+        elif action == "leave_class":
+            try:
+                membership_id = int(request.POST.get("membership_id") or 0)
+            except (TypeError, ValueError):
+                membership_id = 0
+            if membership_id:
+                ClassStudentMembership.objects.filter(id=membership_id, student=request.user).delete()
+                messages.success(request, _("Вы вышли из класса"))
+            return redirect("accounts:dashboard-settings")
 
         if user_submit:
             u_form = UserUpdateForm(request.POST, instance=request.user)
@@ -327,7 +652,7 @@ def dashboard_settings(request):
                 return redirect("accounts:dashboard-settings")
         elif role_submit:
             new_role = request.POST.get("role")
-            if new_role in {"student", "teacher"}:
+            if new_role in {"student", "teacher", "methodist"}:
                 request.session["dashboard_role"] = new_role
             return redirect("accounts:dashboard-settings")
         elif (
@@ -400,6 +725,13 @@ def dashboard_settings(request):
         "selected_exams": selected_exams,
         "active_tab": "settings",
         "role": role,
+        # Settings: teacher/student/class relations
+        "my_teacher_links": TeacherStudentLink.objects.filter(
+            student=request.user, status=TeacherStudentLink.Status.ACTIVE
+        ).select_related("teacher", "subject"),
+        "my_class_memberships": ClassStudentMembership.objects.filter(
+            student=request.user
+        ).select_related("study_class"),
     }
     through_records = list(
         profile.exam_versions.through.objects.filter(studentprofile=profile).values_list(
@@ -483,16 +815,92 @@ def dashboard_subjects(request):
         "active_tab": "statistics",
         "role": role,
         "exam_statistics": exam_statistics,
+        # Settings page additions
+        "my_teacher_links": TeacherStudentLink.objects.filter(
+            student=request.user, status=TeacherStudentLink.Status.ACTIVE
+        ).select_related("teacher", "subject"),
+        "my_class_memberships": ClassStudentMembership.objects.filter(
+            student=request.user
+        ).select_related("study_class"),
     }
     return render(request, "accounts/dashboard/subjects.html", context)
 
 
 @login_required
 def dashboard_courses(request):
-    """Display a placeholder courses dashboard."""
+    """Display all courses the current user is enrolled in."""
 
     role = _get_dashboard_role(request)
-    context = {"active_tab": "courses", "role": role}
+
+    enrollments_qs = (
+        request.user.course_enrollments.select_related("course")
+        .prefetch_related(
+            Prefetch(
+                "course__modules",
+                queryset=CourseModule.objects.order_by("col", "rank", "id"),
+            ),
+            Prefetch(
+                "course__graph_edges",
+                queryset=CourseGraphEdge.objects.select_related("src", "dst"),
+            ),
+        )
+        .order_by("-enrolled_at")
+    )
+
+    enrollments = []
+    for enrollment in enrollments_qs:
+        course = enrollment.course
+
+        nodes = []
+        for module in course.modules.all():
+            module_progress = None
+            for attr in ("progress_percent", "progress", "completion_percent"):
+                value = getattr(module, attr, None)
+                if value is not None:
+                    module_progress = float(value)
+                    break
+
+            if module_progress is None:
+                module_progress = float(enrollment.progress or 0)
+
+            nodes.append(
+                {
+                    "id": module.id,
+                    "slug": module.slug,
+                    "title": module.title,
+                    "subtitle": module.subtitle,
+                    "col": module.col,
+                    "row": module.rank,
+                    "dx": module.dx,
+                    "dy": module.dy,
+                    "locked": module.is_locked,
+                    "kind": module.kind,
+                    "progress": max(0.0, min(100.0, module_progress)),
+                    "url": module.get_absolute_url() if hasattr(module, "get_absolute_url") else "",
+                }
+            )
+
+        edges = []
+        for edge in course.graph_edges.all():
+            edges.append(
+                {
+                    "id": edge.id,
+                    "src": edge.src_id,
+                    "dst": edge.dst_id,
+                    "kind": edge.kind,
+                    "weight": float(edge.weight),
+                    "locked": edge.is_locked or edge.src.is_locked or edge.dst.is_locked,
+                }
+            )
+
+        enrollment.graph = {"nodes": nodes, "edges": edges}
+        enrollments.append(enrollment)
+
+    context = {
+        "active_tab": "courses",
+        "role": role,
+        "enrollments": enrollments,
+    }
     return render(request, "accounts/dashboard/courses.html", context)
 
 
