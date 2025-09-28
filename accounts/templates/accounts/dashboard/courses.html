@@ -41,6 +41,11 @@
                 data-course-graph
                 data-course-id="{{ course.id }}"
                 data-enrollment-id="{{ enrollment.id }}"
+                {% if course.layout %}
+                  style="--course-graph-column-width: {{ course.layout.col_w }}px; --course-graph-row-height: {{ course.layout.row_h }}px;"
+                  data-col-width="{{ course.layout.col_w }}"
+                  data-row-height="{{ course.layout.row_h }}"
+                {% endif %}
                 aria-label="{% trans 'Граф модулей курса' %}"
               >
                 <svg class="course-graph__edges" role="presentation" aria-hidden="true"></svg>

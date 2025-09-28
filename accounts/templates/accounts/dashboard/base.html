@@ -33,10 +33,18 @@
         <li class="{% if active_tab == 'teachers' %}active{% endif %}" role="presentation">
           <a role="tab" aria-selected="{% if active_tab == 'teachers' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-teachers' %}">{% trans 'Учительская' %}</a>
         </li>
+        <li class="{% if active_tab == 'students' %}active{% endif %}" role="presentation">
+          <a role="tab" aria-selected="{% if active_tab == 'students' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-students' %}">{% trans 'Мои ученики' %}</a>
+        </li>
       {% endif %}
       <li class="{% if active_tab == 'settings' %}active{% endif %}" role="presentation">
         <a role="tab" aria-selected="{% if active_tab == 'settings' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-settings' %}">{% trans 'Настройки' %}</a>
       </li>
+      {% if role == 'methodist' %}
+        <li class="{% if active_tab == 'methodist' %}active{% endif %}" role="presentation">
+          <a role="tab" aria-selected="{% if active_tab == 'methodist' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-methodist' %}">{% trans 'Методист' %}</a>
+        </li>
+      {% endif %}
     </ul>
   </nav>
   <div class="dashboard-panel">

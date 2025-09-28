@@ -11,6 +11,7 @@ from apps.recsys.models import ExamVersion, Skill, Task, TaskType
 from subjects.models import Subject
 
 from .models import StudentProfile
+from courses.models import Course, CourseTheoryCard
 
 User = get_user_model()
 
@@ -245,3 +246,34 @@ def build_task_skill_formset(*, subject: Subject | None, data=None, prefix: str 
         form.set_subject(subject)
     formset.empty_form.set_subject(subject)
     return formset
+
+
+# Methodist forms
+class CourseForm(forms.ModelForm):
+    class Meta:
+        model = Course
+        fields = (
+            "slug",
+            "title",
+            "subtitle",
+            "short_description",
+            "level",
+            "language",
+            "is_active",
+            "enrollment_open",
+        )
+
+
+class CourseTheoryCardForm(forms.ModelForm):
+    class Meta:
+        model = CourseTheoryCard
+        fields = (
+            "course",
+            "slug",
+            "title",
+            "subtitle",
+            "content",
+            "content_format",
+            "estimated_duration_minutes",
+            "difficulty_level",
+        )

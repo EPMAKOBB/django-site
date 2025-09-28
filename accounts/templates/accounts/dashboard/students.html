@@ -1,0 +1,65 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
+
+{% block dashboard_title %}{% trans "Мои ученики" %}{% endblock %}
+
+{% block dashboard_content %}
+  {% if role != 'teacher' %}
+    <section class="card"><p>{% trans "Доступно только учителям." %}</p></section>
+  {% else %}
+    <section class="card mb-16">
+      <h2 class="mb-8">{% trans "Пригласить ученика по предмету" %}</h2>
+      <form method="post" class="flex items-center gap-8">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_invite">
+        <label>
+          <span class="sr-only">{% trans "Предмет" %}</span>
+          <select name="subject">
+            {% for subject in subjects %}
+              <option value="{{ subject.id }}">{{ subject.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="btn">{% trans "Создать код" %}</button>
+      </form>
+      {% if invites %}
+        <div class="mt-12">
+          <div class="section-title">{% trans "Активные коды" %}</div>
+          <ul>
+            {% for inv in invites %}
+              <li>
+                {{ inv.subject.name }} — <code>{{ inv.code }}</code>
+                (<a href="{% url 'accounts:join-teacher' inv.code %}" target="_blank">{% trans "ссылка" %}</a>)
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="flex items-center justify-between mb-8">
+        <h2 class="mb-0">{% trans "Мои ученики по предметам" %}</h2>
+        <a class="btn btn-secondary" href="{% url 'accounts:assignment-create' %}">{% trans "Назначить задание" %}</a>
+      </div>
+      {% if grouped_links %}
+        {% for s in grouped_links.values %}
+          <div class="block block--futuristic mb-12">
+            <div class="section-title" style="margin-bottom:8px">{{ s.subject.name }}</div>
+            {% if s.students %}
+              <ul>
+                {% for st in s.students %}
+                  <li>{{ st.get_full_name|default:st.username }}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="hint">{% trans "Пока нет учеников" %}</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="hint">{% trans "Связей с учениками пока нет" %}</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

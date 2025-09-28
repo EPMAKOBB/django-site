@@ -1,7 +1,62 @@
 {% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
 
-{% block dashboard_title %}Мои классы{% endblock %}
+{% block dashboard_title %}{% trans "Мои классы" %}{% endblock %}
 
 {% block dashboard_content %}
-<p>Здесь будут мои классы.</p>
+  {% if role == 'teacher' %}
+    <section class="card mb-16">
+      <h2 class="mb-8">{% trans "Создать класс" %}</h2>
+      <form method="post" class="flex items-center gap-8">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_class">
+        <label>
+          {% trans "Название" %}
+          <input type="text" name="name" placeholder="{% trans '7А' %}">
+        </label>
+        <label>
+          {% trans "Предмет (необязательно)" %}
+          <select name="subject">
+            <option value="">—</option>
+            {% for s in subjects %}
+              <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="btn">{% trans "Создать" %}</button>
+      </form>
+    </section>
+  {% endif %}
+
+  <section class="card">
+    <h2 class="mb-8">{% trans "Список классов" %}</h2>
+    {% if classes %}
+      <ul>
+        {% for c in classes %}
+          <li>
+            <strong>{{ c.name }}</strong>
+            <span class="muted">({% trans "код" %}: <code>{{ c.join_code }}</code>)</span>
+            <span class="muted">— {% trans "учеников" %}: {{ c.student_memberships.count }}</span>
+            {% if role == 'teacher' %}
+              <div class="hint">
+                {% trans "Учителя/предметы:" %}
+                {% for ts in c.teacher_subjects.all %}
+                  {{ ts.teacher.get_full_name|default:ts.teacher.username }} — {{ ts.subject.name }}{% if not forloop.last %}; {% endif %}
+                {% empty %}
+                  {% trans "пока нет" %}
+                {% endfor %}
+              </div>
+              <div class="hint">
+                {% trans "Ссылка для присоединения:" %}
+                <a href="{% url 'accounts:join-class' c.join_code %}" target="_blank">{% url 'accounts:join-class' c.join_code %}</a>
+              </div>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="hint">{% trans "Список пуст" %}</p>
+    {% endif %}
+  </section>
 {% endblock %}
+
