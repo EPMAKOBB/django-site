@@ -78,6 +78,15 @@ curl "http://localhost:8000/api/next-task/?n=5"
   сгенерированные данные, а в `answers` и `meta` хранятся дополнительные
   сведения от генератора (если они есть). Поля `difficulty_level`,
   `correct_answer` и `image` также передаются из исходного задания.
+
+### Доступные динамические генераторы
+
+* `math/addition` — простые арифметические выражения на сложение.
+* `words/sequence` — задачи на восстановление пропущенного слова в последовательности.
+* `informatics/path-counter` — подсчёт количества программ исполнителя; в
+  `default_payload` (и в зафиксированном `payload` снапшота) ожидаются поля
+  `start`, `target`, `max_depth`, `limit_value`, `commands`, `transitions`,
+  `required_command_index` и `forbidden_command_index`.
 * Объект `response` содержит данные, отправленные студентом при решении. Если
   попытка ещё не совершена, ключ `response` отсутствует.
 

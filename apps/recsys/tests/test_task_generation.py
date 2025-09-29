@@ -27,6 +27,54 @@ class TaskGenerationRegistryTests(TestCase):
         self.assertEqual(first.payload, second.payload)
 
 
+class InformaticsPathCounterGeneratorTests(TestCase):
+    def test_generator_produces_consistent_positive_paths(self):
+        task = factories.create_task(
+            is_dynamic=True,
+            generator_slug="informatics/path-counter",
+            default_payload={},
+        )
+
+        payload_one: dict[str, object] = {}
+        payload_two: dict[str, object] = {}
+
+        first = task_generation.generate(task, payload_one, seed=2024, student=None)
+        second = task_generation.generate(task, payload_two, seed=2024, student=None)
+
+        self.assertEqual(first.content, second.content)
+        self.assertEqual(first.answers, second.answers)
+        self.assertEqual(first.payload, second.payload)
+        self.assertEqual(first.meta, second.meta)
+
+        self.assertIn("paths", first.answers)
+        self.assertGreater(first.answers["paths"], 0)
+
+        commands = first.payload["commands"]
+        self.assertIsInstance(commands, list)
+        self.assertGreaterEqual(len(commands), 2)
+
+        required_index = first.payload["required_command_index"]
+        forbidden_index = first.payload["forbidden_command_index"]
+        if required_index is not None:
+            self.assertTrue(0 <= required_index < len(commands))
+        if forbidden_index is not None:
+            self.assertTrue(0 <= forbidden_index < len(commands))
+
+        self.assertLessEqual(first.meta["max_depth"], 7)
+        self.assertLessEqual(first.meta["state_count"], 120)
+        self.assertLessEqual(first.meta["max_width"], 40)
+        self.assertLessEqual(first.meta["depth_reached"], first.meta["max_depth"])
+
+        transitions = first.payload["transitions"]
+        self.assertIsInstance(transitions, dict)
+        for value, edges in transitions.items():
+            self.assertIsInstance(value, int)
+            self.assertIsInstance(edges, list)
+            for edge in edges:
+                self.assertIn("command", edge)
+                self.assertIn("result", edge)
+
+
 class VariantGenerationTests(TestCase):
     def setUp(self):
         self.template = factories.create_variant_template()
