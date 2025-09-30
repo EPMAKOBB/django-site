@@ -50,8 +50,15 @@ class TaskType(TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
-        unique_together = ("subject", "name")
-        indexes = [models.Index(fields=["subject", "name"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["subject", "exam_version", "name"],
+                name="task_type_subject_exam_name_unique",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["subject", "exam_version", "name"])
+        ]
 
     def __str__(self) -> str:
         return self.name
