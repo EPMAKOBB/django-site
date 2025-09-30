@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "apps.recsys",
     "applications",
     "courses",
+    "parser_tasks",
 ]
 
 MIDDLEWARE = [
