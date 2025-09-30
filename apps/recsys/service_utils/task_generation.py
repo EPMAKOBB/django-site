@@ -174,6 +174,8 @@ register_generator(
     label="Продолжи последовательность",
 )
 
+from .generators.informatics import type23  # noqa: F401
+
 
 __all__ = [
     "TaskGenerationResult",
