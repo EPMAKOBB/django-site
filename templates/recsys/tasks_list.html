@@ -62,7 +62,7 @@
             <span class="chip">{% trans 'сложность' %}: {{ task.difficulty_level }}</span>
           </div>
           {% if task.description %}
-            <p class="mt-8">{{ task.description|truncatechars:180 }}</p>
+            <p class="mt-8 task-description">{{ task.description|linebreaksbr }}</p>
           {% endif %}
         </article>
       {% empty %}
