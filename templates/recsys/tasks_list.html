@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n markdown_extras %}
 
 {% block title %}{% trans 'Задачи' %}{% endblock %}
 
@@ -62,7 +62,17 @@
             <span class="chip">{% trans 'сложность' %}: {{ task.difficulty_level }}</span>
           </div>
           {% if task.description %}
-            <p class="mt-8 task-description">{{ task.description|linebreaksbr }}</p>
+            {% if task.rendering_strategy == task.RenderingStrategy.HTML %}
+              <div class="mt-8 task-description" data-format="html">
+                {{ task.description|safe }}
+              </div>
+            {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
+              <div class="mt-8 task-description" data-format="markdown">
+                {{ task.description|render_markdown }}
+              </div>
+            {% else %}
+              <p class="mt-8 task-description" data-format="text">{{ task.description|linebreaksbr }}</p>
+            {% endif %}
           {% endif %}
         </article>
       {% empty %}
