@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Управление парсером — {{ block.super }}{% endblock %}
+{% block content %}
+<div class="container narrow">
+  <h1>Запуск парсера заданий</h1>
+  <p>
+    Страница доступна только администраторам. Укажите ссылку на вариант и нажмите
+    кнопку, чтобы инициировать парсинг заданий.
+  </p>
+  <form method="post" class="form-card">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="form-field">
+      {{ form.source_url.label_tag }}
+      {{ form.source_url }}
+      {% if form.source_url.help_text %}
+      <p class="help">{{ form.source_url.help_text }}</p>
+      {% endif %}
+      {{ form.source_url.errors }}
+    </div>
+    <button type="submit" class="btn primary">Запустить парсер</button>
+  </form>
+
+  <h2>Последние запуски</h2>
+  {% if runs %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Ссылка</th>
+        <th>Статус</th>
+        <th>Задания</th>
+        <th>Комментарий</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in runs %}
+      <tr>
+        <td>{{ item.created_at|date:"d.m.Y H:i" }}</td>
+        <td><a href="{{ item.source_url }}" target="_blank" rel="noopener">{{ item.source_url }}</a></td>
+        <td>{{ item.get_status_display }}</td>
+        <td>{{ item.tasks_count }}</td>
+        <td>{{ item.details|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Запусков пока не было.</p>
+  {% endif %}
+</div>
+{% endblock %}
