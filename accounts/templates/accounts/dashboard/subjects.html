@@ -23,11 +23,11 @@
                   {% with m=item.skill_masteries|get_item:gi.skill.id %}
                   {% with pct=m|default:0|mul:100 %}
                   <div class="item">
-                    <div class="label">
+                    <div class="progress-label">
                       <span>{{ gi.skill.name }}</span>
                       <span class="pct">{{ pct|floatformat:0 }}%</span>
                     </div>
-                    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ gi.skill.name }}">
+                    <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ gi.skill.name }}">
                       <div class="fill" style="width: {{ pct }}%"></div>
                     </div>
                   </div>
@@ -57,11 +57,11 @@
                 {% with m=item.type_masteries|get_item:t.id %}
                 {% with pct=m|default:0|mul:100 %}
                 <div class="item">
-                  <div class="label">
+                  <div class="progress-label">
                     <span>{{ t.name }}</span>
                     <span class="pct">{{ pct|floatformat:0 }}%</span>
                   </div>
-                  <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ t.name }}">
+                  <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ t.name }}">
                     <div class="fill" style="width: {{ pct }}%"></div>
                   </div>
                 </div>
