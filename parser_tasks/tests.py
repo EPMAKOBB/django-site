@@ -1,7 +1,11 @@
+from types import SimpleNamespace
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
-from unittest.mock import patch
+
+from parser_tasks.services import run_parser
 
 User = get_user_model()
 
@@ -45,3 +49,38 @@ class ParserControlViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         run_parser_mock.assert_called_once_with("https://example.com")
         self.assertContains(response, "Парсинг завершен")
+
+
+class ParserServiceTests(TestCase):
+    @patch("parser_tasks.services.requests.get")
+    def test_run_parser_preserves_html_markup(self, get_mock):
+        html_source = """
+        <html>
+          <body>
+            <div class="problem">
+              <div class="problem_text">
+                <p>См. рисунок</p>
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+                  <circle cx="5" cy="5" r="4" />
+                </svg>
+              </div>
+              <div class="answer">Ответ: 42</div>
+            </div>
+          </body>
+        </html>
+        """
+
+        get_mock.return_value = SimpleNamespace(
+            text=html_source,
+            status_code=200,
+            raise_for_status=lambda: None,
+        )
+
+        result = run_parser("https://example.com/test")
+
+        self.assertEqual(result.tasks_count, 1)
+        parsed_task = result.tasks[0]
+        self.assertIn("<svg", parsed_task.text)
+        self.assertIn("</svg>", parsed_task.text)
+        self.assertIn("См. рисунок", parsed_task.text)
+        self.assertEqual(parsed_task.answer, "Ответ: 42")
