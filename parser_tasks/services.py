@@ -76,7 +76,9 @@ def run_parser(source_url: str = DEFAULT_SOURCE_URL) -> ParserResult:
 
     for index, block in enumerate(_iter_task_blocks(soup), start=1):
         text_container = block.select_one(".problem_text") or block
-        text = text_container.get_text("\n", strip=True)
+        # Preserve the original HTML structure of the task description so that
+        # SVGs and other markup are not stripped during parsing.
+        text = text_container.decode_contents().strip()
         answer_node = block.select_one(".answer")
         answer: str | None = None
         if answer_node is not None:
