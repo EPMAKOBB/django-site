@@ -61,7 +61,14 @@ class TaskType(TimeStampedModel):
         ]
 
     def __str__(self) -> str:
-        return self.name
+        if self.exam_version:
+            prefix = self.exam_version.name
+            suffix = self.name
+            return f"{prefix} · {suffix}"
+
+        prefix = self.subject.name
+        suffix = f"{self.name} (без версии экзамена)"
+        return f"{prefix} · {suffix}"
 
     def clean(self):
         super().clean()
