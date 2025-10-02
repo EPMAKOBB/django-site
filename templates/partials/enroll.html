@@ -4,7 +4,7 @@
     <div class="block block--futuristic">
       <h3 class="section-title">{% trans "Записаться на занятия" %}</h3>
       <h2 class="subjects-title">{% trans "ФИЗИКА | МАТЕМАТИКА | ИНФОРМАТИКА | ВПР | ОГЭ | ЕГЭ" %}</h2>
-      <h3 class="signup-prompt">{% blocktrans trimmed %}Запишитесь через Telegram <a href="https://t.me/Shydoe" target="_blank">@Shydoe</a> или заполните заявку ниже 👇{% endblocktrans %}</h3>
+      <h3 class="signup-prompt">{% trans "заполните заявку ниже 👇" %}</h3>
       <form action="{% url 'applications:apply' %}" method="post" class="signup-form">
         {% csrf_token %}
         {{ form.non_field_errors }}
@@ -38,6 +38,15 @@
               </select>
               {{ form.subject2.errors }}
             </div>
+            <div>
+              <select name="{{ form.lesson_type.html_name }}" id="{{ form.lesson_type.id_for_label }}">
+                <option value="" selected disabled>{% trans "выберите тип занятий" %}</option>
+                {% for value, label in form.fields.lesson_type.choices %}
+                  <option value="{{ value }}" {% if form.lesson_type.value|stringformat:'s' == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              {{ form.lesson_type.errors }}
+            </div>
           </div>
           <p>
             {{ form.contact_info }}
@@ -47,26 +56,13 @@
             {{ form.contact_name }}
             {{ form.contact_name.errors }}
           </p>
-          <p class="application-price">
-            <span class="price-old">
-              {{ application_price.original }} ₽/мес
-            </span>
-            <span class="price-new">
-              {{ application_price.current }} ₽/мес
-            </span>
-            <span class="price-note">
-              {% if subjects_count >= 2 %}за два предмета {% endif %}
-              {% if application_price.promo_until %}
-                при записи до {{ application_price.promo_until|date:"j E" }}
-              {% endif %}
-            </span>
-          </p>
+          <div class="application-price">
+            <p>занятия в группе: 3 000 ₽/мес</p>
+            <p>занятия индивидуальные: 2 000 ₽/60 минут</p>
+          </div>
         </div>
         <button type="submit" class="btn btn-large accent">{% trans "Отправить заявку" %}</button>
-        <p class="muted mt-8">
-          так же можно записаться на индивидуальные занятия через Telegram
-          <a href="https://t.me/Shydoe" target="_blank">@Shydoe</a>
-        </p>
+        
       </form>
     </div>
   </div>

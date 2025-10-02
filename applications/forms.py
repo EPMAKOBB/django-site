@@ -24,6 +24,14 @@ class ApplicationForm(forms.ModelForm):
         label="",
     )
     source_offer = forms.CharField(required=False, widget=forms.HiddenInput())
+    lesson_type = forms.ChoiceField(
+        choices=[
+            ("group", "групповой"),
+            ("individual", "индивидуальный"),
+        ],
+        label="",
+        required=False,
+    )
 
 
     class Meta:
@@ -32,6 +40,7 @@ class ApplicationForm(forms.ModelForm):
             "grade",
             "subject1",
             "subject2",
+            "lesson_type",
             "source_offer",
             "contact_info",
             "contact_name",
@@ -52,7 +61,8 @@ class ApplicationForm(forms.ModelForm):
     def save(self, commit: bool = True) -> Application:  # type: ignore[override]
         application = super().save(commit=False)
         application.source_offer = self.cleaned_data.get("source_offer")
-        application.lesson_type = "pass"
+        lesson_type = self.cleaned_data.get("lesson_type") or "pass"
+        application.lesson_type = lesson_type
         if commit:
             application.save()
             subjects = []
