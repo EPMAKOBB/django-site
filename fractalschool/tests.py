@@ -1,4 +1,3 @@
-
 from django.test import TestCase
 from django.urls import reverse
 
@@ -12,11 +11,10 @@ class HomeViewTests(TestCase):
         self.assertEqual(
             response.context.get("application_price"), get_application_price(0)
         )
-        self.assertContains(response, "price-old")
-        self.assertContains(response, "price-new")
-        self.assertContains(response, "при записи до 30 сентября")
+        self.assertContains(response, "занятия в группе: 3 000 ₽/мес")
+        self.assertContains(response, "занятия индивидуальные: 2 000 ₽/60 минут")
 
-    def test_price_changes_with_second_subject(self) -> None:
+    def test_price_static_with_second_subject(self) -> None:
         response = self.client.get(
             reverse("home"), {"subject1": "1", "subject2": "1"}
         )
@@ -24,4 +22,6 @@ class HomeViewTests(TestCase):
         self.assertEqual(
             response.context.get("application_price"), get_application_price(2)
         )
-        self.assertContains(response, "за два предмета")
+        self.assertContains(response, "занятия в группе: 3 000 ₽/мес")
+        self.assertContains(response, "занятия индивидуальные: 2 000 ₽/60 минут")
+
