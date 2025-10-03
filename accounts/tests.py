@@ -8,6 +8,10 @@ from django.utils import timezone
 from accounts.models import StudentProfile
 from apps.recsys.models import (
     ExamVersion,
+    Skill,
+    SkillGroup,
+    SkillGroupItem,
+    SkillMastery,
     VariantAssignment,
     VariantAttempt,
     VariantTaskAttempt,
@@ -147,6 +151,30 @@ class DashboardSubjectsTests(TestCase):
             f"{subject.name} — {selected_exam.name}",
         )
         self.assertNotContains(response, other_exam.name)
+
+    def test_progress_bar_displays_skill_mastery_value(self):
+        subject = Subject.objects.create(name="Математика", slug="matematika")
+        exam = ExamVersion.objects.create(subject=subject, name="Вариант 1")
+        profile, _ = StudentProfile.objects.get_or_create(user=self.user)
+        profile.exam_versions.set([exam])
+
+        skill = Skill.objects.create(subject=subject, name="Линейные уравнения")
+        group = SkillGroup.objects.create(exam_version=exam, title="Алгебра")
+        SkillGroupItem.objects.create(
+            group=group,
+            skill=skill,
+            label="Уравнения",
+            order=1,
+        )
+        SkillMastery.objects.create(user=self.user, skill=skill, mastery=0.52)
+
+        self.client.login(username="student", password="pass")
+        response = self.client.get(reverse("accounts:dashboard-subjects"))
+
+        content = response.content.decode("utf-8")
+        self.assertIn("Линейные уравнения", content)
+        self.assertIn("52%", content)
+        self.assertIn('style="width: 52', content)
 
 
 class DashboardAssignmentsViewTests(TestCase):
