@@ -1,5 +1,5 @@
 {% extends 'accounts/dashboard/base.html' %}
-{% load progress_extras %}
+{% load progress_extras l10n %}
 
 {% block dashboard_title %}Статистика{% endblock %}
 
@@ -28,7 +28,7 @@
                       <span class="pct">{{ pct|floatformat:0 }}%</span>
                     </div>
                     <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ gi.skill.name }}">
-                      <div class="fill" style="width: {{ pct }}%"></div>
+                      <div class="fill" style="width: {{ pct|floatformat:'-2'|unlocalize }}%"></div>
                     </div>
                   </div>
                   {% endwith %}
@@ -62,7 +62,7 @@
                     <span class="pct">{{ pct|floatformat:0 }}%</span>
                   </div>
                   <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ t.name }}">
-                    <div class="fill" style="width: {{ pct }}%"></div>
+                    <div class="fill" style="width: {{ pct|floatformat:'-2'|unlocalize }}%"></div>
                   </div>
                 </div>
                 {% endwith %}
