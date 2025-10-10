@@ -1,0 +1,48 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
+
+{% block dashboard_title %}{% trans "Редактирование варианта" %}{% endblock %}
+
+{% block dashboard_content %}
+  {% if role != 'teacher' %}
+    <section class="card"><p>{% trans "Только для учителей." %}</p></section>
+  {% else %}
+    <section class="card">
+      <h2 class="mb-12">{% trans "Корзина варианта" %}</h2>
+      {% if basket_tasks %}
+        <ol class="mb-16">
+          {% for t in basket_tasks %}
+            <li>
+              {{ t.title }} — {{ t.subject.name }} / {{ t.type.name }}
+              <form action="{% url 'accounts:variant-basket-remove' %}" method="post" style="display:inline; margin-left:8px;">
+                {% csrf_token %}
+                <input type="hidden" name="task_id" value="{{ t.id }}" />
+                <button class="btn btn-secondary" type="submit">{% trans "Убрать" %}</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="hint">{% trans "Пока пусто — продолжайте собирать вариант на страницах с задачами." %}</p>
+      {% endif %}
+
+      <form method="post" class="form-grid">
+        {% csrf_token %}
+        <div class="form-field">
+          <label for="time_limit">{% trans "Таймер (HH:MM или минуты)" %}</label>
+          <input type="text" name="time_limit" id="time_limit" value="{{ basket.time_limit }}" placeholder="45" />
+        </div>
+        <div class="form-field">
+          <label for="deadline">{% trans "Дедлайн (YYYY-MM-DDTHH:MM)" %}</label>
+          <input type="datetime-local" name="deadline" id="deadline" value="{{ basket.deadline }}" />
+        </div>
+        <div class="form-actions mt-16">
+          <button class="btn" name="action" value="continue" type="submit">{% trans "Продолжить собирать вариант" %}</button>
+          <button class="btn btn-primary" name="action" value="save" type="submit" {% if not basket_tasks %}disabled{% endif %}>{% trans "Сохранить вариант" %}</button>
+          <button class="btn btn-secondary" name="action" value="reset" type="submit" {% if not basket_tasks %}disabled{% endif %}>{% trans "Сбросить вариант" %}</button>
+        </div>
+      </form>
+    </section>
+  {% endif %}
+{% endblock %}
+

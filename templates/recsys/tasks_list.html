@@ -50,7 +50,12 @@
 
     <div class="grid tasks-grid">
       {% for task in tasks %}
-        <article class="card">
+        <article class="card task-card">
+          {% if request.user.is_authenticated and request.user.teacherprofile %}
+            <div class="task-card__add">
+              {% include 'accounts/includes/add_to_variant_button.html' with task_id=task.id %}
+            </div>
+          {% endif %}
           <div class="section-title">{{ task.title }}</div>
           {% if task.exam_version %}
             <div class="hint">{{ task.subject.name }} — {{ task.exam_version.name }}</div>

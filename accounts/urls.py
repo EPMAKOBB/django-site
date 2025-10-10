@@ -25,6 +25,16 @@ urlpatterns = [
     path("dashboard/students/", views.dashboard_students, name="dashboard-students"),
     path("dashboard/classes/", views.dashboard_classes, name="dashboard-classes"),
     path("dashboard/assignments/create/", views.assignment_create, name="assignment-create"),
+    path(
+        "dashboard/attempts/<int:attempt_id>/",
+        views.variant_attempt_work,
+        name="variant-attempt-work",
+    ),
+    # Variant basket routes (teacher only)
+    path("dashboard/variant-basket/", views.variant_basket_edit, name="variant-basket-edit"),
+    path("dashboard/variant-basket/add/", views.variant_basket_add, name="variant-basket-add"),
+    path("dashboard/variant-basket/remove/", views.variant_basket_remove, name="variant-basket-remove"),
+    path("dashboard/variant-basket/reset/", views.variant_basket_reset, name="variant-basket-reset"),
     path("dashboard/settings/", views.dashboard_settings, name="dashboard-settings"),
     path("dashboard/methodist/", views.dashboard_methodist, name="dashboard-methodist"),
     path("join/teacher/<str:code>/", views.join_teacher_with_code, name="join-teacher"),

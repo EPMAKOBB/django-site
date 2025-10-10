@@ -1,5 +1,4 @@
-import logging
-from collections import defaultdict
+﻿import logging
 
 from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
@@ -26,13 +25,7 @@ from apps.recsys.models import (
 )
 from apps.recsys.service_utils import variants as variant_services
 from subjects.models import Subject
-from courses.models import CourseGraphEdge, CourseModule, CourseModuleItem
-from .context_processors import SESSION_KEY
-from courses.services import (
-    MODULE_UNLOCK_PROGRESS_THRESHOLD,
-    build_module_progress_map,
-    is_module_unlocked_for_user,
-)
+from courses.models import CourseGraphEdge, CourseModule
 
 from .forms import (
     PasswordChangeForm,
@@ -193,7 +186,7 @@ def assignment_detail(request, assignment_id: int):
         except drf_exceptions.ValidationError as exc:
             messages.error(request, _format_error_detail(exc.detail))
         else:
-            messages.success(request, _("Новая попытка по варианту начата"))
+            messages.success(request, _("╨Э╨╛╨▓╨░╤П ╨┐╨╛╨┐╤Л╤В╨║╨░ ╨┐╨╛ ╨▓╨░╤А╨╕╨░╨╜╤В╤Г ╨╜╨░╤З╨░╤В╨░"))
             return redirect("accounts:assignment-detail", assignment_id=assignment_id)
 
     context = {
@@ -275,14 +268,14 @@ def dashboard_teachers(request):
                 if skill.subject_id != subject.id:
                     skill_form.add_error(
                         "skill",
-                        _("Умение должно относиться к выбранному предмету."),
+                        _("╨г╨╝╨╡╨╜╨╕╨╡ ╨┤╨╛╨╗╨╢╨╜╨╛ ╨╛╤В╨╜╨╛╤Б╨╕╤В╤М╤Б╤П ╨║ ╨▓╤Л╨▒╤А╨░╨╜╨╜╨╛╨╝╤Г ╨┐╤А╨╡╨┤╨╝╨╡╤В╤Г."),
                     )
                     formset_has_errors = True
                     continue
                 if skill.id in seen_skill_ids:
                     skill_form.add_error(
                         "skill",
-                        _("Это умение уже добавлено."),
+                        _("╨н╤В╨╛ ╤Г╨╝╨╡╨╜╨╕╨╡ ╤Г╨╢╨╡ ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜╨╛."),
                     )
                     formset_has_errors = True
                     continue
@@ -296,7 +289,7 @@ def dashboard_teachers(request):
                     TaskSkill.objects.filter(task=task).delete()
                     for skill, weight in cleaned_skills:
                         TaskSkill.objects.create(task=task, skill=skill, weight=weight)
-                messages.success(request, _("Задача успешно сохранена."))
+                messages.success(request, _("╨Ч╨░╨┤╨░╤З╨░ ╤Г╤Б╨┐╨╡╤И╨╜╨╛ ╤Б╨╛╤Е╤А╨░╨╜╨╡╨╜╨░."))
                 return redirect("accounts:dashboard-teachers")
     else:
         form = TaskCreateForm()
@@ -323,7 +316,7 @@ def dashboard_classes(request):
         if request.method == "POST":
             action = request.POST.get("action")
             if action == "create_class":
-                name = (request.POST.get("name") or "").strip() or _("Новый класс")
+                name = (request.POST.get("name") or "").strip() or _("╨Э╨╛╨▓╤Л╨╣ ╨║╨╗╨░╤Б╤Б")
                 subject_id = request.POST.get("subject")
                 study_class = StudyClass.objects.create(name=name, created_by=request.user)
                 if subject_id:
@@ -334,7 +327,7 @@ def dashboard_classes(request):
                         )
                     except (Subject.DoesNotExist, ValueError, TypeError):
                         pass
-                messages.success(request, _("Класс создан"))
+                messages.success(request, _("╨Ъ╨╗╨░╤Б╤Б ╤Б╨╛╨╖╨┤╨░╨╜"))
                 return redirect("accounts:dashboard-classes")
 
         classes = (
@@ -386,10 +379,10 @@ def dashboard_students(request):
                     )
                     messages.success(
                         request,
-                        _("Создан код приглашения: ") + invite.code,
+                        _("╨б╨╛╨╖╨┤╨░╨╜ ╨║╨╛╨┤ ╨┐╤А╨╕╨│╨╗╨░╤И╨╡╨╜╨╕╤П: ") + invite.code,
                     )
                 except Subject.DoesNotExist:
-                    messages.error(request, _("Предмет не найден"))
+                    messages.error(request, _("╨Я╤А╨╡╨┤╨╝╨╡╤В ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜"))
             return redirect("accounts:dashboard-students")
 
     # Active links grouped by subject
@@ -431,7 +424,7 @@ def join_teacher_with_code(request, code: str):
             code=code, is_active=True
         )
     except TeacherSubjectInvite.DoesNotExist:
-        messages.error(request, _("Неверный или истекший код учителя"))
+        messages.error(request, _("╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ ╨╕╨╗╨╕ ╨╕╤Б╤В╨╡╨║╤И╨╕╨╣ ╨║╨╛╨┤ ╤Г╤З╨╕╤В╨╡╨╗╤П"))
         return redirect("accounts:dashboard-settings")
 
     link, created = TeacherStudentLink.objects.get_or_create(
@@ -447,7 +440,7 @@ def join_teacher_with_code(request, code: str):
     invite.is_active = False
     invite.save(update_fields=["is_active", "updated_at"]) if hasattr(invite, "updated_at") else invite.save()
 
-    messages.success(request, _("Учитель добавлен: ") + str(invite.teacher))
+    messages.success(request, _("╨г╤З╨╕╤В╨╡╨╗╤М ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜: ") + str(invite.teacher))
     return redirect("accounts:dashboard-settings")
 
 
@@ -458,13 +451,13 @@ def join_class_with_code(request, code: str):
     try:
         study_class = StudyClass.objects.get(join_code=code, is_active=True)
     except StudyClass.DoesNotExist:
-        messages.error(request, _("Неверный или недействительный код класса"))
+        messages.error(request, _("╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ ╨╕╨╗╨╕ ╨╜╨╡╨┤╨╡╨╣╤Б╤В╨▓╨╕╤В╨╡╨╗╤М╨╜╤Л╨╣ ╨║╨╛╨┤ ╨║╨╗╨░╤Б╤Б╨░"))
         return redirect("accounts:dashboard-settings")
 
     ClassStudentMembership.objects.get_or_create(
         study_class=study_class, student=request.user
     )
-    messages.success(request, _("Вы присоединились к классу: ") + study_class.name)
+    messages.success(request, _("╨Т╤Л ╨┐╤А╨╕╤Б╨╛╨╡╨┤╨╕╨╜╨╕╨╗╨╕╤Б╤М ╨║ ╨║╨╗╨░╤Б╤Б╤Г: ") + study_class.name)
     return redirect("accounts:dashboard-settings")
 
 
@@ -510,7 +503,7 @@ def assignment_create(request):
         try:
             template = VariantTemplate.objects.get(pk=int(template_id))
         except (VariantTemplate.DoesNotExist, TypeError, ValueError):
-            messages.error(request, _("Выберите корректный шаблон варианта"))
+            messages.error(request, _("╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡ ╨║╨╛╤А╤А╨╡╨║╤В╨╜╤Л╨╣ ╤И╨░╨▒╨╗╨╛╨╜ ╨▓╨░╤А╨╕╨░╨╜╤В╨░"))
             return redirect("accounts:assignment-create")
 
         # Build recipient set
@@ -537,7 +530,7 @@ def assignment_create(request):
                 defaults={"deadline": deadline},
             )
             created += 1
-        messages.success(request, _("Назначено заданий: ") + str(created))
+        messages.success(request, _("╨Э╨░╨╖╨╜╨░╤З╨╡╨╜╨╛ ╨╖╨░╨┤╨░╨╜╨╕╨╣: ") + str(created))
         return redirect("accounts:dashboard")
 
     context = {
@@ -571,13 +564,13 @@ def dashboard_methodist(request):
             course_form = CourseForm(request.POST)
             if course_form.is_valid():
                 course_form.save()
-                messages.success(request, _("Курс создан"))
+                messages.success(request, _("╨Ъ╤Г╤А╤Б ╤Б╨╛╨╖╨┤╨░╨╜"))
                 return redirect("accounts:dashboard-methodist")
         elif action == "create_theory":
             theory_form = CourseTheoryCardForm(request.POST)
             if theory_form.is_valid():
                 theory_form.save()
-                messages.success(request, _("Теоретическая карточка создана"))
+                messages.success(request, _("╨в╨╡╨╛╤А╨╡╤В╨╕╤З╨╡╤Б╨║╨░╤П ╨║╨░╤А╤В╨╛╤З╨║╨░ ╤Б╨╛╨╖╨┤╨░╨╜╨░"))
                 return redirect("accounts:dashboard-methodist")
 
     # Lists
@@ -630,7 +623,7 @@ def dashboard_settings(request):
                 TeacherStudentLink.objects.filter(id=link_id, student=request.user).update(
                     status=TeacherStudentLink.Status.REVOKED
                 )
-                messages.success(request, _("Вы отказались от учителя"))
+                messages.success(request, _("╨Т╤Л ╨╛╤В╨║╨░╨╖╨░╨╗╨╕╤Б╤М ╨╛╤В ╤Г╤З╨╕╤В╨╡╨╗╤П"))
             return redirect("accounts:dashboard-settings")
         elif action == "leave_class":
             try:
@@ -639,7 +632,7 @@ def dashboard_settings(request):
                 membership_id = 0
             if membership_id:
                 ClassStudentMembership.objects.filter(id=membership_id, student=request.user).delete()
-                messages.success(request, _("Вы вышли из класса"))
+                messages.success(request, _("╨Т╤Л ╨▓╤Л╤И╨╗╨╕ ╨╕╨╖ ╨║╨╗╨░╤Б╤Б╨░"))
             return redirect("accounts:dashboard-settings")
 
         if user_submit:
@@ -704,7 +697,7 @@ def dashboard_settings(request):
                     "profile_id": profile.pk,
                 },
             )
-            messages.success(request, _("Выбор сохранён"))
+            messages.success(request, _("╨Т╤Л╨▒╨╛╤А ╤Б╨╛╤Е╤А╨░╨╜╤С╨╜"))
             return redirect("accounts:dashboard-settings")
         else:
             u_form = UserUpdateForm(instance=request.user)
@@ -844,13 +837,7 @@ def dashboard_courses(request):
         .prefetch_related(
             Prefetch(
                 "course__modules",
-                queryset=CourseModule.objects.order_by("col", "rank", "id").prefetch_related(
-                    Prefetch(
-                        "items",
-                        queryset=CourseModuleItem.objects.select_related("theory_card", "task")
-                        .order_by("position", "id"),
-                    )
-                ),
+                queryset=CourseModule.objects.order_by("col", "rank", "id"),
             ),
             Prefetch(
                 "course__graph_edges",
@@ -864,29 +851,17 @@ def dashboard_courses(request):
     for enrollment in enrollments_qs:
         course = enrollment.course
 
-        modules = list(course.modules.all())
-        progress_map = build_module_progress_map(
-            user=request.user,
-            enrollment=enrollment,
-            modules=modules,
-        )
-
-        incoming_edges_by_dst: dict[int, list[CourseGraphEdge]] = defaultdict(list)
-        for edge in course.graph_edges.all():
-            incoming_edges_by_dst[edge.dst_id].append(edge)
-
-        locked_by_module: dict[int, bool] = {}
         nodes = []
-        for module in modules:
-            module_progress = progress_map.get(module.id, 0.0)
-            unlocked = is_module_unlocked_for_user(
-                user=request.user,
-                module=module,
-                enrollment=enrollment,
-                incoming_edges=incoming_edges_by_dst.get(module.id, []),
-                progress_map=progress_map,
-            )
-            locked_by_module[module.id] = not unlocked
+        for module in course.modules.all():
+            module_progress = None
+            for attr in ("progress_percent", "progress", "completion_percent"):
+                value = getattr(module, attr, None)
+                if value is not None:
+                    module_progress = float(value)
+                    break
+
+            if module_progress is None:
+                module_progress = float(enrollment.progress or 0)
 
             nodes.append(
                 {
@@ -898,7 +873,7 @@ def dashboard_courses(request):
                     "row": module.rank,
                     "dx": module.dx,
                     "dy": module.dy,
-                    "locked": locked_by_module[module.id],
+                    "locked": module.is_locked,
                     "kind": module.kind,
                     "progress": max(0.0, min(100.0, module_progress)),
                     "url": module.get_absolute_url() if hasattr(module, "get_absolute_url") else "",
@@ -907,15 +882,6 @@ def dashboard_courses(request):
 
         edges = []
         for edge in course.graph_edges.all():
-            src_progress = progress_map.get(edge.src_id, 0.0)
-            edge_unlocked_by_progress = src_progress >= MODULE_UNLOCK_PROGRESS_THRESHOLD
-            src_locked = locked_by_module.get(edge.src_id, False)
-            dst_locked = locked_by_module.get(edge.dst_id, False)
-            edge_locked = (
-                not edge_unlocked_by_progress
-                and (edge.is_locked or src_locked or dst_locked)
-            )
-
             edges.append(
                 {
                     "id": edge.id,
@@ -923,7 +889,7 @@ def dashboard_courses(request):
                     "dst": edge.dst_id,
                     "kind": edge.kind,
                     "weight": float(edge.weight),
-                    "locked": edge_locked,
+                    "locked": edge.is_locked or edge.src.is_locked or edge.dst.is_locked,
                 }
             )
 
@@ -936,287 +902,6 @@ def dashboard_courses(request):
         "enrollments": enrollments,
     }
     return render(request, "accounts/dashboard/courses.html", context)
-
-
-def _get_variant_basket(request) -> dict:
-    basket = request.session.get(SESSION_KEY) or {}
-    tasks = basket.get("tasks") or []
-    if not isinstance(tasks, list):
-        tasks = []
-    return {
-        "tasks": list(tasks),
-        "time_limit": basket.get("time_limit") or "",
-        "deadline": basket.get("deadline") or "",
-    }
-
-
-def _save_variant_basket(request, *, tasks: list[int], time_limit: str = "", deadline: str = "") -> None:
-    request.session[SESSION_KEY] = {
-        "tasks": tasks,
-        "time_limit": time_limit.strip() if isinstance(time_limit, str) else "",
-        "deadline": deadline.strip() if isinstance(deadline, str) else "",
-    }
-    request.session.modified = True
-
-
-@login_required
-def variant_attempt_work(request, attempt_id: int):
-    """Allow students to work on a specific attempt."""
-
-    role = _get_dashboard_role(request)
-    try:
-        attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
-    except drf_exceptions.NotFound as exc:
-        raise Http404(str(exc)) from exc
-
-    assignment = attempt.assignment
-
-    if request.method == "POST":
-        action = request.POST.get("action")
-        if action == "submit-task":
-            variant_task_id = request.POST.get("variant_task_id")
-            is_correct = request.POST.get("is_correct") == "1"
-            response_text = (request.POST.get("response") or "").strip()
-            if not variant_task_id:
-                messages.error(request, _("�?�?�?�?�?�?�? ���?���<�'�?�� �� ��?��?���?��?��."))
-            else:
-                try:
-                    snapshot = None
-                    if response_text:
-                        snapshot = {"text": response_text}
-                    variant_services.submit_task_answer(
-                        request.user,
-                        attempt_id=attempt_id,
-                        variant_task_id=int(variant_task_id),
-                        is_correct=is_correct,
-                        task_snapshot=snapshot,
-                    )
-                except (ValueError, TypeError):
-                    messages.error(request, _("���?���<�'�? ��? �����?����."))
-                except drf_exceptions.ValidationError as exc:
-                    messages.error(request, _format_error_detail(exc.detail))
-                except drf_exceptions.APIException as exc:
-                    messages.error(request, _format_error_detail(getattr(exc, "detail", str(exc))))
-                except drf_exceptions.NotFound as exc:
-                    raise Http404(str(exc)) from exc
-                else:
-                    messages.success(request, _("�?��?�?� ���?���<�'�?�� �����?��?�?�?�?."))
-            return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
-        elif action == "finalize":
-            try:
-                variant_services.finalize_attempt(request.user, attempt_id)
-            except drf_exceptions.ValidationError as exc:
-                messages.error(request, _format_error_detail(exc.detail))
-            except drf_exceptions.NotFound as exc:
-                raise Http404(str(exc)) from exc
-            else:
-                messages.success(request, _("�?�?���<�'��� �����?��?�?�?�???."))
-            return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
-
-    attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
-    assignment = attempt.assignment
-
-    tasks_progress = variant_services.build_tasks_progress(attempt)
-    template_tasks = {task.id: task for task in assignment.template.template_tasks.all()}
-
-    tasks = []
-    for item in tasks_progress:
-        variant_task = template_tasks.get(item["variant_task_id"])
-        if not variant_task:
-            continue
-        task = variant_task.task
-        snapshot = item.get("task_snapshot") or {}
-        if isinstance(snapshot, dict):
-            task_payload = snapshot.get("task") or snapshot
-        else:
-            task_payload = {}
-
-        display = {
-            "title": task_payload.get("title") or task.title,
-            "description": task_payload.get("description") or task.description,
-            "rendering_strategy": task_payload.get("rendering_strategy") or task.rendering_strategy,
-            "image": task_payload.get("image") or (task.image.url if getattr(task, "image", None) else None),
-        }
-
-        attempts_history = []
-        for attempt_entry in item.get("attempts", []):
-            payload = attempt_entry.task_snapshot or {}
-            response_payload = {}
-            if isinstance(payload, dict):
-                response_payload = payload.get("response") or {}
-            response_text = ""
-            if isinstance(response_payload, dict):
-                response_text = (
-                    response_payload.get("text")
-                    or response_payload.get("answer")
-                    or response_payload.get("value")
-                    or ""
-                )
-            elif isinstance(response_payload, str):
-                response_text = response_payload
-
-            attempts_history.append(
-                {
-                    "number": attempt_entry.attempt_number,
-                    "is_correct": attempt_entry.is_correct,
-                    "created_at": attempt_entry.created_at,
-                    "response_text": response_text,
-                }
-            )
-
-        max_attempts = item.get("max_attempts")
-        attempts_used = item.get("attempts_used") or 0
-        remaining_attempts = None
-        if max_attempts is not None:
-            remaining_attempts = max(0, max_attempts - attempts_used)
-
-        tasks.append(
-            {
-                "variant_task": variant_task,
-                "task": task,
-                "order": item.get("order"),
-                "display": display,
-                "skills": list(task.skills.all()),
-                "is_completed": item.get("is_completed", False),
-                "remaining_attempts": remaining_attempts,
-                "max_attempts": max_attempts,
-                "history": attempts_history,
-            }
-        )
-
-    tasks.sort(key=lambda entry: entry["order"] or 0)
-
-    attempt_completed = attempt.completed_at is not None
-    progress_summary = variant_services.calculate_assignment_progress(assignment)
-    all_completed = all(entry["is_completed"] for entry in tasks)
-    time_left_delta = variant_services.get_time_left(attempt)
-    time_left = _format_duration(time_left_delta) if time_left_delta else None
-
-    context = {
-        "active_tab": "tasks",
-        "role": role,
-        "assignment": assignment,
-        "attempt": attempt,
-        "tasks": tasks,
-        "progress_summary": progress_summary,
-        "attempt_completed": attempt_completed,
-        "all_completed": all_completed,
-        "time_left": time_left,
-    }
-    return render(request, "accounts/dashboard/variant_attempt_work.html", context)
-
-
-@login_required
-def variant_basket_edit(request):
-    """Allow teachers to review and configure tasks stored in the basket."""
-
-    role = _get_dashboard_role(request)
-    basket = _get_variant_basket(request)
-
-    task_ids = [task_id for task_id in basket["tasks"] if isinstance(task_id, int)]
-    tasks_map = {
-        task.id: task
-        for task in Task.objects.filter(id__in=task_ids).select_related("subject", "type")
-    }
-    ordered_tasks = [tasks_map[task_id] for task_id in task_ids if task_id in tasks_map]
-
-    if request.method == "POST":
-        action = request.POST.get("action") or ""
-        time_limit = request.POST.get("time_limit", basket["time_limit"])
-        deadline = request.POST.get("deadline", basket["deadline"])
-
-        if action == "reset":
-            _save_variant_basket(request, tasks=[], time_limit="", deadline="")
-            messages.success(request, _("�?���?����?�' ���������� �?�?�+�?���'�?."))  # cleared
-            return redirect("accounts:variant-basket-edit")
-
-        _save_variant_basket(
-            request,
-            tasks=basket["tasks"],
-            time_limit=time_limit,
-            deadline=deadline,
-        )
-        if action == "save":
-            messages.success(request, _("�?���?����?�' �����?��?�?�?�???."))
-            return redirect("accounts:variant-basket-edit")
-        elif action == "continue":
-            messages.success(request, _("������� ������������� ����������."))
-            return redirect("accounts:variant-basket-edit")
-
-    context = {
-        "active_tab": "tasks",
-        "role": role,
-        "basket": basket,
-        "basket_tasks": ordered_tasks,
-    }
-    return render(request, "accounts/dashboard/variant_basket_edit.html", context)
-
-
-@login_required
-def variant_basket_add(request):
-    if request.method != "POST":
-        return redirect("accounts:variant-basket-edit")
-
-    if not hasattr(request.user, "teacherprofile"):
-        messages.error(request, _("�?���?�>�?��? �?�� ��?�?�?�>�?�?�� ������������ �?���?����?�'�?"))
-        return redirect("accounts:variant-basket-edit")
-
-    try:
-        task_id = int(request.POST.get("task_id", ""))
-    except (TypeError, ValueError):
-        messages.error(request, _("���?���<�'�? ��? �����?����."))
-        return redirect("accounts:variant-basket-edit")
-
-    try:
-        Task.objects.get(pk=task_id)
-    except Task.DoesNotExist:
-        messages.error(request, _("�����?���?��? �� �?�����?��?��."))
-        return redirect("accounts:variant-basket-edit")
-
-    basket = _get_variant_basket(request)
-    if task_id not in basket["tasks"]:
-        basket["tasks"].append(task_id)
-        _save_variant_basket(
-            request,
-            tasks=basket["tasks"],
-            time_limit=basket["time_limit"],
-            deadline=basket["deadline"],
-        )
-        messages.success(request, _("�����?���?��? �������� �?���?����?�'."))
-
-    return redirect("accounts:variant-basket-edit")
-
-
-@login_required
-def variant_basket_remove(request):
-    if request.method != "POST":
-        return redirect("accounts:variant-basket-edit")
-
-    try:
-        task_id = int(request.POST.get("task_id", ""))
-    except (TypeError, ValueError):
-        messages.error(request, _("���?���<�'�? ��? �����?����."))
-        return redirect("accounts:variant-basket-edit")
-
-    basket = _get_variant_basket(request)
-    if task_id in basket["tasks"]:
-        basket["tasks"].remove(task_id)
-        _save_variant_basket(
-            request,
-            tasks=basket["tasks"],
-            time_limit=basket["time_limit"],
-            deadline=basket["deadline"],
-        )
-        messages.success(request, _("�����?���?��? �������� �� �?���?����?�'."))
-
-    return redirect("accounts:variant-basket-edit")
-
-
-@login_required
-def variant_basket_reset(request):
-    _save_variant_basket(request, tasks=[], time_limit="", deadline="")
-    messages.success(request, _("�?���?����?�' ����������."))
-    return redirect("accounts:variant-basket-edit")
 
 
 

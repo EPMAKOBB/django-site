@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from .models import Attempt, SkillMastery, TypeMastery
 
+MASTERY_WEIGHT_MULTIPLIER = 0.2
+
 
 def update_mastery(attempt: Attempt) -> None:
     """Update user mastery based on an attempt and its weight."""
     user = attempt.user
     task = attempt.task
-    delta = attempt.weight if attempt.is_correct else -attempt.weight
+    raw_delta = attempt.weight if attempt.is_correct else -attempt.weight
+    delta = raw_delta * MASTERY_WEIGHT_MULTIPLIER
 
     if delta == 0:
         return

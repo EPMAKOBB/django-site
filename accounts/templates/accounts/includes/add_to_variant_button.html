@@ -1,0 +1,18 @@
+{% comment %}
+Reusable "add to variant" button.
+Usage: include with context variable task_id.
+Renders a small plus button with tooltip "добавить в вариант" for teachers.
+{% endcomment %}
+{% load i18n %}
+{% if request.user.is_authenticated and request.user.teacherprofile and task_id %}
+<button type="button"
+        class="btn btn-secondary"
+        data-variant-add
+        data-task-id="{{ task_id }}"
+        title="{% trans 'Добавить в вариант' %}"
+        aria-label="{% trans 'Добавить в вариант' %}">
+  +
+  <span class="sr-only">{% trans 'Добавить в вариант' %}</span>
+</button>
+{% endif %}
+

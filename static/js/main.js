@@ -191,3 +191,53 @@ document.addEventListener('DOMContentLoaded', () => {
 if (typeof module !== 'undefined') {
   module.exports = { updatePrice };
 }
+
+// -------------------------------
+// Variant basket (teacher)
+// -------------------------------
+
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+async function postForm(url, data) {
+  const form = new URLSearchParams();
+  Object.entries(data || {}).forEach(([k, v]) => form.append(k, v));
+  const csrftoken = getCookie('csrftoken');
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      'X-CSRFToken': csrftoken || ''
+    },
+    body: form.toString()
+  });
+  return resp.json().catch(() => ({}));
+}
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-variant-add]');
+  if (!btn) return;
+  const taskId = btn.getAttribute('data-task-id');
+  if (!taskId) return;
+  e.preventDefault();
+  try {
+    const data = await postForm('/accounts/dashboard/variant-basket/add/', { task_id: taskId });
+    if (data && data.ok) {
+      // Show a subtle feedback
+      btn.classList.add('pulse');
+      setTimeout(() => btn.classList.remove('pulse'), 600);
+      // If widget exists, bump badge text
+      const badge = document.querySelector('.variant-basket-widget__badge');
+      if (badge) badge.textContent = String(data.count || '');
+      // If widget is not on page yet but count > 0, reload to render it
+      if (!document.querySelector('.variant-basket-widget') && (data.count || 0) > 0) {
+        window.location.reload();
+      }
+    }
+  } catch (_) {
+    // no-op
+  }
+});

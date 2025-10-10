@@ -62,19 +62,22 @@
       </dl>
     </section>
 
-    <section class="assignment-detail__actions" aria-label="{% trans 'Доступные действия' %}">
+        <section class="assignment-detail__actions" aria-label="{% trans '?"?????'???????<?? ????????'?????' %}">
       {% if assignment_info.active_attempt %}
-        <p class="assignment-detail__hint">{% trans "У вас есть активная попытка. Продолжите работу или завершите её из интерфейса решения." %}</p>
+        <a class="btn btn-primary" href="{% url 'accounts:variant-attempt-work' assignment_info.active_attempt.id %}">
+          {% trans "���������� ������" %}
+        </a>
+        <p class="assignment-detail__hint">{% trans "������� ��� ��������. ������������� � ��������� �������, ����� ����������." %}</p>
       {% elif assignment_info.can_start %}
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="start_attempt" value="1">
-          <button type="submit" class="btn btn-primary">{% trans "Начать новую попытку" %}</button>
+          <button type="submit" class="btn btn-primary">{% trans "????????'?? ?????????? ???????<?'???" %}</button>
         </form>
       {% else %}
-        <p class="assignment-detail__hint assignment-detail__hint--muted">{% trans "Новые попытки недоступны для этого варианта." %}</p>
+        <p class="assignment-detail__hint assignment-detail__hint--muted">{% trans "???????<?? ???????<?'??? ??????????'???????< ???>?? ???'?????? ????????????'??." %}</p>
       {% endif %}
-      <a class="btn btn-secondary" href="{% url 'accounts:assignment-result' assignment.id %}">{% trans "История попыток" %}</a>
+      <a class="btn btn-secondary" href="{% url 'accounts:assignment-result' assignment.id %}">{% trans "?????'??????? ???????<?'????" %}</a>
     </section>
 
     <section class="assignment-detail__history" aria-label="{% trans 'Список попыток' %}">
@@ -122,3 +125,4 @@
     </section>
   </article>
 {% endblock %}
+

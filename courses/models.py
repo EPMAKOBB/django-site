@@ -387,3 +387,24 @@ class CourseModuleItem(TimeStampedModel):
         if self.kind == self.ItemKind.TASK and self.task:
             return getattr(self.task, "difficulty_level", 0)
         return 0
+
+
+class CourseModuleItemCompletion(TimeStampedModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="course_module_item_completions",
+    )
+    module_item = models.ForeignKey(
+        CourseModuleItem,
+        on_delete=models.CASCADE,
+        related_name="completions",
+    )
+
+    class Meta:
+        unique_together = ("user", "module_item")
+        verbose_name = "Course module item completion"
+        verbose_name_plural = "Course module item completions"
+
+    def __str__(self) -> str:
+        return f"{self.user} -> {self.module_item}"
