@@ -824,7 +824,7 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 
 .courses-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-md);
 }
 
