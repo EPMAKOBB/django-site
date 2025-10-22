@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
@@ -7,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
 from django.db.models import Prefetch
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -23,6 +24,7 @@ from apps.recsys.models import (
     TypeMastery,
     VariantTemplate,
     VariantAssignment,
+    VariantTask,
 )
 from apps.recsys.service_utils import variants as variant_services
 from subjects.models import Subject
@@ -959,6 +961,55 @@ def _save_variant_basket(request, *, tasks: list[int], time_limit: str = "", dea
     request.session.modified = True
 
 
+def _parse_time_limit(value: str) -> timedelta | None:
+    """Convert HH:MM or minutes string to ``timedelta``."""
+
+    value = (value or "").strip()
+    if not value:
+        return None
+
+    try:
+        if ":" in value:
+            parts = value.split(":")
+            if len(parts) == 2:
+                hours, minutes = parts
+                seconds = 0
+            elif len(parts) == 3:
+                hours, minutes, seconds = parts
+            else:
+                return None
+            hours_i = int(hours)
+            minutes_i = int(minutes)
+            seconds_i = int(seconds)
+        else:
+            hours_i = 0
+            minutes_i = int(value)
+            seconds_i = 0
+        if hours_i < 0 or minutes_i < 0 or seconds_i < 0:
+            return None
+    except ValueError:
+        return None
+
+    return timedelta(hours=hours_i, minutes=minutes_i, seconds=seconds_i)
+
+
+def _generate_template_name(user, tasks_count: int) -> str:
+    """Build a unique template name for the saved basket."""
+
+    username = getattr(user, "username", "")
+    timestamp = timezone.localtime().strftime("%Y-%m-%d %H:%M")
+    base = f"Вариант {username} {timestamp}".strip()
+    if tasks_count:
+        base = f"{base} • {tasks_count} задач"
+
+    candidate = base
+    suffix = 2
+    while VariantTemplate.objects.filter(name=candidate).exists():
+        candidate = f"{base} #{suffix}"
+        suffix += 1
+    return candidate
+
+
 @login_required
 def variant_attempt_work(request, attempt_id: int):
     """Allow students to work on a specific attempt."""
@@ -978,7 +1029,7 @@ def variant_attempt_work(request, attempt_id: int):
             is_correct = request.POST.get("is_correct") == "1"
             response_text = (request.POST.get("response") or "").strip()
             if not variant_task_id:
-                messages.error(request, _("�?�?�?�?�?�?�? ���?���<�'�?�� �� ��?��?���?��?��."))
+                messages.error(request, _("Не указан идентификатор задания."))
             else:
                 try:
                     snapshot = None
@@ -992,7 +1043,7 @@ def variant_attempt_work(request, attempt_id: int):
                         task_snapshot=snapshot,
                     )
                 except (ValueError, TypeError):
-                    messages.error(request, _("���?���<�'�? ��? �����?����."))
+                    messages.error(request, _("Некорректный идентификатор задания."))
                 except drf_exceptions.ValidationError as exc:
                     messages.error(request, _format_error_detail(exc.detail))
                 except drf_exceptions.APIException as exc:
@@ -1000,7 +1051,7 @@ def variant_attempt_work(request, attempt_id: int):
                 except drf_exceptions.NotFound as exc:
                     raise Http404(str(exc)) from exc
                 else:
-                    messages.success(request, _("�?��?�?� ���?���<�'�?�� �����?��?�?�?�?."))
+                    messages.success(request, _("Решение сохранено."))
             return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
         elif action == "finalize":
             try:
@@ -1010,7 +1061,7 @@ def variant_attempt_work(request, attempt_id: int):
             except drf_exceptions.NotFound as exc:
                 raise Http404(str(exc)) from exc
             else:
-                messages.success(request, _("�?�?���<�'��� �����?��?�?�?�???."))
+                messages.success(request, _("Попытка завершена."))
             return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
 
     attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
@@ -1127,7 +1178,44 @@ def variant_basket_edit(request):
 
         if action == "reset":
             _save_variant_basket(request, tasks=[], time_limit="", deadline="")
-            messages.success(request, _("�?���?����?�' ���������� �?�?�+�?���'�?."))  # cleared
+            messages.success(request, _("Корзина варианта очищена."))
+            return redirect("accounts:variant-basket-edit")
+
+        if action == "save":
+            parsed_time_limit = _parse_time_limit(time_limit)
+            if time_limit.strip() and parsed_time_limit is None:
+                messages.error(
+                    request,
+                    _("Введите таймер в формате HH:MM или количество минут."),
+                )
+                return redirect("accounts:variant-basket-edit")
+
+            if not ordered_tasks:
+                messages.error(request, _("Добавьте хотя бы одну задачу в вариант."))
+                return redirect("accounts:variant-basket-edit")
+
+            with transaction.atomic():
+                template = VariantTemplate.objects.create(
+                    name=_generate_template_name(request.user, len(ordered_tasks)),
+                    time_limit=parsed_time_limit,
+                )
+                for order, task in enumerate(ordered_tasks, start=1):
+                    VariantTask.objects.create(
+                        template=template,
+                        task=task,
+                        order=order,
+                    )
+
+            _save_variant_basket(
+                request,
+                tasks=[],
+                time_limit=time_limit,
+                deadline=deadline,
+            )
+            messages.success(
+                request,
+                _("Вариант сохранён как «%(name)s».") % {"name": template.name},
+            )
             return redirect("accounts:variant-basket-edit")
 
         _save_variant_basket(
@@ -1136,12 +1224,11 @@ def variant_basket_edit(request):
             time_limit=time_limit,
             deadline=deadline,
         )
-        if action == "save":
-            messages.success(request, _("�?���?����?�' �����?��?�?�?�???."))
-            return redirect("accounts:variant-basket-edit")
-        elif action == "continue":
-            messages.success(request, _("������� ������������� ����������."))
-            return redirect("accounts:variant-basket-edit")
+        if action == "continue":
+            messages.success(request, _("Настройки сохранены, можно продолжать собирать вариант."))
+        else:
+            messages.success(request, _("Настройки варианта обновлены."))
+        return redirect("accounts:variant-basket-edit")
 
     context = {
         "active_tab": "tasks",
@@ -1154,23 +1241,43 @@ def variant_basket_edit(request):
 
 @login_required
 def variant_basket_add(request):
+    is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+    def _ajax_response(payload: dict, status: int = 200):
+        if is_ajax:
+            return JsonResponse(payload, status=status)
+        return None
+
     if request.method != "POST":
-        return redirect("accounts:variant-basket-edit")
+        response = _ajax_response({"ok": False, "error": "Метод не поддерживается"}, status=405)
+        return response or redirect("accounts:variant-basket-edit")
 
     if not hasattr(request.user, "teacherprofile"):
-        messages.error(request, _("�?���?�>�?��? �?�� ��?�?�?�>�?�?�� ������������ �?���?����?�'�?"))
+        message = _("У вас нет прав для работы с вариантом.")
+        response = _ajax_response({"ok": False, "error": str(message)}, status=403)
+        if response:
+            return response
+        messages.error(request, message)
         return redirect("accounts:variant-basket-edit")
 
     try:
         task_id = int(request.POST.get("task_id", ""))
     except (TypeError, ValueError):
-        messages.error(request, _("���?���<�'�? ��? �����?����."))
+        message = _("Некорректный идентификатор задания.")
+        response = _ajax_response({"ok": False, "error": str(message)}, status=400)
+        if response:
+            return response
+        messages.error(request, message)
         return redirect("accounts:variant-basket-edit")
 
     try:
         Task.objects.get(pk=task_id)
     except Task.DoesNotExist:
-        messages.error(request, _("�����?���?��? �� �?�����?��?��."))
+        message = _("Задача не найдена.")
+        response = _ajax_response({"ok": False, "error": str(message)}, status=404)
+        if response:
+            return response
+        messages.error(request, message)
         return redirect("accounts:variant-basket-edit")
 
     basket = _get_variant_basket(request)
@@ -1182,8 +1289,21 @@ def variant_basket_add(request):
             time_limit=basket["time_limit"],
             deadline=basket["deadline"],
         )
-        messages.success(request, _("�����?���?��? �������� �?���?����?�'."))
+        message = _("Задача добавлена в вариант.")
+        response = _ajax_response(
+            {"ok": True, "count": len(basket["tasks"]), "task_id": task_id},
+        )
+        if response:
+            return response
+        messages.success(request, message)
+        return redirect("accounts:variant-basket-edit")
 
+    response = _ajax_response(
+        {"ok": True, "count": len(basket["tasks"]), "task_id": task_id, "already_added": True},
+    )
+    if response:
+        return response
+    messages.info(request, _("Эта задача уже есть в варианте."))
     return redirect("accounts:variant-basket-edit")
 
 
@@ -1195,7 +1315,7 @@ def variant_basket_remove(request):
     try:
         task_id = int(request.POST.get("task_id", ""))
     except (TypeError, ValueError):
-        messages.error(request, _("���?���<�'�? ��? �����?����."))
+        messages.error(request, _("Некорректный идентификатор задания."))
         return redirect("accounts:variant-basket-edit")
 
     basket = _get_variant_basket(request)
@@ -1207,7 +1327,7 @@ def variant_basket_remove(request):
             time_limit=basket["time_limit"],
             deadline=basket["deadline"],
         )
-        messages.success(request, _("�����?���?��? �������� �� �?���?����?�'."))
+        messages.success(request, _("Задача удалена из варианта."))
 
     return redirect("accounts:variant-basket-edit")
 
@@ -1215,7 +1335,7 @@ def variant_basket_remove(request):
 @login_required
 def variant_basket_reset(request):
     _save_variant_basket(request, tasks=[], time_limit="", deadline="")
-    messages.success(request, _("�?���?����?�' ����������."))
+    messages.success(request, _("Корзина варианта очищена."))
     return redirect("accounts:variant-basket-edit")
 
 
