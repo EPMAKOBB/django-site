@@ -210,11 +210,23 @@ async function postForm(url, data) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-      'X-CSRFToken': csrftoken || ''
+      'X-CSRFToken': csrftoken || '',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Accept': 'application/json'
     },
     body: form.toString()
   });
-  return resp.json().catch(() => ({}));
+  let payload = {};
+  try {
+    payload = await resp.json();
+  } catch (err) {
+    payload = {};
+  }
+  if (!resp.ok) {
+    const error = (payload && payload.error) || 'Ошибка запроса.';
+    throw new Error(error);
+  }
+  return payload;
 }
 
 document.addEventListener('click', async (e) => {
@@ -236,8 +248,12 @@ document.addEventListener('click', async (e) => {
       if (!document.querySelector('.variant-basket-widget') && (data.count || 0) > 0) {
         window.location.reload();
       }
+    } else if (data && data.error) {
+      console.warn('Variant add error:', data.error);
+      alert(data.error);
     }
-  } catch (_) {
-    // no-op
+  } catch (err) {
+    console.warn('Variant add request failed:', err);
+    alert(err && err.message ? err.message : 'Не удалось добавить задачу в вариант.');
   }
 });
