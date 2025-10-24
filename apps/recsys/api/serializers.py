@@ -7,6 +7,7 @@ from ..models import (
     SkillMastery,
     Task,
     TaskSkill,
+    TaskTag,
     TaskType,
     SkillGroup,
     SkillGroupItem,
@@ -26,12 +27,20 @@ class SkillSerializer(serializers.ModelSerializer):
         fields = ["id", "subject", "name", "description"]
 
 
+class TaskTagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaskTag
+        fields = ["id", "subject", "name", "slug"]
+        read_only_fields = fields
+
+
 class TaskTypeSerializer(serializers.ModelSerializer):
     exam_version = serializers.PrimaryKeyRelatedField(read_only=True)
+    required_tags = TaskTagSerializer(many=True, read_only=True)
 
     class Meta:
         model = TaskType
-        fields = ["id", "subject", "exam_version", "name", "description"]
+        fields = ["id", "subject", "exam_version", "name", "description", "required_tags"]
 
 
 class TaskSkillSerializer(serializers.ModelSerializer):
@@ -43,6 +52,7 @@ class TaskSkillSerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     type = TaskTypeSerializer(read_only=True)
     skills = SkillSerializer(many=True, read_only=True)
+    tags = TaskTagSerializer(many=True, read_only=True)
     subject = serializers.PrimaryKeyRelatedField(read_only=True)
     exam_version = serializers.PrimaryKeyRelatedField(read_only=True)
     image = serializers.SerializerMethodField()
@@ -57,6 +67,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "skills",
+            "tags",
             "is_dynamic",
             "generator_slug",
             "default_payload",
@@ -111,10 +122,66 @@ class SkillMasterySerializer(serializers.ModelSerializer):
 
 class TypeMasterySerializer(serializers.ModelSerializer):
     task_type = TaskTypeSerializer(read_only=True)
+    effective_mastery = serializers.SerializerMethodField()
+    coverage_ratio = serializers.SerializerMethodField()
+    required_count = serializers.SerializerMethodField()
+    covered_count = serializers.SerializerMethodField()
+    required_tags = serializers.SerializerMethodField()
+    covered_tag_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = TypeMastery
-        fields = ["id", "task_type", "mastery"]
+        fields = [
+            "id",
+            "task_type",
+            "mastery",
+            "effective_mastery",
+            "coverage_ratio",
+            "required_count",
+            "covered_count",
+            "required_tags",
+            "covered_tag_ids",
+        ]
+
+    def _get_progress_info(self, obj: TypeMastery):
+        progress_map = self.context.get("type_progress_map") or {}
+        return progress_map.get(obj.task_type_id)
+
+    def get_effective_mastery(self, obj: TypeMastery) -> float:
+        info = self._get_progress_info(obj)
+        mastery = float(obj.mastery or 0.0)
+        if mastery < 0.0:
+            mastery = 0.0
+        if mastery > 1.0:
+            mastery = 1.0
+        if info is None:
+            return mastery
+        return info.effective_mastery
+
+    def get_coverage_ratio(self, obj: TypeMastery) -> float:
+        info = self._get_progress_info(obj)
+        return info.coverage_ratio if info is not None else 1.0
+
+    def get_required_count(self, obj: TypeMastery) -> int:
+        info = self._get_progress_info(obj)
+        return info.required_count if info is not None else 0
+
+    def get_covered_count(self, obj: TypeMastery) -> int:
+        info = self._get_progress_info(obj)
+        return info.covered_count if info is not None else 0
+
+    def get_required_tags(self, obj: TypeMastery):
+        info = self._get_progress_info(obj)
+        if info is None:
+            return []
+        serializer = TaskTagSerializer(info.required_tags, many=True, context=self.context)
+        return serializer.data
+
+    def get_covered_tag_ids(self, obj: TypeMastery):
+        info = self._get_progress_info(obj)
+        if info is None:
+            return []
+        return list(info.covered_tag_ids)
 
 
 class RecommendationLogSerializer(serializers.ModelSerializer):

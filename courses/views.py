@@ -22,6 +22,7 @@ from .models import (
     CourseModuleItemCompletion,
 )
 from .services import calculate_module_progress_percent, is_module_unlocked_for_user
+from apps.recsys.service_utils.type_progress import build_type_progress_map
 
 
 @dataclass(frozen=True)
@@ -261,6 +262,18 @@ def module_detail(request, course_slug: str, module_slug: str):
         slug=module_slug,
     )
 
+    course_modules = list(course.modules.all())
+    course_task_type_ids = {
+        m.task_type_id
+        for m in course_modules
+        if m.kind == CourseModule.Kind.TASK_TYPE and m.task_type_id
+    }
+    course_type_progress_map = (
+        build_type_progress_map(user=request.user, task_type_ids=course_task_type_ids)
+        if course_task_type_ids
+        else {}
+    )
+
     enrollment = request.user.course_enrollments.filter(course=course).first()
     if enrollment is None:
         raise Http404()
@@ -274,6 +287,7 @@ def module_detail(request, course_slug: str, module_slug: str):
         module=module,
         enrollment=enrollment,
         incoming_edges=incoming,
+        type_progress_map=course_type_progress_map,
     ):
         raise Http404()
 
@@ -292,6 +306,7 @@ def module_detail(request, course_slug: str, module_slug: str):
         enrollment=enrollment,
         module_items=items,
         completed_theory_item_ids=completed_theory_item_ids,
+        type_progress_map=course_type_progress_map,
     )
 
     def _build_accessible_items(current_mastery: float) -> list[CourseModuleItem]:

@@ -13,6 +13,7 @@ from ..models import (
     TypeMastery,
 )
 from ..service_utils import variants as variant_service
+from ..service_utils.type_progress import build_type_progress_map
 from .serializers import (
     AttemptSerializer,
     SkillGroupSerializer,
@@ -76,8 +77,18 @@ class ProgressView(APIView):
         skill_masteries = SkillMasterySerializer(
             SkillMastery.objects.filter(user=user), many=True
         ).data
+        type_masteries_qs = TypeMastery.objects.filter(user=user).select_related("task_type")
+        type_ids = list(type_masteries_qs.values_list("task_type_id", flat=True))
+        type_progress_map = (
+            build_type_progress_map(user=user, task_type_ids=type_ids) if type_ids else {}
+        )
         type_masteries = TypeMasterySerializer(
-            TypeMastery.objects.filter(user=user), many=True
+            type_masteries_qs,
+            many=True,
+            context={
+                "request": request,
+                "type_progress_map": type_progress_map,
+            },
         ).data
 
         data = {

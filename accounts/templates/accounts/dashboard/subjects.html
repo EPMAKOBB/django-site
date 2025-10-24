@@ -1,5 +1,5 @@
 {% extends 'accounts/dashboard/base.html' %}
-{% load progress_extras l10n %}
+{% load i18n progress_extras l10n %}
 
 {% block dashboard_title %}Статистика{% endblock %}
 
@@ -51,11 +51,11 @@
       </div>
       <div class="exam-card__section">
         {% if item.types %}
-          <div class="exam-panel">
+            <div class="exam-panel">
             <div class="grid">
               {% for t in item.types %}
-                {% with m=item.type_masteries|get_item:t.id %}
-                {% with pct=m|default:0|mul:100 %}
+                {% with progress=item.type_progress|get_item:t.id %}
+                {% with pct=progress.effective_mastery|default:0|mul:100 %}
                 <div class="item">
                   <div class="progress-label">
                     <span>{{ t.name }}</span>
@@ -64,6 +64,22 @@
                   <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ t.name }}">
                     <div class="fill" style="width: {{ pct|floatformat:'-2'|unlocalize }}%"></div>
                   </div>
+                  {% if progress and progress.required_tags %}
+                    <div class="required-tags">
+                      <div class="tag-coverage" aria-label="{% trans 'Покрытие обязательных тегов' %}">
+                        {{ progress.covered_count }}/{{ progress.required_count }}
+                      </div>
+                      <ul class="tag-list" aria-label="{% trans 'Обязательные теги' %}">
+                        {% for tag in progress.required_tags %}
+                          {% if tag.id in progress.covered_tag_ids %}
+                            <li class="tag is-covered">{{ tag.name }}</li>
+                          {% else %}
+                            <li class="tag is-missing">{{ tag.name }}</li>
+                          {% endif %}
+                        {% endfor %}
+                      </ul>
+                    </div>
+                  {% endif %}
                 </div>
                 {% endwith %}
                 {% endwith %}

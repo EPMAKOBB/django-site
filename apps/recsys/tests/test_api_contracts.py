@@ -9,6 +9,8 @@ from apps.recsys.models import (
     TaskType,
     Task,
     TaskSkill,
+    TaskTag,
+    TypeMastery,
 )
 
 
@@ -27,6 +29,9 @@ class ApiContractsTests(TestCase):
             exam_version=self.exam_version,
         )
         TaskSkill.objects.create(task=self.task, skill=self.skill, weight=1.0)
+        self.tag = TaskTag.objects.create(subject=self.subject, name="делители", slug="deliteli")
+        self.task.tags.add(self.tag)
+        self.ttype.required_tags.add(self.tag)
 
     def test_endpoints(self):
         # next task
@@ -37,14 +42,30 @@ class ApiContractsTests(TestCase):
         self.assertEqual(task_payload["difficulty_level"], 0)
         self.assertEqual(task_payload["correct_answer"], {})
         self.assertIsNone(task_payload["image"])
+        self.assertEqual([tag["name"] for tag in task_payload["tags"]], ["делители"])
+        self.assertEqual(
+            [tag["name"] for tag in task_payload["type"]["required_tags"]],
+            ["делители"],
+        )
         # attempt
         payload = {"user": self.user.id, "task": self.task.id, "is_correct": True}
         resp = self.client.post("/api/attempts/", data=json.dumps(payload), content_type="application/json")
         self.assertEqual(resp.status_code, 201)
+        TypeMastery.objects.update_or_create(user=self.user, task_type=self.ttype, defaults={"mastery": 0.8})
         # progress
         resp = self.client.get("/api/progress/", {"user": self.user.id})
         self.assertEqual(resp.status_code, 200)
-        data = resp.json()["skill_masteries"]
-        self.assertEqual(data[0]["mastery"], 1.0)
+        progress_payload = resp.json()
+        data = progress_payload["skill_masteries"]
+        self.assertGreater(data[0]["mastery"], 0)
+        type_masteries = progress_payload["type_masteries"]
+        self.assertEqual(len(type_masteries), 1)
+        type_entry = type_masteries[0]
+        self.assertAlmostEqual(type_entry["mastery"], 0.8)
+        self.assertAlmostEqual(type_entry["effective_mastery"], 0.8)
+        self.assertEqual(type_entry["required_count"], 1)
+        self.assertEqual(type_entry["covered_count"], 1)
+        self.assertEqual([tag["name"] for tag in type_entry["required_tags"]], ["делители"])
+        self.assertEqual(set(type_entry["covered_tag_ids"]), {self.tag.id})
         self.assertEqual(self.task.subject, self.subject)
         self.assertEqual(self.task.exam_version, self.exam_version)

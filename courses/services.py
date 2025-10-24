@@ -3,7 +3,11 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Iterable, Mapping, Sequence
 
-from apps.recsys.models import SkillMastery, TypeMastery
+from apps.recsys.models import SkillMastery
+from apps.recsys.service_utils.type_progress import (
+    TypeProgressInfo,
+    build_type_progress_map,
+)
 
 from .models import (
     CourseModule,
@@ -21,7 +25,11 @@ def _clamp_percent(value: float) -> float:
 
 
 def get_base_module_mastery_percent(
-    user, module: CourseModule, enrollment: CourseEnrollment
+    user,
+    module: CourseModule,
+    enrollment: CourseEnrollment,
+    *,
+    type_progress_map: Mapping[int, "TypeProgressInfo"] | None = None,
 ) -> float:
     mastery_value: float | None = None
 
@@ -32,11 +40,14 @@ def get_base_module_mastery_percent(
             .first()
         )
     elif module.kind == CourseModule.Kind.TASK_TYPE and module.task_type_id:
-        mastery_value = (
-            TypeMastery.objects.filter(user=user, task_type=module.task_type)
-            .values_list("mastery", flat=True)
-            .first()
-        )
+        progress_info = None
+        if type_progress_map is not None:
+            progress_info = type_progress_map.get(module.task_type_id)
+        if progress_info is None:
+            progress_info = build_type_progress_map(
+                user=user, task_type_ids=[module.task_type_id]
+            ).get(module.task_type_id)
+        mastery_value = progress_info.effective_mastery if progress_info else 0.0
     else:
         mastery_value = float(enrollment.progress or 0)
 
@@ -57,6 +68,7 @@ def calculate_module_progress_percent(
     enrollment: CourseEnrollment,
     module_items: Sequence[CourseModuleItem] | None = None,
     completed_theory_item_ids: Iterable[int] | None = None,
+    type_progress_map: Mapping[int, TypeProgressInfo] | None = None,
 ) -> float:
     if module_items is None:
         module_items = list(module.items.all())
@@ -81,7 +93,12 @@ def calculate_module_progress_percent(
             return 0.0
         return _clamp_percent(100.0 * completed_count / len(theory_item_ids))
 
-    return get_base_module_mastery_percent(user, module, enrollment)
+    return get_base_module_mastery_percent(
+        user,
+        module,
+        enrollment,
+        type_progress_map=type_progress_map,
+    )
 
 
 def build_module_progress_map(
@@ -89,6 +106,7 @@ def build_module_progress_map(
     user,
     enrollment: CourseEnrollment,
     modules: Sequence[CourseModule],
+    type_progress_map: Mapping[int, TypeProgressInfo] | None = None,
 ) -> Mapping[int, float]:
     modules = list(modules)
     module_items_map: dict[int, list[CourseModuleItem]] = {}
@@ -112,6 +130,18 @@ def build_module_progress_map(
             if module_id is not None:
                 completed_by_module[module_id].add(module_item_id)
 
+    if type_progress_map is None:
+        task_type_ids = {
+            module.task_type_id
+            for module in modules
+            if module.kind == CourseModule.Kind.TASK_TYPE and module.task_type_id
+        }
+        type_progress_map = (
+            build_type_progress_map(user=user, task_type_ids=task_type_ids)
+            if task_type_ids
+            else {}
+        )
+
     progress_map: dict[int, float] = {}
     for module in modules:
         progress_map[module.id] = calculate_module_progress_percent(
@@ -120,6 +150,7 @@ def build_module_progress_map(
             enrollment=enrollment,
             module_items=module_items_map.get(module.id, []),
             completed_theory_item_ids=completed_by_module.get(module.id, set()),
+            type_progress_map=type_progress_map,
         )
 
     return progress_map
@@ -132,6 +163,7 @@ def is_module_unlocked_for_user(
     enrollment: CourseEnrollment,
     incoming_edges: Iterable[CourseGraphEdge] | None = None,
     progress_map: Mapping[int, float] | None = None,
+    type_progress_map: Mapping[int, TypeProgressInfo] | None = None,
 ) -> bool:
     if incoming_edges is None:
         incoming_edges = module.incoming_edges.select_related("src").all()
@@ -147,7 +179,10 @@ def is_module_unlocked_for_user(
 
         if src_progress is None:
             src_progress = calculate_module_progress_percent(
-                user=user, module=edge.src, enrollment=enrollment
+                user=user,
+                module=edge.src,
+                enrollment=enrollment,
+                type_progress_map=type_progress_map,
             )
 
         if src_progress < MODULE_UNLOCK_PROGRESS_THRESHOLD:

@@ -7,7 +7,7 @@ from django.contrib.auth.forms import (
 from django.forms import formset_factory
 from django.utils.translation import gettext_lazy as _
 
-from apps.recsys.models import ExamVersion, Skill, Task, TaskType
+from apps.recsys.models import ExamVersion, Skill, Task, TaskTag, TaskType
 from subjects.models import Subject
 
 from .models import StudentProfile
@@ -121,18 +121,20 @@ class TaskCreateForm(forms.ModelForm):
             "type",
             "title",
             "description",
+            "tags",
             "image",
             "difficulty_level",
             "correct_answer",
         )
         labels = {
-            "subject": _("Предмет"),
-            "exam_version": _("Экзамен"),
-            "type": _("Тип задания"),
-            "title": _("Заголовок"),
-            "description": _("Условие"),
-            "image": _("Скриншот условия"),
-            "difficulty_level": _("Сложность"),
+            'subject': _('Предмет'),
+            'exam_version': _('Вариант экзамена'),
+            'type': _('Тип задания'),
+            'title': _('Заголовок'),
+            'description': _('Описание'),
+            'tags': _('Теги задачи'),
+            'image': _('Изображение задания'),
+            'difficulty_level': _('Сложность'),
         }
         widgets = {
             "description": forms.Textarea(attrs={"rows": 6}),
@@ -147,6 +149,24 @@ class TaskCreateForm(forms.ModelForm):
             "subject__name", "name"
         )
         self.fields["subject"].queryset = Subject.objects.order_by("name")
+        tags_field = self.fields.get("tags")
+        if tags_field is not None:
+            tags_queryset = TaskTag.objects.select_related("subject").order_by("subject__name", "name")
+            instance_subject = getattr(self.instance, "subject", None)
+            subject_for_filter = instance_subject
+            if subject_for_filter is None:
+                bound_subject = self.data.get(self.add_prefix("subject")) if self.is_bound else None
+                subject_for_filter = bound_subject or self.initial.get("subject")
+            if subject_for_filter:
+                try:
+                    subject_id = getattr(subject_for_filter, "id", None) or int(subject_for_filter)
+                except (ValueError, TypeError):
+                    subject_id = None
+                if subject_id is not None:
+                    tags_queryset = tags_queryset.filter(subject_id=subject_id)
+            tags_field.queryset = tags_queryset
+            tags_field.widget = forms.CheckboxSelectMultiple()
+            tags_field.required = False
         self.fields["difficulty_level"].min_value = 0
         self.fields["difficulty_level"].max_value = 100
         self.fields["difficulty_level"].help_text = _("Число от 0 до 100.")
@@ -178,6 +198,15 @@ class TaskCreateForm(forms.ModelForm):
 
         return cleaned_data
 
+    def clean_tags(self):
+        tags = self.cleaned_data.get("tags")
+        subject = self.cleaned_data.get("subject")
+        if subject and tags:
+            invalid = [tag for tag in tags if tag.subject_id != subject.id]
+            if invalid:
+                raise forms.ValidationError(_("Выберите теги, относящиеся к выбранному предмету."))
+        return tags
+
     def clean_correct_answer(self):
         answer_text = self.cleaned_data.get("correct_answer")
         if not answer_text:
@@ -193,6 +222,7 @@ class TaskCreateForm(forms.ModelForm):
         task.default_payload = payload
         if commit:
             task.save()
+            self.save_m2m()
         return task
 
 
