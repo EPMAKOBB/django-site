@@ -34,6 +34,22 @@ class Skill(TimeStampedModel):
         return self.name
 
 
+class TaskTag(TimeStampedModel):
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="task_tags"
+    )
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=100, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        unique_together = ("subject", "name")
+        indexes = [models.Index(fields=["subject", "name"])]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class TaskType(TimeStampedModel):
     subject = models.ForeignKey(
         Subject, on_delete=models.CASCADE, related_name="task_types"
@@ -47,6 +63,11 @@ class TaskType(TimeStampedModel):
     )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
+    required_tags = models.ManyToManyField(
+        "TaskTag",
+        blank=True,
+        related_name="required_for_task_types",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -98,6 +119,11 @@ class Task(TimeStampedModel):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     skills = models.ManyToManyField("Skill", through="TaskSkill", related_name="tasks")
+    tags = models.ManyToManyField(
+        "TaskTag",
+        blank=True,
+        related_name="tasks",
+    )
     is_dynamic = models.BooleanField(default=False)
     generator_slug = models.CharField(max_length=255, blank=True)
     default_payload = models.JSONField(default=dict, blank=True)

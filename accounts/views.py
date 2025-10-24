@@ -21,12 +21,15 @@ from apps.recsys.models import (
     Task,
     TaskSkill,
     TaskType,
-    TypeMastery,
     VariantTemplate,
     VariantAssignment,
     VariantTask,
 )
 from apps.recsys.service_utils import variants as variant_services
+from apps.recsys.service_utils.type_progress import (
+    TypeProgressInfo,
+    build_type_progress_map,
+)
 from subjects.models import Subject
 from courses.models import CourseGraphEdge, CourseModule, CourseModuleItem
 from .context_processors import SESSION_KEY
@@ -784,16 +787,9 @@ def dashboard_subjects(request):
         SkillMastery.objects.filter(user=request.user)
         .select_related("skill", "skill__subject")
     )
-    type_masteries = (
-        TypeMastery.objects.filter(user=request.user)
-        .select_related("task_type", "task_type__subject")
-    )
 
     mastery_by_skill_id: dict[int, float] = {
         sm.skill_id: float(sm.mastery) for sm in skill_masteries
-    }
-    mastery_by_type_id: dict[int, float] = {
-        tm.task_type_id: float(tm.mastery) for tm in type_masteries
     }
 
     subject_ids = {exam.subject_id for exam in selected_exams}
@@ -807,16 +803,41 @@ def dashboard_subjects(request):
         for task_type in task_types:
             types_by_subject.setdefault(task_type.subject_id, []).append(task_type)
 
+    all_task_type_ids: set[int] = {
+        task_type.id for task_types in types_by_subject.values() for task_type in task_types
+    }
+    default_progress = TypeProgressInfo(
+        raw_mastery=0.0,
+        effective_mastery=0.0,
+        coverage_ratio=0.0,
+        required_count=0,
+        covered_count=0,
+        required_tags=tuple(),
+        covered_tag_ids=frozenset(),
+    )
+    type_progress_map = (
+        build_type_progress_map(user=request.user, task_type_ids=all_task_type_ids)
+        if all_task_type_ids
+        else {}
+    )
+
+    def get_progress_for_type(type_id: int) -> TypeProgressInfo:
+        return type_progress_map.get(type_id, default_progress)
+
     exam_statistics = []
     for exam in selected_exams:
+        types = types_by_subject.get(exam.subject_id, [])
+        type_progress = {t.id: get_progress_for_type(t.id) for t in types}
+        effective_masteries = {type_id: info.effective_mastery for type_id, info in type_progress.items()}
         exam_statistics.append(
             {
                 "subject": exam.subject,
                 "exam_version": exam,
                 "groups": list(exam.skill_groups.all()),
-                "types": types_by_subject.get(exam.subject_id, []),
+                "types": types,
                 "skill_masteries": mastery_by_skill_id,
-                "type_masteries": mastery_by_type_id,
+                "type_masteries": effective_masteries,
+                "type_progress": type_progress,
             }
         )
 
@@ -867,10 +888,21 @@ def dashboard_courses(request):
         course = enrollment.course
 
         modules = list(course.modules.all())
+        course_task_type_ids = {
+            module.task_type_id
+            for module in modules
+            if module.kind == CourseModule.Kind.TASK_TYPE and module.task_type_id
+        }
+        course_type_progress_map = (
+            build_type_progress_map(user=request.user, task_type_ids=course_task_type_ids)
+            if course_task_type_ids
+            else {}
+        )
         progress_map = build_module_progress_map(
             user=request.user,
             enrollment=enrollment,
             modules=modules,
+            type_progress_map=course_type_progress_map,
         )
 
         incoming_edges_by_dst: dict[int, list[CourseGraphEdge]] = defaultdict(list)
@@ -887,6 +919,7 @@ def dashboard_courses(request):
                 enrollment=enrollment,
                 incoming_edges=incoming_edges_by_dst.get(module.id, []),
                 progress_map=progress_map,
+                type_progress_map=course_type_progress_map,
             )
             locked_by_module[module.id] = not unlocked
 

@@ -4,6 +4,7 @@ from django.utils.html import format_html
 
 from .models import (
     Skill,
+    TaskTag,
     TaskType,
     Task,
     TaskSkill,
@@ -46,6 +47,10 @@ class TaskAdminForm(forms.ModelForm):
         generator_choices = [("", "---")] + list(
             task_generation.get_generator_choices()
         )
+        if "tags" in self.fields:
+            self.fields["tags"].queryset = TaskTag.objects.select_related("subject").order_by(
+                "subject__name", "name"
+            )
         self.fields["generator_slug"].widget = forms.Select(choices=generator_choices)
         self.fields["generator_slug"].required = False
         self.fields["difficulty_level"].help_text = "Число от 0 до 100"
@@ -68,11 +73,27 @@ class SkillAdmin(admin.ModelAdmin):
     search_fields = ("name", "subject__name")
 
 
+@admin.register(TaskTag)
+class TaskTagAdmin(admin.ModelAdmin):
+    list_display = ("name", "subject", "slug")
+    list_filter = ("subject",)
+    search_fields = ("name", "slug", "subject__name")
+    ordering = ("subject__name", "name")
+
+
 @admin.register(TaskType)
 class TaskTypeAdmin(admin.ModelAdmin):
     list_display = ("name", "subject", "exam_version")
     list_filter = ("subject", "exam_version")
     search_fields = ("name", "subject__name", "exam_version__name")
+    filter_horizontal = ("required_tags",)
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "required_tags":
+            kwargs["queryset"] = TaskTag.objects.select_related("subject").order_by(
+                "subject__name", "name"
+            )
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
 
 @admin.register(Task)
@@ -97,6 +118,7 @@ class TaskAdmin(admin.ModelAdmin):
         "is_dynamic",
         "rendering_strategy",
     )
+    filter_horizontal = ("tags",)
     readonly_fields = ("image_preview", "first_attempt_total", "first_attempt_failed")
     fieldsets = (
         (
@@ -108,6 +130,7 @@ class TaskAdmin(admin.ModelAdmin):
                     "exam_version",
                     "type",
                     "description",
+                    "tags",
                     "rendering_strategy",
                     "difficulty_level",
                     "image",
