@@ -145,8 +145,9 @@ class TaskCreateForm(forms.ModelForm):
         self.fields["exam_version"].queryset = ExamVersion.objects.select_related("subject").order_by(
             "subject__name", "name"
         )
-        self.fields["type"].queryset = TaskType.objects.select_related("subject").order_by(
-            "subject__name", "name"
+        self.fields["type"].queryset = (
+            TaskType.objects.select_related("subject", "exam_version")
+            .order_by("subject__name", "exam_version__name", "display_order", "name")
         )
         self.fields["subject"].queryset = Subject.objects.order_by("name")
         tags_field = self.fields.get("tags")

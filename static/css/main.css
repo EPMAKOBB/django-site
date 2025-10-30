@@ -1006,6 +1006,74 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
 .dashboard-content { width:100%; }
 .dashboard-panel { background: var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; }
 
+.required-tags {
+  margin-top: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.tag-progress-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.tag-progress-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.tag-progress-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--space-xs);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.tag-progress-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: var(--tag-progress, 0%);
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  opacity: 0.35;
+  pointer-events: none;
+  transition: width 0.3s ease;
+}
+
+.tag-progress-chip__label,
+.tag-progress-chip__percent {
+  position: relative;
+  z-index: 1;
+  font-size: var(--font-sm);
+}
+
+.tag-progress-chip__percent {
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--text) 80%, var(--muted));
+}
+
+.tag-progress-meta {
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+
 /* Top tabs navigation (browser-like) */
 .dashboard-tabs { margin-bottom: 0; }
 .dashboard-tabs .tabs { list-style:none; margin:0; padding:0; display:flex; gap:var(--space-sm); align-items:flex-end; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }

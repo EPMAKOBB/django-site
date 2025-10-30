@@ -792,19 +792,22 @@ def dashboard_subjects(request):
         sm.skill_id: float(sm.mastery) for sm in skill_masteries
     }
 
-    subject_ids = {exam.subject_id for exam in selected_exams}
-    types_by_subject: dict[int, list[TaskType]] = {}
-    if subject_ids:
+    exam_ids = {exam.id for exam in selected_exams}
+
+    types_by_exam: dict[int, list[TaskType]] = {}
+    if exam_ids:
         task_types = (
-            TaskType.objects.filter(subject_id__in=subject_ids)
-            .select_related("subject")
-            .order_by("subject__name", "name")
+            TaskType.objects.filter(exam_version_id__in=exam_ids)
+            .select_related("subject", "exam_version")
+            .order_by("exam_version__name", "display_order", "name")
         )
         for task_type in task_types:
-            types_by_subject.setdefault(task_type.subject_id, []).append(task_type)
+            if task_type.exam_version_id is None:
+                continue
+            types_by_exam.setdefault(task_type.exam_version_id, []).append(task_type)
 
     all_task_type_ids: set[int] = {
-        task_type.id for task_types in types_by_subject.values() for task_type in task_types
+        task_type.id for task_types in types_by_exam.values() for task_type in task_types
     }
     default_progress = TypeProgressInfo(
         raw_mastery=0.0,
@@ -814,6 +817,7 @@ def dashboard_subjects(request):
         covered_count=0,
         required_tags=tuple(),
         covered_tag_ids=frozenset(),
+        tag_progress=tuple(),
     )
     type_progress_map = (
         build_type_progress_map(user=request.user, task_type_ids=all_task_type_ids)
@@ -826,7 +830,7 @@ def dashboard_subjects(request):
 
     exam_statistics = []
     for exam in selected_exams:
-        types = types_by_subject.get(exam.subject_id, [])
+        types = types_by_exam.get(exam.id, [])
         type_progress = {t.id: get_progress_for_type(t.id) for t in types}
         effective_masteries = {type_id: info.effective_mastery for type_id, info in type_progress.items()}
         exam_statistics.append(

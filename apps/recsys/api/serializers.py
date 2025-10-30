@@ -40,7 +40,15 @@ class TaskTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskType
-        fields = ["id", "subject", "exam_version", "name", "description", "required_tags"]
+        fields = [
+            "id",
+            "subject",
+            "exam_version",
+            "name",
+            "description",
+            "display_order",
+            "required_tags",
+        ]
 
 
 class TaskSkillSerializer(serializers.ModelSerializer):
@@ -128,6 +136,7 @@ class TypeMasterySerializer(serializers.ModelSerializer):
     covered_count = serializers.SerializerMethodField()
     required_tags = serializers.SerializerMethodField()
     covered_tag_ids = serializers.SerializerMethodField()
+    tag_progress = serializers.SerializerMethodField()
 
     class Meta:
         model = TypeMastery
@@ -141,6 +150,7 @@ class TypeMasterySerializer(serializers.ModelSerializer):
             "covered_count",
             "required_tags",
             "covered_tag_ids",
+            "tag_progress",
         ]
 
     def _get_progress_info(self, obj: TypeMastery):
@@ -182,6 +192,21 @@ class TypeMasterySerializer(serializers.ModelSerializer):
         if info is None:
             return []
         return list(info.covered_tag_ids)
+
+    def get_tag_progress(self, obj: TypeMastery):
+        info = self._get_progress_info(obj)
+        if info is None:
+            return []
+        return [
+            {
+                "tag_id": entry.tag.id,
+                "tag_name": entry.tag.name,
+                "solved_count": entry.solved_count,
+                "total_count": entry.total_count,
+                "ratio": entry.ratio,
+            }
+            for entry in info.tag_progress
+        ]
 
 
 class RecommendationLogSerializer(serializers.ModelSerializer):

@@ -83,8 +83,10 @@ class TaskTagAdmin(admin.ModelAdmin):
 
 @admin.register(TaskType)
 class TaskTypeAdmin(admin.ModelAdmin):
-    list_display = ("name", "subject", "exam_version")
+    list_display = ("name", "subject", "exam_version", "display_order")
     list_filter = ("subject", "exam_version")
+    ordering = ("subject__name", "exam_version__name", "display_order", "name")
+    list_editable = ("display_order",)
     search_fields = ("name", "subject__name", "exam_version__name")
     filter_horizontal = ("required_tags",)
 

@@ -63,6 +63,13 @@ class TaskType(TimeStampedModel):
     )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
+    display_order = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            "Controls ordering of types within the same exam version. "
+            "Lower numbers appear first."
+        ),
+    )
     required_tags = models.ManyToManyField(
         "TaskTag",
         blank=True,
@@ -70,7 +77,7 @@ class TaskType(TimeStampedModel):
     )
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["display_order", "name"]
         constraints = [
             models.UniqueConstraint(
                 fields=["subject", "exam_version", "name"],
@@ -78,7 +85,7 @@ class TaskType(TimeStampedModel):
             )
         ]
         indexes = [
-            models.Index(fields=["subject", "exam_version", "name"])
+            models.Index(fields=["subject", "exam_version", "display_order", "name"])
         ]
 
     def __str__(self) -> str:

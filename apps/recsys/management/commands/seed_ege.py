@@ -24,7 +24,15 @@ class Command(BaseCommand):
             name="ЕГЭ 2026", subject=subject
         )
         for i in range(1, 28):
-            task_type, _ = TaskType.objects.get_or_create(name=str(i), subject=subject)
+            task_type, _ = TaskType.objects.get_or_create(
+                name=str(i),
+                subject=subject,
+                exam_version=exam_version,
+                defaults={"display_order": i},
+            )
+            if task_type.display_order != i:
+                task_type.display_order = i
+                task_type.save(update_fields=["display_order"])
             skill, _ = Skill.objects.get_or_create(name=f"Skill {i}", subject=subject)
             task, _ = Task.objects.get_or_create(
                 type=task_type,

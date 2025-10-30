@@ -55,6 +55,15 @@ class TypeProgressServiceTests(TestCase):
         self.assertEqual(info.required_count, 2)
         self.assertEqual(info.covered_count, 1)
         self.assertSetEqual(info.covered_tag_ids, {self.tag_divisors.id})
+        self.assertEqual(len(info.tag_progress), 2)
+        divisors_entry = next(entry for entry in info.tag_progress if entry.tag.id == self.tag_divisors.id)
+        masks_entry = next(entry for entry in info.tag_progress if entry.tag.id == self.tag_masks.id)
+        self.assertEqual(divisors_entry.total_count, 1)
+        self.assertEqual(divisors_entry.solved_count, 1)
+        self.assertAlmostEqual(divisors_entry.ratio, 1.0)
+        self.assertEqual(masks_entry.total_count, 1)
+        self.assertEqual(masks_entry.solved_count, 0)
+        self.assertAlmostEqual(masks_entry.ratio, 0.0)
 
         Attempt.objects.create(user=self.user, task=self.task_two, is_correct=True)
         progress_map = build_type_progress_map(user=self.user, task_type_ids=[self.task_type.id])
@@ -63,6 +72,10 @@ class TypeProgressServiceTests(TestCase):
         self.assertAlmostEqual(info.coverage_ratio, 1.0)
         self.assertAlmostEqual(info.effective_mastery, 1.0)
         self.assertSetEqual(info.covered_tag_ids, {self.tag_divisors.id, self.tag_masks.id})
+        for entry in info.tag_progress:
+            self.assertAlmostEqual(entry.ratio, 1.0)
+            self.assertEqual(entry.total_count, 1)
+            self.assertEqual(entry.solved_count, 1)
 
     def test_missing_mastery_defaults_to_zero(self):
         progress_map = build_type_progress_map(user=self.user, task_type_ids=[self.task_type.id])
@@ -72,6 +85,7 @@ class TypeProgressServiceTests(TestCase):
         self.assertEqual(info.required_count, 2)
         self.assertEqual(info.covered_count, 0)
         self.assertEqual(info.covered_tag_ids, frozenset())
+        self.assertTrue(all(entry.ratio == 0.0 for entry in info.tag_progress))
 
     def test_course_module_progress_uses_effective_mastery(self):
         course = Course.objects.create(slug="course-1", title="Course")
