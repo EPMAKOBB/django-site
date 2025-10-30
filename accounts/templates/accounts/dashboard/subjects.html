@@ -64,20 +64,26 @@
                   <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct|floatformat:0 }}" aria-label="{{ t.name }}">
                     <div class="fill" style="width: {{ pct|floatformat:'-2'|unlocalize }}%"></div>
                   </div>
-                  {% if progress and progress.required_tags %}
+                  {% if progress and progress.tag_progress %}
                     <div class="required-tags">
                       <div class="tag-coverage" aria-label="{% trans 'Покрытие обязательных тегов' %}">
                         {{ progress.covered_count }}/{{ progress.required_count }}
                       </div>
-                      <ul class="tag-list" aria-label="{% trans 'Обязательные теги' %}">
-                        {% for tag in progress.required_tags %}
-                          {% if tag.id in progress.covered_tag_ids %}
-                            <li class="tag is-covered">{{ tag.name }}</li>
-                          {% else %}
-                            <li class="tag is-missing">{{ tag.name }}</li>
-                          {% endif %}
-                        {% endfor %}
-                      </ul>
+                        <ul class="tag-progress-list" aria-label="{% trans 'Tag progress' %}">
+                          {% for tag_info in progress.tag_progress %}
+                            {% with percent=tag_info.ratio|mul:100 %}
+                            <li class="tag-progress-item" aria-label="{{ tag_info.tag.name }}: {{ percent|floatformat:0 }}%">
+                              <div class="tag-progress-chip" style="--tag-progress: {{ percent|floatformat:'-2'|unlocalize }}%">
+                                <span class="tag-progress-chip__label">{{ tag_info.tag.name }}</span>
+                                <span class="tag-progress-chip__percent">{{ percent|floatformat:0 }}%</span>
+                              </div>
+                              <div class="tag-progress-meta">
+                                {{ tag_info.solved_count }}/{{ tag_info.total_count }}
+                              </div>
+                            </li>
+                            {% endwith %}
+                          {% endfor %}
+                        </ul>
                     </div>
                   {% endif %}
                 </div>

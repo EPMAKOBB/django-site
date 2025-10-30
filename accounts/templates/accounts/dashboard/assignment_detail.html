@@ -1,128 +1,128 @@
-{% extends 'accounts/dashboard/base.html' %}
-{% load i18n %}
-
-{% block dashboard_title %}{{ assignment.template.name }}{% endblock %}
-
-{% block dashboard_content %}
-  <nav class="assignment-breadcrumbs" aria-label="{% trans 'Навигация по заданиям' %}">
-    <a class="assignment-breadcrumbs__link" href="{% url 'accounts:dashboard' %}">{% trans "К заданиям" %}</a>
-  </nav>
-
-  <article class="assignment-detail">
-    <header class="assignment-detail__header">
-      <h2 class="assignment-detail__title">{{ assignment.template.name }}</h2>
-      {% if assignment_info.deadline %}
-        <p class="assignment-detail__deadline">
-          {% blocktrans with deadline=assignment_info.deadline|date:"d E Y H:i" %}Дедлайн: {{ deadline }}{% endblocktrans %}
-          {% if assignment_info.deadline_passed %}
-            <span class="assignment-detail__badge assignment-detail__badge--danger">{% trans "истёк" %}</span>
-          {% endif %}
-        </p>
-      {% endif %}
-    </header>
-
-    <section class="assignment-detail__summary" aria-label="{% trans 'Основная информация по варианту' %}">
-      <div class="assignment-detail__progress">
-        <div class="assignment-detail__progress-bar" aria-hidden="true">
-          <span class="assignment-detail__progress-value" style="width: {{ assignment_info.progress_percentage }}%"></span>
-        </div>
-        <p class="assignment-detail__progress-text">
-          {% blocktrans with solved=assignment_info.progress.solved_tasks total=assignment_info.progress.total_tasks %}
-            Решено {{ solved }} из {{ total }} заданий
-          {% endblocktrans %}
-        </p>
-      </div>
-      <dl class="assignment-detail__meta">
-        <div class="assignment-detail__meta-item">
-          <dt>{% trans "Попытки" %}</dt>
-          <dd>
-            {% if assignment_info.attempts_total %}
-              {% blocktrans with used=assignment_info.attempts_used total=assignment_info.attempts_total %}
-                Использовано {{ used }} из {{ total }}
-              {% endblocktrans %}
-              {% if assignment_info.attempts_left is not None %}
-                <span class="assignment-detail__meta-note">
-                  {% blocktrans with remaining=assignment_info.attempts_left %}Осталось {{ remaining }}{% endblocktrans %}
-                </span>
-              {% endif %}
-            {% else %}
-              {% trans "Без ограничений" %}
-            {% endif %}
-          </dd>
-        </div>
-        {% if assignment_info.active_attempt %}
-          <div class="assignment-detail__meta-item">
-            <dt>{% trans "Текущая попытка" %}</dt>
-            <dd>
-              #{{ assignment_info.active_attempt.attempt_number }} ·
-              {% blocktrans with started=assignment_info.active_attempt.started_at|date:"d E Y H:i" %}начата {{ started }}{% endblocktrans %}
-            </dd>
-          </div>
-        {% endif %}
-      </dl>
-    </section>
-
-        <section class="assignment-detail__actions" aria-label="{% trans '?"?????'???????<?? ????????'?????' %}">
+{% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
+
+{% block dashboard_title %}{{ assignment.template.name }}{% endblock %}
+
+{% block dashboard_content %}
+  <nav class="assignment-breadcrumbs" aria-label="{% trans 'Навигация по заданиям' %}">
+    <a class="assignment-breadcrumbs__link" href="{% url 'accounts:dashboard' %}">{% trans "К заданиям" %}</a>
+  </nav>
+
+  <article class="assignment-detail">
+    <header class="assignment-detail__header">
+      <h2 class="assignment-detail__title">{{ assignment.template.name }}</h2>
+      {% if assignment_info.deadline %}
+        <p class="assignment-detail__deadline">
+          {% blocktrans with deadline=assignment_info.deadline|date:"d E Y H:i" %}Дедлайн: {{ deadline }}{% endblocktrans %}
+          {% if assignment_info.deadline_passed %}
+            <span class="assignment-detail__badge assignment-detail__badge--danger">{% trans "истёк" %}</span>
+          {% endif %}
+        </p>
+      {% endif %}
+    </header>
+
+    <section class="assignment-detail__summary" aria-label="{% trans 'Основная информация по варианту' %}">
+      <div class="assignment-detail__progress">
+        <div class="assignment-detail__progress-bar" aria-hidden="true">
+          <span class="assignment-detail__progress-value" style="width: {{ assignment_info.progress_percentage }}%"></span>
+        </div>
+        <p class="assignment-detail__progress-text">
+          {% blocktrans with solved=assignment_info.progress.solved_tasks total=assignment_info.progress.total_tasks %}
+            Решено {{ solved }} из {{ total }} заданий
+          {% endblocktrans %}
+        </p>
+      </div>
+      <dl class="assignment-detail__meta">
+        <div class="assignment-detail__meta-item">
+          <dt>{% trans "Попытки" %}</dt>
+          <dd>
+            {% if assignment_info.attempts_total %}
+              {% blocktrans with used=assignment_info.attempts_used total=assignment_info.attempts_total %}
+                Использовано {{ used }} из {{ total }}
+              {% endblocktrans %}
+              {% if assignment_info.attempts_left is not None %}
+                <span class="assignment-detail__meta-note">
+                  {% blocktrans with remaining=assignment_info.attempts_left %}Осталось {{ remaining }}{% endblocktrans %}
+                </span>
+              {% endif %}
+            {% else %}
+              {% trans "Без ограничений" %}
+            {% endif %}
+          </dd>
+        </div>
+        {% if assignment_info.active_attempt %}
+          <div class="assignment-detail__meta-item">
+            <dt>{% trans "Текущая попытка" %}</dt>
+            <dd>
+              #{{ assignment_info.active_attempt.attempt_number }} ·
+              {% blocktrans with started=assignment_info.active_attempt.started_at|date:"d E Y H:i" %}начата {{ started }}{% endblocktrans %}
+            </dd>
+          </div>
+        {% endif %}
+      </dl>
+    </section>
+
+        <section class="assignment-detail__actions" aria-label="{% trans 'Доступные действия с заданием' %}">
       {% if assignment_info.active_attempt %}
         <a class="btn btn-primary" href="{% url 'accounts:variant-attempt-work' assignment_info.active_attempt.id %}">
-          {% trans "���������� ������" %}
+          {% trans "Продолжить решать" %}
         </a>
-        <p class="assignment-detail__hint">{% trans "������� ��� ��������. ������������� � ��������� �������, ����� ����������." %}</p>
+        <p class="assignment-detail__hint">{% trans "Попытка уже запущена. Возвращайтесь в интерфейс решения, чтобы продолжить." %}</p>
       {% elif assignment_info.can_start %}
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="start_attempt" value="1">
-          <button type="submit" class="btn btn-primary">{% trans "????????'?? ?????????? ???????<?'???" %}</button>
+          <button type="submit" class="btn btn-primary">{% trans "Начать попытку" %}</button>
         </form>
       {% else %}
-        <p class="assignment-detail__hint assignment-detail__hint--muted">{% trans "???????<?? ???????<?'??? ??????????'???????< ???>?? ???'?????? ????????????'??." %}</p>
+        <p class="assignment-detail__hint assignment-detail__hint--muted">{% trans "Новые попытки недоступны. Обратитесь к преподавателю." %}</p>
       {% endif %}
-      <a class="btn btn-secondary" href="{% url 'accounts:assignment-result' assignment.id %}">{% trans "?????'??????? ???????<?'????" %}</a>
-    </section>
-
-    <section class="assignment-detail__history" aria-label="{% trans 'Список попыток' %}">
-      <h3>{% trans "Попытки" %}</h3>
-      {% if attempts %}
-        <ul class="assignment-detail__attempts">
-          {% for attempt in attempts %}
-            <li class="assignment-detail__attempt">
-              <div class="assignment-detail__attempt-header">
-                <span class="assignment-detail__attempt-number">#{{ attempt.attempt_number }}</span>
-                {% if attempt.completed_at %}
-                  <span class="assignment-detail__attempt-status assignment-detail__attempt-status--success">{% trans "Завершена" %}</span>
-                {% else %}
-                  <span class="assignment-detail__attempt-status assignment-detail__attempt-status--active">{% trans "Активна" %}</span>
-                {% endif %}
-              </div>
-              <dl class="assignment-detail__attempt-meta">
-                <div>
-                  <dt>{% trans "Начало" %}</dt>
-                  <dd>{{ attempt.started_at|date:"d E Y H:i" }}</dd>
-                </div>
-                <div>
-                  <dt>{% trans "Завершение" %}</dt>
-                  <dd>
-                    {% if attempt.completed_at %}
-                      {{ attempt.completed_at|date:"d E Y H:i" }}
-                    {% else %}
-                      {% trans "ещё в работе" %}
-                    {% endif %}
-                  </dd>
-                </div>
-                {% if attempt.time_spent %}
-                  <div>
-                    <dt>{% trans "Затраченное время" %}</dt>
-                    <dd>{{ attempt.time_spent }}</dd>
-                  </div>
-                {% endif %}
-              </dl>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="assignment-detail__empty">{% trans "Попытки ещё не начинались." %}</p>
-      {% endif %}
-    </section>
-  </article>
-{% endblock %}
-
+      <a class="btn btn-secondary" href="{% url 'accounts:assignment-result' assignment.id %}">{% trans "История попыток" %}</a>
+    </section>
+
+    <section class="assignment-detail__history" aria-label="{% trans 'Список попыток' %}">
+      <h3>{% trans "Попытки" %}</h3>
+      {% if attempts %}
+        <ul class="assignment-detail__attempts">
+          {% for attempt in attempts %}
+            <li class="assignment-detail__attempt">
+              <div class="assignment-detail__attempt-header">
+                <span class="assignment-detail__attempt-number">#{{ attempt.attempt_number }}</span>
+                {% if attempt.completed_at %}
+                  <span class="assignment-detail__attempt-status assignment-detail__attempt-status--success">{% trans "Завершена" %}</span>
+                {% else %}
+                  <span class="assignment-detail__attempt-status assignment-detail__attempt-status--active">{% trans "Активна" %}</span>
+                {% endif %}
+              </div>
+              <dl class="assignment-detail__attempt-meta">
+                <div>
+                  <dt>{% trans "Начало" %}</dt>
+                  <dd>{{ attempt.started_at|date:"d E Y H:i" }}</dd>
+                </div>
+                <div>
+                  <dt>{% trans "Завершение" %}</dt>
+                  <dd>
+                    {% if attempt.completed_at %}
+                      {{ attempt.completed_at|date:"d E Y H:i" }}
+                    {% else %}
+                      {% trans "ещё в работе" %}
+                    {% endif %}
+                  </dd>
+                </div>
+                {% if attempt.time_spent %}
+                  <div>
+                    <dt>{% trans "Затраченное время" %}</dt>
+                    <dd>{{ attempt.time_spent }}</dd>
+                  </div>
+                {% endif %}
+              </dl>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="assignment-detail__empty">{% trans "Попытки ещё не начинались." %}</p>
+      {% endif %}
+    </section>
+  </article>
+{% endblock %}
+
