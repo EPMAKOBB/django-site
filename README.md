@@ -55,6 +55,8 @@ curl "http://localhost:8000/api/next-task/?n=5"
     "rendering_strategy": "markdown",
     "image": "https://example.com/media/tasks/screenshots/1.png",
     "generator_slug": "math/addition",
+    "generation_mode": "generator" | "pre_generated",
+    "dataset_id": 42,
     "seed": 123456,
     "payload": {"min": 1, "max": 5},
     "content": {"question": "2 + 2", "choices": [3, 4, 5]},

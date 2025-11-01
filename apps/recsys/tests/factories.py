@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 
 from apps.recsys.models import (
     Task,
+    TaskPreGeneratedDataset,
     TaskType,
     VariantAssignment,
     VariantAttempt,
@@ -33,6 +34,8 @@ def create_task(
     is_dynamic: bool = False,
     generator_slug: str = "",
     default_payload: dict | None = None,
+    dynamic_mode: str | None = None,
+    description: str | None = None,
     rendering_strategy: str | None = None,
     difficulty_level: int = 0,
     correct_answer: dict | None = None,
@@ -46,13 +49,18 @@ def create_task(
     title = title or f"Задание {uuid4()}"
     payload = deepcopy(default_payload) if default_payload else {}
     strategy = rendering_strategy or Task.RenderingStrategy.MARKDOWN
+    mode = dynamic_mode or Task.DynamicMode.GENERATOR
+    if not is_dynamic:
+        mode = Task.DynamicMode.GENERATOR
+    generator_value = generator_slug if (is_dynamic and mode == Task.DynamicMode.GENERATOR) else ""
     return Task.objects.create(
         subject=subject,
         type=task_type,
         title=title,
-        description="",
+        description=description or "",
         is_dynamic=is_dynamic,
-        generator_slug=generator_slug if is_dynamic else "",
+        generator_slug=generator_value,
+        dynamic_mode=mode,
         default_payload=payload,
         rendering_strategy=strategy,
         difficulty_level=difficulty_level,
@@ -147,6 +155,23 @@ def add_task_attempt(
     )
 
 
+def add_pre_generated_dataset(
+    *,
+    task: Task,
+    parameter_values: dict | None = None,
+    correct_answer: dict | None = None,
+    meta: dict | None = None,
+    is_active: bool = True,
+) -> TaskPreGeneratedDataset:
+    return TaskPreGeneratedDataset.objects.create(
+        task=task,
+        parameter_values=deepcopy(parameter_values) if parameter_values else {},
+        correct_answer=deepcopy(correct_answer) if correct_answer else {},
+        meta=deepcopy(meta) if meta else {},
+        is_active=is_active,
+    )
+
+
 __all__ = [
     "create_subject",
     "create_task",
@@ -155,4 +180,5 @@ __all__ = [
     "assign_variant",
     "start_attempt",
     "add_task_attempt",
+    "add_pre_generated_dataset",
 ]

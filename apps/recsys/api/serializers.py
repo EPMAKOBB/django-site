@@ -77,6 +77,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "skills",
             "tags",
             "is_dynamic",
+            "dynamic_mode",
             "generator_slug",
             "default_payload",
             "rendering_strategy",

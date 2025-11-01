@@ -66,7 +66,23 @@
             <span class="chip">{% if task.is_dynamic %}{% trans 'динамическая' %}{% else %}{% trans 'статическая' %}{% endif %}</span>
             <span class="chip">{% trans 'сложность' %}: {{ task.difficulty_level }}</span>
           </div>
-          {% if task.description %}
+          {% if task.uses_pre_generated_data %}
+            {% with preview=task.render_template_preview %}
+              {% if preview %}
+                {% if task.rendering_strategy == task.RenderingStrategy.HTML %}
+                  <div class="mt-8 task-description" data-format="html">
+                    {{ preview|safe }}
+                  </div>
+                {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
+                  <div class="mt-8 task-description" data-format="markdown">
+                    {{ preview|render_markdown }}
+                  </div>
+                {% else %}
+                  <p class="mt-8 task-description" data-format="text">{{ preview|safe }}</p>
+                {% endif %}
+              {% endif %}
+            {% endwith %}
+          {% elif task.description %}
             {% if task.rendering_strategy == task.RenderingStrategy.HTML %}
               <div class="mt-8 task-description" data-format="html">
                 {{ task.description|safe }}

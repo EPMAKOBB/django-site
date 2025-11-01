@@ -488,13 +488,13 @@ def module_detail(request, course_slug: str, module_slug: str):
             if next_item:
                 messages.success(
                     request,
-                    _("Элемент успешно завершён. Переходим к следующему."),
+                    _("Карточка отмечена как пройденная. Можно переходить к следующей карточке."),
                 )
                 target = next_item
             else:
                 messages.success(
                     request,
-                    _("Элемент успешно завершён. Это последний доступный элемент."),
+                    _("Карточка отмечена как пройденной. Это была последняя карточка в модуле."),
                 )
         elif action == "failure":
             if current_item not in accessible_items and previous_item:
