@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django.db import models as django_models
 from django.utils.html import format_html
 
 from .models import (
@@ -20,6 +21,7 @@ from .models import (
     VariantAssignment,
     VariantAttempt,
     VariantTaskAttempt,
+    TaskPreGeneratedDataset,
 )
 from .service_utils import task_generation
 
@@ -66,6 +68,19 @@ class TaskSkillInline(admin.TabularInline):
     model = TaskSkill
     extra = 1
 
+
+class TaskPreGeneratedDatasetInline(admin.TabularInline):
+    model = TaskPreGeneratedDataset
+    extra = 1
+    formfield_overrides = {
+        django_models.JSONField: {
+            "widget": forms.Textarea(attrs={"rows": 4, "cols": 80}),
+        }
+    }
+    fields = ("parameter_values", "correct_answer", "meta", "is_active")
+    verbose_name = "Pre-generated dataset"
+    verbose_name_plural = "Pre-generated datasets"
+
 @admin.register(Skill)
 class SkillAdmin(admin.ModelAdmin):
     list_display = ("name", "subject")
@@ -101,13 +116,14 @@ class TaskTypeAdmin(admin.ModelAdmin):
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
     form = TaskAdminForm
-    inlines = [TaskSkillInline]
+    inlines = [TaskSkillInline, TaskPreGeneratedDatasetInline]
     list_display = (
         "title",
         "type",
         "subject",
         "exam_version",
         "is_dynamic",
+        "dynamic_mode",
         "generator_slug",
         "difficulty_level",
         "rendering_strategy",
@@ -118,6 +134,7 @@ class TaskAdmin(admin.ModelAdmin):
         "subject",
         "exam_version",
         "is_dynamic",
+        "dynamic_mode",
         "rendering_strategy",
     )
     filter_horizontal = ("tags",)
@@ -144,7 +161,7 @@ class TaskAdmin(admin.ModelAdmin):
         (
             "Динамическая генерация",
             {
-                "fields": ("is_dynamic", "generator_slug", "default_payload"),
+                "fields": ("is_dynamic", "dynamic_mode", "generator_slug", "default_payload"),
                 "classes": ("collapse",),
             },
         ),

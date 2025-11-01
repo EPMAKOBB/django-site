@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from string import Formatter
+from typing import Mapping
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 
 from subjects.models import Subject
 
@@ -106,11 +109,6 @@ class TaskType(TimeStampedModel):
                 {"exam_version": "Версия экзамена должна соответствовать предмету"}
             )
 
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        return super().save(*args, **kwargs)
-
-
 class Task(TimeStampedModel):
     subject = models.ForeignKey(
         Subject, on_delete=models.CASCADE, related_name="tasks"
@@ -132,7 +130,17 @@ class Task(TimeStampedModel):
         related_name="tasks",
     )
     is_dynamic = models.BooleanField(default=False)
+
+    class DynamicMode(models.TextChoices):
+        GENERATOR = "generator", "Generator"
+        PRE_GENERATED = "pre_generated", "Pre-generated pool"
+
     generator_slug = models.CharField(max_length=255, blank=True)
+    dynamic_mode = models.CharField(
+        max_length=32,
+        choices=DynamicMode.choices,
+        default=DynamicMode.GENERATOR,
+    )
     default_payload = models.JSONField(default=dict, blank=True)
     image = models.ImageField(upload_to="tasks/screenshots/", blank=True)
     correct_answer = models.JSONField(blank=True, default=dict)
@@ -183,26 +191,100 @@ class Task(TimeStampedModel):
                 {"difficulty_level": "Сложность должна быть в диапазоне 0–100"}
             )
 
-        if self.is_dynamic:
-            if not self.generator_slug:
-                raise ValidationError(
-                    {"generator_slug": "Для динамических задач требуется генератор"}
-                )
-            from apps.recsys.service_utils import task_generation
+        mode = self.dynamic_mode or self.DynamicMode.GENERATOR
 
-            if not task_generation.is_generator_registered(self.generator_slug):
-                raise ValidationError(
-                    {"generator_slug": "Указанный генератор не зарегистрирован"}
-                )
+        if self.is_dynamic:
+            if mode == self.DynamicMode.GENERATOR:
+                if not self.generator_slug:
+                    raise ValidationError(
+                        {"generator_slug": "Для динамических задач требуется генератор"}
+                    )
+                from apps.recsys.service_utils import task_generation
+
+                if not task_generation.is_generator_registered(self.generator_slug):
+                    raise ValidationError(
+                        {"generator_slug": "Указанный генератор не зарегистрирован"}
+                    )
+            elif mode == self.DynamicMode.PRE_GENERATED:
+                if self.generator_slug:
+                    raise ValidationError(
+                        {"generator_slug": "Предгенерированные задачи не используют генератор"}
+                    )
+            else:  # pragma: no cover - defensive branch
+                raise ValidationError({"dynamic_mode": "Unsupported dynamic mode"})
         else:
             if self.generator_slug:
                 raise ValidationError(
                     {"generator_slug": "Статические задачи не используют генератор"}
                 )
+            self.dynamic_mode = self.DynamicMode.GENERATOR
 
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
+
+    @property
+    def uses_pre_generated_data(self) -> bool:
+        return self.is_dynamic and self.dynamic_mode == self.DynamicMode.PRE_GENERATED
+
+    def _render_with_payload(
+        self,
+        payload: Mapping[str, object] | None,
+        *,
+        highlight: bool,
+    ) -> str:
+        template = self.description or ""
+        if not template:
+            return ""
+
+        formatter = Formatter()
+        resolved_payload = payload or {}
+        fragments: list[str] = []
+
+        for literal_text, field_name, format_spec, conversion in formatter.parse(template):
+            fragments.append(literal_text or "")
+            if not field_name:
+                continue
+
+            value = resolved_payload.get(field_name, f"{{{field_name}}}")
+
+            try:
+                formatted_value = format(value, format_spec) if format_spec else value
+            except Exception:  # pragma: no cover - defensive fallback
+                formatted_value = value
+
+            text_value = str(formatted_value)
+            if highlight:
+                highlighted = f"{{{text_value}}}"
+                fragments.append(f'<span class="task-placeholder">{highlighted}</span>')
+            else:
+                fragments.append(text_value)
+
+        return "".join(fragments)
+
+    def render_template_preview(self) -> str:
+        if not self.uses_pre_generated_data:
+            return self.description
+        preview = self._render_with_payload(self.default_payload or {}, highlight=True)
+        if not preview:
+            return self.description
+        return mark_safe(preview)
+
+    def render_template_payload(self, payload: Mapping[str, object] | None) -> str:
+        rendered = self._render_with_payload(payload, highlight=False)
+        if not rendered:
+            return self.description or ""
+        return rendered
+
+    def pick_pregenerated_dataset(self, seed: int) -> "TaskPreGeneratedDataset | None":
+        if not self.uses_pre_generated_data:
+            return None
+        queryset = self.pregenerated_datasets.filter(is_active=True)
+        total = queryset.count()
+        if total == 0:
+            return None
+        index = seed % total
+        return queryset.order_by("id")[index]
 
 
 class TaskSkill(TimeStampedModel):
@@ -482,3 +564,26 @@ class VariantTaskAttempt(TimeStampedModel):
             f"Task attempt {self.attempt_number} for {self.variant_task} "
             f"(variant attempt {self.variant_attempt.attempt_number})"
         )
+
+
+class TaskPreGeneratedDataset(TimeStampedModel):
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="pregenerated_datasets",
+    )
+    parameter_values = models.JSONField(default=dict, blank=True)
+    correct_answer = models.JSONField(default=dict, blank=True)
+    meta = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["task", "id"]
+        indexes = [
+            models.Index(fields=["task", "is_active"]),
+        ]
+        verbose_name = "Pre-generated dataset"
+        verbose_name_plural = "Pre-generated datasets"
+
+    def __str__(self) -> str:  # pragma: no cover - human-readable representation
+        return f"Dataset #{self.pk} for {self.task}"

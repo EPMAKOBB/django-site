@@ -202,8 +202,48 @@ def _generate_task_snapshot(
     correct_answer = deepcopy(task.correct_answer or {})
 
     if task.is_dynamic:
-        payload = deepcopy(task.default_payload or {})
         seed = _compute_task_seed(attempt, variant_task)
+
+        if task.dynamic_mode == task.DynamicMode.PRE_GENERATED:
+            dataset = task.pick_pregenerated_dataset(seed=seed)
+            if dataset is None:
+                raise exceptions.ValidationError(
+                    "Для задачи не найдено предгенерированных наборов данных"
+                )
+
+            payload = deepcopy(dataset.parameter_values or {})
+            rendered_statement = task.render_template_payload(payload)
+            dataset_answer = deepcopy(dataset.correct_answer or {})
+
+            snapshot: dict = {
+                "type": "dynamic",
+                "generation_mode": task.DynamicMode.PRE_GENERATED,
+                "task_id": task.id,
+                "dataset_id": dataset.id,
+                "seed": seed,
+                "rendering_strategy": task.rendering_strategy,
+                "template": task.description,
+                "payload": payload,
+                "content": {
+                    "title": task.title,
+                    "statement": rendered_statement,
+                },
+                "image": image_url,
+                "difficulty_level": task.difficulty_level,
+            }
+
+            if dataset_answer:
+                snapshot["correct_answer"] = dataset_answer
+                snapshot["answers"] = dataset_answer
+            else:
+                snapshot["correct_answer"] = correct_answer
+
+            if dataset.meta:
+                snapshot["meta"] = deepcopy(dataset.meta)
+
+            return snapshot
+
+        payload = deepcopy(task.default_payload or {})
         generation = task_generation.generate(
             task,
             payload,
@@ -212,7 +252,7 @@ def _generate_task_snapshot(
         )
 
         used_payload = generation.payload or payload
-        snapshot: dict = {
+        snapshot = {
             "type": "dynamic",
             "task_id": task.id,
             "generator_slug": task.generator_slug,

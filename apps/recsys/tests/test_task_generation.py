@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.test import TestCase
 
-from apps.recsys.models import VariantTaskAttempt
+from apps.recsys.models import Task, VariantTaskAttempt
 from apps.recsys.service_utils import task_generation, variants as variant_service
 
 from . import factories
@@ -93,11 +93,47 @@ class VariantGenerationTests(TestCase):
             difficulty_level=80,
             correct_answer={"formula": "a + b"},
         )
+        self.pre_generated_task = factories.create_task(
+            subject=self.static_task.subject,
+            title="Pre-generated",
+            is_dynamic=True,
+            dynamic_mode=Task.DynamicMode.PRE_GENERATED,
+            description=(
+                "Сколько существует {base_name} {length}-значных чисел, "
+                "содержащих ровно одну цифру {target}?"
+            ),
+            default_payload={"base_name": "семеричных", "length": 5, "target": 6},
+            difficulty_level=60,
+            correct_answer={"value": 0},
+        )
+        self.pre_generated_datasets = [
+            factories.add_pre_generated_dataset(
+                task=self.pre_generated_task,
+                parameter_values={
+                    "base_name": "четырнадцатеричных",
+                    "length": 4,
+                    "target": 3,
+                },
+                correct_answer={"value": 7344},
+            ),
+            factories.add_pre_generated_dataset(
+                task=self.pre_generated_task,
+                parameter_values={
+                    "base_name": "тринадцатеричных",
+                    "length": 4,
+                    "target": 0,
+                },
+                correct_answer={"value": 4620},
+            ),
+        ]
         self.static_variant_task = factories.add_variant_task(
             template=self.template, task=self.static_task, order=1
         )
         self.dynamic_variant_task = factories.add_variant_task(
             template=self.template, task=self.dynamic_task, order=2
+        )
+        self.pre_generated_variant_task = factories.add_variant_task(
+            template=self.template, task=self.pre_generated_task, order=3
         )
         self.assignment = factories.assign_variant(template=self.template)
 
@@ -109,13 +145,16 @@ class VariantGenerationTests(TestCase):
         generation_attempts = VariantTaskAttempt.objects.filter(
             variant_attempt=attempt, attempt_number=0
         )
-        self.assertEqual(generation_attempts.count(), 2)
+        self.assertEqual(generation_attempts.count(), 3)
 
         static_snapshot = generation_attempts.get(
             variant_task=self.static_variant_task
         ).task_snapshot["task"]
         dynamic_snapshot = generation_attempts.get(
             variant_task=self.dynamic_variant_task
+        ).task_snapshot["task"]
+        pre_generated_snapshot = generation_attempts.get(
+            variant_task=self.pre_generated_variant_task
         ).task_snapshot["task"]
 
         self.assertEqual(static_snapshot["type"], "static")
@@ -128,6 +167,32 @@ class VariantGenerationTests(TestCase):
         self.assertIn("content", dynamic_snapshot)
         self.assertEqual(dynamic_snapshot["difficulty_level"], 80)
         self.assertEqual(dynamic_snapshot["correct_answer"], {"formula": "a + b"})
+        self.assertEqual(pre_generated_snapshot["type"], "dynamic")
+        self.assertEqual(
+            pre_generated_snapshot["generation_mode"],
+            Task.DynamicMode.PRE_GENERATED,
+        )
+        dataset_ids = [item.id for item in self.pre_generated_datasets]
+        self.assertIn(pre_generated_snapshot["dataset_id"], dataset_ids)
+        selected_dataset = next(
+            item
+            for item in self.pre_generated_datasets
+            if item.id == pre_generated_snapshot["dataset_id"]
+        )
+        self.assertEqual(
+            pre_generated_snapshot["payload"], selected_dataset.parameter_values
+        )
+        self.assertEqual(
+            pre_generated_snapshot["correct_answer"], selected_dataset.correct_answer
+        )
+        self.assertIn(
+            str(selected_dataset.parameter_values["target"]),
+            pre_generated_snapshot["content"]["statement"],
+        )
+        self.assertEqual(
+            pre_generated_snapshot["difficulty_level"],
+            self.pre_generated_task.difficulty_level,
+        )
 
         attempt = variant_service.get_attempt_with_prefetch(
             self.assignment.user, attempt.id
@@ -139,9 +204,15 @@ class VariantGenerationTests(TestCase):
         dynamic_entry = next(
             item for item in progress if item["variant_task_id"] == self.dynamic_variant_task.id
         )
+        pre_generated_entry = next(
+            item
+            for item in progress
+            if item["variant_task_id"] == self.pre_generated_variant_task.id
+        )
 
         self.assertEqual(static_entry["task_snapshot"], static_snapshot)
         self.assertEqual(dynamic_entry["task_snapshot"], dynamic_snapshot)
+        self.assertEqual(pre_generated_entry["task_snapshot"], pre_generated_snapshot)
 
     def test_snapshot_is_used_when_submitting_answer(self):
         attempt = variant_service.start_new_attempt(
@@ -170,6 +241,49 @@ class VariantGenerationTests(TestCase):
         self.assertEqual(attempt_snapshot["task"], entry["task_snapshot"])
         self.assertEqual(attempt_snapshot["task"]["difficulty_level"], 80)
         self.assertEqual(attempt_snapshot["task"]["correct_answer"], {"formula": "a + b"})
+
+    def test_pre_generated_dataset_selection_is_seed_based(self):
+        first = self.pre_generated_task.pick_pregenerated_dataset(seed=10)
+        second = self.pre_generated_task.pick_pregenerated_dataset(seed=10)
+        alternate = self.pre_generated_task.pick_pregenerated_dataset(seed=11)
+
+        self.assertEqual(first.id, second.id)
+        self.assertIn(alternate.id, [item.id for item in self.pre_generated_datasets])
+
+    def test_pre_generated_snapshot_is_captured_on_submission(self):
+        attempt = variant_service.start_new_attempt(
+            self.assignment.user, self.assignment.id
+        )
+
+        variant_service.submit_task_answer(
+            self.assignment.user,
+            attempt.id,
+            self.pre_generated_variant_task.id,
+            is_correct=True,
+        )
+
+        attempt = variant_service.get_attempt_with_prefetch(
+            self.assignment.user, attempt.id
+        )
+        progress = variant_service.build_tasks_progress(attempt)
+        entry = next(
+            item
+            for item in progress
+            if item["variant_task_id"] == self.pre_generated_variant_task.id
+        )
+        self.assertEqual(entry["attempts_used"], 1)
+        stored_snapshot = entry["attempts"][0].task_snapshot["task"]
+
+        self.assertEqual(
+            stored_snapshot["dataset_id"], entry["task_snapshot"]["dataset_id"]
+        )
+        self.assertEqual(
+            stored_snapshot["generation_mode"],
+            Task.DynamicMode.PRE_GENERATED,
+        )
+        self.assertEqual(
+            stored_snapshot["payload"], entry["task_snapshot"]["payload"]
+        )
 
     def test_submit_task_answer_without_generated_snapshot_includes_metadata(self):
         attempt = variant_service.start_new_attempt(

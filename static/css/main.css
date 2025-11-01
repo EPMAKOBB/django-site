@@ -1257,6 +1257,14 @@ header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); bac
   color: #555;
 }
 
+.task-placeholder {
+  background-color: rgba(255, 223, 142, 0.35);
+  border-bottom: 1px dashed #c68a00;
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 600;
+}
+
 /* Mobile header layout: stack title and account button */
 @media (max-width: 640px) {
   header .row {
