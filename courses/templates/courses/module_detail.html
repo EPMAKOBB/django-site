@@ -155,24 +155,7 @@
                 {% endif %}
               {% elif current_item.kind == current_item.ItemKind.TASK and current_item.task %}
                 <div class="module-detail__task">
-                  {% if current_item.task.description %}
-                    {% if current_item.task.rendering_strategy == current_item.task.RenderingStrategy.HTML %}
-                      <div class="module-detail__task-description" data-format="html">
-                        {{ current_item.task.description|safe }}
-                      </div>
-                    {% elif current_item.task.rendering_strategy == current_item.task.RenderingStrategy.MARKDOWN %}
-                      <div class="module-detail__task-description" data-format="markdown">
-                        {{ current_item.task.description|render_markdown }}
-                      </div>
-                    {% else %}
-                      <div class="module-detail__task-description" data-format="text">
-                        {{ current_item.task.description|linebreaks }}
-                      </div>
-                    {% endif %}
-                  {% else %}
-                    <p class="muted">{% trans 'Описание задания пока отсутствует.' %}</p>
-                  {% endif %}
-                  <dl class="module-detail__task-meta">
+                  <dl class="module-detail__task-meta module-detail__task-meta--top">
                     {% if current_item.task.type %}
                       <div>
                         <dt>{% trans 'Тип задания' %}</dt>
@@ -186,62 +169,73 @@
                       </div>
                     {% endif %}
                   </dl>
+                  <div class="module-detail__task-panel">
+                    <div class="module-detail__task-statement">
+                      {% if current_item.task.description %}
+                        {% if current_item.task.rendering_strategy == current_item.task.RenderingStrategy.HTML %}
+                          <div class="module-detail__task-description" data-format="html">
+                            {{ current_item.task.description|safe }}
+                          </div>
+                        {% elif current_item.task.rendering_strategy == current_item.task.RenderingStrategy.MARKDOWN %}
+                          <div class="module-detail__task-description" data-format="markdown">
+                            {{ current_item.task.description|render_markdown }}
+                          </div>
+                        {% else %}
+                          <div class="module-detail__task-description" data-format="text">
+                            {{ current_item.task.description|linebreaks }}
+                          </div>
+                        {% endif %}
+                      {% else %}
+                        <p class="muted">{% trans 'Описание задания пока отсутствует.' %}</p>
+                      {% endif %}
+                    </div>
+                    {% with form=task_answer_form %}
+                      {% if form and form.is_available %}
+                        <form method="post" class="module-detail__task-form">
+                          {% csrf_token %}
+                          <input type="hidden" name="item_id" value="{{ current_item.id }}">
+                          <input type="hidden" name="action" value="submit-answer">
+                          <fieldset class="module-detail__answer-fields">
+                            <legend class="sr-only">{{ task_answer_legend }}</legend>
+                            {% if form.non_field_errors %}
+                              <ul class="errorlist">
+                                {% for error in form.non_field_errors %}
+                                  <li>{{ error }}</li>
+                                {% endfor %}
+                              </ul>
+                            {% endif %}
+                            {% for field in form %}
+                              <div class="module-detail__answer-field">
+                                {{ field }}
+                                {% if field.errors %}
+                                  <ul class="errorlist">
+                                    {% for error in field.errors %}
+                                      <li>{{ error }}</li>
+                                    {% endfor %}
+                                  </ul>
+                                {% endif %}
+                              </div>
+                            {% endfor %}
+                          </fieldset>
+                          <div class="module-detail__action-buttons module-detail__action-buttons--inline">
+                            <button type="submit" class="btn btn--primary">
+                              {{ task_answer_submit_label }}
+                            </button>
+                          </div>
+                        </form>
+                      {% else %}
+                        <p class="muted module-detail__task-form-placeholder">{{ task_answer_unavailable_message }}</p>
+                      {% endif %}
+                    {% endwith %}
+                  </div>
                 </div>
               {% else %}
-                <p class="muted">{% trans 'Для этого элемента пока нет содержимого.' %}</p>
+                <p class="muted">{% trans 'Контент для этого элемента пока недоступен.' %}</p>
               {% endif %}
-              </div>
+            </div>
 
             <footer class="module-detail__card-footer">
-              {% if current_item.kind == current_item.ItemKind.TASK and current_item.task %}
-                {% if task_answer_check_available %}
-                  <form method="post" class="module-detail__task-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="item_id" value="{{ current_item.id }}">
-                    <input type="hidden" name="action" value="submit-answer">
-                    <fieldset class="module-detail__answer-fields">
-                      <legend class="sr-only">{% trans 'Ответ на задание' %}</legend>
-                      {% if task_answer_errors %}
-                        <ul class="errorlist">
-                          {% for error in task_answer_errors %}
-                            <li>{{ error }}</li>
-                          {% endfor %}
-                        </ul>
-                      {% endif %}
-                      {% for field in task_answer_fields %}
-                        <div class="module-detail__answer-field">
-                          <label for="{{ field.name }}-input">{{ field.label }}</label>
-                          {% if field.widget == 'select' %}
-                            <select id="{{ field.name }}-input" name="{{ field.name }}" required>
-                              <option value="">{% trans 'Выберите значение' %}</option>
-                              {% for value, label in field.choices %}
-                                <option value="{{ value }}"{% if field.value == value %} selected{% endif %}>{{ label }}</option>
-                              {% endfor %}
-                            </select>
-                          {% else %}
-                            <input
-                              id="{{ field.name }}-input"
-                              name="{{ field.name }}"
-                              type="{{ field.input_type|default:'text' }}"
-                              value="{{ field.value }}"
-                              {% if field.step %}step="{{ field.step }}"{% endif %}
-                              {% if field.input_type == 'number' %}inputmode="decimal"{% endif %}
-                              required
-                            >
-                          {% endif %}
-                        </div>
-                      {% endfor %}
-                    </fieldset>
-                    <div class="module-detail__action-buttons">
-                      <button type="submit" class="btn btn--primary">
-                        {% trans 'Проверить ответ' %}
-                      </button>
-                    </div>
-                  </form>
-                {% else %}
-                  <p class="muted">{% trans 'Проверка ответа для этого задания пока недоступна.' %}</p>
-                {% endif %}
-              {% elif current_item.kind == current_item.ItemKind.THEORY %}
+              {% if current_item.kind == current_item.ItemKind.THEORY %}
                 <form method="post" class="module-detail__action-form">
                   {% csrf_token %}
                   <input type="hidden" name="item_id" value="{{ current_item.id }}">

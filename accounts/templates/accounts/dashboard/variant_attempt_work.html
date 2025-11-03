@@ -1,4 +1,4 @@
-{% extends 'accounts/dashboard/base.html' %}
+﻿{% extends 'accounts/dashboard/base.html' %}
 {% load i18n markdown_extras %}
 
 {% block dashboard_title %}{{ assignment.template.name }}{% endblock %}
@@ -28,16 +28,16 @@
         {% endif %}
         {% if time_left %}
           <div>
-            <span class="attempt-work__label">{% trans "Оставшееся время" %}</span>
+            <span class="attempt-work__label">{% trans "Осталось времени" %}</span>
             <span class="attempt-work__value">{{ time_left }}</span>
           </div>
         {% endif %}
         <div>
           <span class="attempt-work__label">{% trans "Статус" %}</span>
           {% if attempt_completed %}
-            <span class="attempt-work__badge attempt-work__badge--success">{% trans "Завершено" %}</span>
+            <span class="attempt-work__badge attempt-work__badge--success">{% trans "Завершена" %}</span>
           {% else %}
-            <span class="attempt-work__badge attempt-work__badge--active">{% trans "В процессе" %}</span>
+            <span class="attempt-work__badge attempt-work__badge--active">{% trans "В работе" %}</span>
           {% endif %}
         </div>
       </div>
@@ -49,123 +49,191 @@
           {% csrf_token %}
           <input type="hidden" name="action" value="finalize">
           <button type="submit" class="btn btn-primary">
-            {% if all_completed %}
+            {% if all_answers_saved %}
               {% trans "Завершить попытку" %}
             {% else %}
-              {% trans "Завершить попытку (даже если остались задачи)" %}
+              {% trans "Завершить попытку (даже если остались незаполненные ответы)" %}
             {% endif %}
           </button>
         </form>
       </div>
-      {% if not all_completed %}
-        <p class="attempt-work__hint">{% trans "Вы можете завершить попытку в любой момент. После завершения изменить ответы будет нельзя." %}</p>
+      {% if not all_answers_saved %}
+        <p class="attempt-work__hint">
+          {% trans "Сохраните ответы во всех заданиях перед завершением попытки. Вы всегда можете вернуться и изменить ответ до окончания попытки." %}
+        </p>
       {% endif %}
     {% else %}
-      <p class="attempt-work__hint attempt-work__hint--muted">{% trans "Попытка закрыта: ответы сохранены, новые попытки недоступны." %}</p>
+      <p class="attempt-work__hint attempt-work__hint--muted">
+        {% trans "Попытка завершена: ниже показаны результаты проверки ответов." %}
+      </p>
     {% endif %}
   </section>
 
   {% for item in tasks %}
-    <article class="card attempt-task" id="variant-task-{{ item.variant_task.id }}">
+    <article class="card attempt-task module-detail__card" id="variant-task-{{ item.variant_task.id }}">
       <header class="attempt-task__header">
         <div class="attempt-task__heading">
           <span class="attempt-task__index">#{{ item.order }}</span>
           <h3 class="attempt-task__title">{{ item.display.title }}</h3>
         </div>
         <div class="attempt-task__badges">
-          <span class="attempt-task__badge">{% if item.task.type %}{{ item.task.type.name }}{% endif %}</span>
-          {% if item.task.subject %}
+          {% if item.task and item.task.type %}
+            <span class="attempt-task__badge">{{ item.task.type.name }}</span>
+          {% endif %}
+          {% if item.task and item.task.subject %}
             <span class="attempt-task__badge">{{ item.task.subject.name }}</span>
           {% endif %}
-          <span class="attempt-task__badge">{% blocktrans with diff=item.task.difficulty_level %}Сложность {{ diff }}{% endblocktrans %}</span>
-          {% if item.is_completed %}
-            <span class="attempt-task__badge attempt-task__badge--success">{% trans "Решена" %}</span>
-          {% elif item.remaining_attempts == 0 and item.max_attempts %}
-            <span class="attempt-task__badge attempt-task__badge--danger">{% trans "Лимит попыток" %}</span>
+          {% if item.task and item.task.difficulty_level %}
+            <span class="attempt-task__badge">{% blocktrans with diff=item.task.difficulty_level %}Сложность {{ diff }}{% endblocktrans %}</span>
+          {% endif %}
+          {% if attempt_completed %}
+            {% if item.last_attempt and item.last_attempt.is_correct %}
+              <span class="attempt-task__badge attempt-task__badge--success">{% trans "Верно" %}</span>
+            {% elif item.last_attempt %}
+              <span class="attempt-task__badge attempt-task__badge--danger">{% trans "Ошибка" %}</span>
+            {% endif %}
+          {% else %}
+            {% if item.has_saved_response %}
+              <span class="attempt-task__badge attempt-task__badge--active">{% trans "Ответ сохранен" %}</span>
+            {% endif %}
           {% endif %}
         </div>
       </header>
 
-      <div class="attempt-task__body">
-        {% if item.display.description %}
-          {% if item.display.rendering_strategy == 'html' %}
-            <div class="attempt-task__statement" data-format="html">{{ item.display.description|safe }}</div>
-          {% elif item.display.rendering_strategy == 'markdown' %}
-            <div class="attempt-task__statement" data-format="markdown">{{ item.display.description|render_markdown }}</div>
-          {% else %}
-            <p class="attempt-task__statement" data-format="text">{{ item.display.description|linebreaksbr }}</p>
+      <div class="attempt-task__body module-detail__task">
+        <dl class="module-detail__task-meta module-detail__task-meta--top">
+          {% if item.task and item.task.type %}
+            <div>
+              <dt>{% trans "Тип задания" %}</dt>
+              <dd>{{ item.task.type.name }}</dd>
+            </div>
           {% endif %}
-        {% endif %}
+          {% if item.task and item.task.subject %}
+            <div>
+              <dt>{% trans "Предмет" %}</dt>
+              <dd>{{ item.task.subject.name }}</dd>
+            </div>
+          {% endif %}
+        </dl>
 
-        {% if item.display.image %}
-          <figure class="attempt-task__figure">
-            <img src="{{ item.display.image }}" alt="{% trans 'Иллюстрация к задаче' %}">
-          </figure>
-        {% endif %}
-
-        {% if item.skills %}
-          <div class="attempt-task__skills">
-            <span class="attempt-task__skills-label">{% trans "Навыки" %}:</span>
-            <ul class="attempt-task__skills-list">
-              {% for skill in item.skills %}
-                <li>{{ skill.name }}</li>
-              {% endfor %}
-            </ul>
+        <div class="module-detail__task-panel">
+          <div class="module-detail__task-statement">
+            {% if item.display.description %}
+              {% if item.task and item.display.rendering_strategy == item.task.RenderingStrategy.HTML %}
+                <div class="module-detail__task-description" data-format="html">
+                  {{ item.display.description|safe }}
+                </div>
+              {% elif item.task and item.display.rendering_strategy == item.task.RenderingStrategy.MARKDOWN %}
+                <div class="module-detail__task-description" data-format="markdown">
+                  {{ item.display.description|render_markdown }}
+                </div>
+              {% else %}
+                <div class="module-detail__task-description" data-format="text">
+                  {{ item.display.description|linebreaks }}
+                </div>
+              {% endif %}
+            {% else %}
+              <p class="muted">{% trans "Условие задания недоступно." %}</p>
+            {% endif %}
+            {% if item.display.image %}
+              <div class="module-detail__task-image">
+                <img src="{{ item.display.image }}" alt="{% trans 'Иллюстрация к заданию' %}">
+              </div>
+            {% endif %}
           </div>
-        {% endif %}
+
+          {% if not attempt_completed %}
+            {% if item.form_available %}
+              <form method="post" class="module-detail__task-form" novalidate>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save-task">
+                <input type="hidden" name="variant_task_id" value="{{ item.variant_task.id }}">
+                <fieldset class="module-detail__answer-fields">
+                  <legend class="sr-only">{{ task_answer_legend }}</legend>
+                  {% if item.form.non_field_errors %}
+                    <ul class="errorlist">
+                      {% for error in item.form.non_field_errors %}
+                        <li>{{ error }}</li>
+                      {% endfor %}
+                    </ul>
+                  {% endif %}
+                  {% for field in item.form %}
+                    <div class="module-detail__answer-field">
+                      {{ field }}
+                      {% if field.errors %}
+                        <ul class="errorlist">
+                          {% for error in field.errors %}
+                            <li>{{ error }}</li>
+                          {% endfor %}
+                        </ul>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </fieldset>
+                <div class="module-detail__action-buttons module-detail__action-buttons--inline">
+                  <button type="submit" class="btn btn--primary">
+                    {{ task_answer_submit_label }}
+                  </button>
+                </div>
+              </form>
+            {% else %}
+              <p class="muted module-detail__task-form-placeholder">{{ task_answer_unavailable_message }}</p>
+            {% endif %}
+
+            {% if item.has_saved_response %}
+              <p class="attempt-task__hint">
+                {% trans "Ответ сохранен." %}
+                {% if item.saved_response_updated_at %}
+                  {% trans "Обновлено" %} {{ item.saved_response_updated_at|date:"d E Y H:i" }}.
+                {% endif %}
+                {% if item.saved_response_display %}
+                  {% trans "Текущее значение:" %} <span class="attempt-task__hint-value">{{ item.saved_response_display }}</span>
+                {% endif %}
+              </p>
+            {% endif %}
+          {% else %}
+            {% if item.last_attempt %}
+              <div class="attempt-task__hint {% if item.last_attempt.is_correct %}attempt-task__hint--success{% else %}attempt-task__hint--danger{% endif %}">
+                <strong>
+                  {% if item.last_attempt.is_correct %}
+                    {% trans "Ответ верный." %}
+                  {% else %}
+                    {% trans "Ответ неверный." %}
+                  {% endif %}
+                </strong>
+                {% if item.last_attempt.response_text %}
+                  <div>{% trans "Ваш ответ:" %} {{ item.last_attempt.response_text }}</div>
+                {% endif %}
+                <div>{{ item.last_attempt.created_at|date:"d E Y H:i" }}</div>
+              </div>
+            {% endif %}
+          {% endif %}
+        </div>
       </div>
 
       {% if item.history %}
-        <section class="attempt-task__history" aria-label="{% trans 'История попыток по задаче' %}">
-          <h4>{% trans "История попыток" %}</h4>
-          <ul>
-            {% for entry in item.history %}
-              <li>
-                <span class="attempt-task__history-number">#{% firstof entry.number %}</span>
-                {% if entry.is_correct %}
-                  <span class="attempt-task__history-status attempt-task__history-status--success">{% trans "верно" %}</span>
-                {% else %}
-                  <span class="attempt-task__history-status attempt-task__history-status--muted">{% trans "повторить" %}</span>
-                {% endif %}
-                <time datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|date:"d.m.Y H:i" }}</time>
-                {% if entry.response_text %}
-                  <pre class="attempt-task__history-answer">{{ entry.response_text }}</pre>
-                {% endif %}
-              </li>
-            {% endfor %}
-          </ul>
-        </section>
-      {% endif %}
-
-      {% if not attempt_completed %}
-        {% if item.is_completed %}
-          <p class="attempt-task__hint attempt-task__hint--success">{% trans "Задача уже решена в этой попытке." %}</p>
-        {% elif item.remaining_attempts == 0 and item.max_attempts %}
-          <p class="attempt-task__hint attempt-task__hint--danger">{% trans "Лимит попыток исчерпан." %}</p>
-        {% else %}
-          <form method="post" class="attempt-task__form">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="submit-task">
-            <input type="hidden" name="variant_task_id" value="{{ item.variant_task.id }}">
-            <label class="attempt-task__label" for="response-{{ item.variant_task.id }}">{% trans "Ваше решение или заметки" %}</label>
-            <textarea id="response-{{ item.variant_task.id }}" name="response" rows="4" placeholder="{% trans 'Опишите ход решения или оставьте заметку для себя' %}"></textarea>
-            <div class="attempt-task__form-actions">
-              {% if item.max_attempts %}
-                <span class="attempt-task__remaining">{% blocktrans with left=item.remaining_attempts max=item.max_attempts %}Осталось {{ left }} из {{ max }} попыток{% endblocktrans %}</span>
-              {% endif %}
-              <div class="attempt-task__buttons">
-                <button class="btn btn-primary" type="submit" name="is_correct" value="1">{% trans "Отметить как решенную" %}</button>
-                <button class="btn btn-secondary" type="submit" name="is_correct" value="0">{% trans "Нужно повторить" %}</button>
-              </div>
-            </div>
-          </form>
-        {% endif %}
+        <footer class="attempt-task__footer">
+          <details class="attempt-task__history">
+            <summary>{% trans "История ответов" %}</summary>
+            <ul class="attempt-task__history-list">
+              {% for history in item.history %}
+                <li class="attempt-task__history-item">
+                  <span class="attempt-task__history-attempt">#{{ history.number }}</span>
+                  <span class="attempt-task__history-status attempt-task__history-status--{% if history.is_correct %}success{% else %}danger{% endif %}">
+                    {% if history.is_correct %}{% trans "верно" %}{% else %}{% trans "ошибка" %}{% endif %}
+                  </span>
+                  <span class="attempt-task__history-date">{{ history.created_at|date:"d E Y H:i" }}</span>
+                  {% if history.response_text %}
+                    <span class="attempt-task__history-answer">{{ history.response_text }}</span>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          </details>
+        </footer>
       {% endif %}
     </article>
   {% empty %}
-    <section class="card">
-      <p class="hint">{% trans "В шаблоне пока нет задач." %}</p>
-    </section>
+    <p class="muted">{% trans "В этом варианте пока нет заданий." %}</p>
   {% endfor %}
 {% endblock %}
-

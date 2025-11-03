@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from django.utils import timezone
+
 from ..models import (
     Attempt,
     RecommendationLog,
@@ -335,6 +337,9 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
             attempts_serializer = VariantTaskAttemptSerializer(
                 item["attempts"], many=True, context=self.context
             )
+            saved_response_updated_at = item.get("saved_response_updated_at")
+            if saved_response_updated_at is not None:
+                saved_response_updated_at = timezone.localtime(saved_response_updated_at).isoformat()
             progress.append(
                 {
                     "variant_task_id": item["variant_task_id"],
@@ -344,6 +349,8 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
                     "attempts_used": item["attempts_used"],
                     "is_completed": item["is_completed"],
                     "task_snapshot": item["task_snapshot"],
+                    "saved_response": item.get("saved_response"),
+                    "saved_response_updated_at": saved_response_updated_at,
                     "attempts": attempts_serializer.data,
                 }
             )
