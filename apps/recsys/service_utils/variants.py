@@ -319,8 +319,13 @@ def _get_generation_attempt_for_update(
     attempt: VariantAttempt, variant_task: VariantTask
 ) -> Optional[VariantTaskAttempt]:
     return (
-        attempt.task_attempts.select_for_update()
-        .filter(variant_task=variant_task, attempt_number=0)
+        VariantTaskAttempt.objects.select_for_update(of=("self",))
+        .filter(
+            variant_attempt=attempt,
+            variant_task=variant_task,
+            attempt_number=0,
+        )
+        .order_by("id")
         .first()
     )
 
