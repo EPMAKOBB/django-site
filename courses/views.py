@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Sequence
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Prefetch
@@ -11,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import urlencode
 from django.utils.translation import gettext as _
 
+from apps.recsys.forms import TaskAnswerForm, compare_answers
 from apps.recsys.models import Attempt
 
 from .models import (
@@ -23,216 +21,6 @@ from .models import (
 )
 from .services import calculate_module_progress_percent, is_module_unlocked_for_user
 from apps.recsys.service_utils.type_progress import build_type_progress_map
-
-
-@dataclass(frozen=True)
-class AnswerSegment:
-    kind: str  # "dict" or "list"
-    key: Any
-
-
-@dataclass
-class AnswerField:
-    name: str
-    label: str
-    segments: tuple[AnswerSegment, ...]
-    value_type: str
-    widget: str
-    input_type: str | None = None
-    step: str | None = None
-    choices: tuple[tuple[str, str], ...] = ()
-    value: str = ""
-
-
-def _detect_value_type(sample: Any) -> str:
-    if isinstance(sample, bool):
-        return "boolean"
-    if isinstance(sample, int):
-        return "integer"
-    if isinstance(sample, float):
-        return "float"
-    return "string"
-
-
-def _format_answer_label(segments: tuple[AnswerSegment, ...]) -> str:
-    parts = [_("Ответ")]
-    for segment in segments:
-        if segment.kind == "dict":
-            parts.append(str(segment.key))
-        else:
-            index = int(segment.key) + 1
-            parts.append(_("элемент %(index)s") % {"index": index})
-    return " → ".join(parts)
-
-
-def _build_field_name(segments: tuple[AnswerSegment, ...]) -> str:
-    if not segments:
-        return "answer__value"
-    tokens = [str(segment.key) for segment in segments]
-    return "answer__" + "__".join(tokens)
-
-
-def _build_answer_fields(correct_answer: Any) -> list[AnswerField]:
-    fields: list[AnswerField] = []
-
-    def _make_field(sample_value: Any, segments: tuple[AnswerSegment, ...]) -> AnswerField:
-        value_type = _detect_value_type(sample_value)
-        name = _build_field_name(segments) if segments else "answer__value"
-        label = _format_answer_label(segments) if segments else _("Ответ")
-        widget = "input"
-        input_type: str | None = "text"
-        step: str | None = None
-        choices: tuple[tuple[str, str], ...] = ()
-
-        if value_type == "boolean":
-            widget = "select"
-            input_type = None
-            choices = (("true", _("Да")), ("false", _("Нет")))
-        elif value_type == "integer":
-            input_type = "number"
-        elif value_type == "float":
-            input_type = "number"
-            step = "any"
-
-        return AnswerField(
-            name=name,
-            label=label,
-            segments=segments,
-            value_type=value_type,
-            widget=widget,
-            input_type=input_type,
-            step=step,
-            choices=choices,
-        )
-
-    def _walk(node: Any, segments: tuple[AnswerSegment, ...]) -> None:
-        if isinstance(node, dict):
-            if not node:
-                return
-            for key, value in node.items():
-                _walk(value, segments + (AnswerSegment(kind="dict", key=key),))
-        elif isinstance(node, list):
-            if not node:
-                return
-            for index, value in enumerate(node):
-                _walk(value, segments + (AnswerSegment(kind="list", key=index),))
-        else:
-            fields.append(_make_field(node, segments))
-
-    if isinstance(correct_answer, (dict, list)):
-        _walk(correct_answer, tuple())
-    else:
-        fields.append(_make_field(correct_answer, tuple()))
-
-    return fields
-
-
-def _convert_answer_value(field: AnswerField, raw_value: str) -> Any:
-    value = (raw_value or "").strip()
-    if not value:
-        raise ValueError(_("Заполните поле «%(label)s».") % {"label": field.label})
-
-    if field.value_type == "integer":
-        try:
-            return int(value)
-        except ValueError as exc:  # pragma: no cover - defensive
-            raise ValueError(
-                _("Поле «%(label)s» должно быть целым числом.") % {"label": field.label}
-            ) from exc
-    if field.value_type == "float":
-        normalised = value.replace(",", ".")
-        try:
-            return float(normalised)
-        except ValueError as exc:  # pragma: no cover - defensive
-            raise ValueError(
-                _("Поле «%(label)s» должно быть числом.") % {"label": field.label}
-            ) from exc
-    if field.value_type == "boolean":
-        lowered = value.lower()
-        truthy = {"true", "1", "yes", "y", "on", "да", "истина"}
-        falsy = {"false", "0", "no", "n", "off", "нет", "ложь"}
-        if lowered in truthy:
-            return True
-        if lowered in falsy:
-            return False
-        raise ValueError(
-            _("Выберите одно из допустимых значений для поля «%(label)s».")
-            % {"label": field.label}
-        )
-
-    return value
-
-
-def _initial_structure(template: Any) -> Any:
-    if isinstance(template, dict):
-        return {}
-    if isinstance(template, list):
-        return []
-    return None
-
-
-def _insert_value(target: Any, segments: tuple[AnswerSegment, ...], value: Any) -> None:
-    current = target
-    for index, segment in enumerate(segments):
-        is_last = index == len(segments) - 1
-        if segment.kind == "dict":
-            key = segment.key
-            if is_last:
-                current[key] = value
-            else:
-                next_segment = segments[index + 1]
-                if key not in current or current[key] is None:
-                    current[key] = _initial_structure(
-                        [] if next_segment.kind == "list" else {}
-                    )
-                current = current[key]
-        else:
-            key_index = int(segment.key)
-            while len(current) <= key_index:
-                current.append(None)
-            if is_last:
-                current[key_index] = value
-            else:
-                next_segment = segments[index + 1]
-                if current[key_index] is None:
-                    current[key_index] = _initial_structure(
-                        [] if next_segment.kind == "list" else {}
-                    )
-                current = current[key_index]
-
-
-def _assemble_answer_structure(
-    template: Any, fields: Sequence[AnswerField], converted: dict[str, Any]
-) -> Any:
-    base = _initial_structure(template)
-    if base is None:
-        field = fields[0] if fields else None
-        return converted.get(field.name) if field else None
-
-    for field in fields:
-        _insert_value(base, field.segments, converted[field.name])
-    return base
-
-
-def _compare_answers(expected: Any, actual: Any) -> bool:
-    if isinstance(expected, dict):
-        if not isinstance(actual, dict) or expected.keys() != actual.keys():
-            return False
-        return all(_compare_answers(expected[key], actual[key]) for key in expected)
-    if isinstance(expected, list):
-        if not isinstance(actual, list) or len(expected) != len(actual):
-            return False
-        return all(_compare_answers(exp, act) for exp, act in zip(expected, actual))
-    if isinstance(expected, str):
-        return expected.strip().casefold() == str(actual).strip().casefold()
-    if isinstance(expected, float):
-        try:
-            actual_value = float(actual)
-        except (TypeError, ValueError):
-            return False
-        return abs(expected - actual_value) <= 1e-9
-    return expected == actual
-
 
 @login_required
 def module_detail(request, course_slug: str, module_slug: str):
@@ -356,19 +144,21 @@ def module_detail(request, course_slug: str, module_slug: str):
     previous_item = _find_neighbor(current_item, -1)
     next_item = _find_neighbor(current_item, 1)
 
-    task_answer_fields: list[AnswerField] = []
-    task_answer_values: dict[str, str] = {}
-    task_answer_errors: list[str] = []
-    task_answer_check_available = False
-    task_correct_answer: Any | None = None
+    task_answer_form: TaskAnswerForm | None = None
+    task_correct_answer = None
     if (
         current_item
         and current_item.kind == current_item.ItemKind.TASK
         and current_item.task
     ):
         task_correct_answer = current_item.task.correct_answer or {}
-        task_answer_fields = _build_answer_fields(task_correct_answer)
-        task_answer_check_available = bool(task_answer_fields)
+        form_data = (
+            request.POST
+            if request.method == "POST"
+            and (request.POST.get("action") or "") == "submit-answer"
+            else None
+        )
+        task_answer_form = TaskAnswerForm(task_correct_answer, data=form_data)
 
     if request.method == "POST" and current_item:
         action = request.POST.get("action") or ""
@@ -380,73 +170,57 @@ def module_detail(request, course_slug: str, module_slug: str):
                 current_item.kind == current_item.ItemKind.TASK
                 and current_item.task
             ):
-                if not task_answer_check_available:
+                if not task_answer_form or not task_answer_form.is_available:
                     messages.error(
                         request,
                         _("Проверка ответа для этого задания пока недоступна."),
                     )
-                else:
-                    task_answer_values = {
-                        field.name: (request.POST.get(field.name) or "").strip()
-                        for field in task_answer_fields
-                    }
-                    converted_values: dict[str, Any] = {}
-                    for field in task_answer_fields:
-                        try:
-                            converted_values[field.name] = _convert_answer_value(
-                                field, task_answer_values[field.name]
-                            )
-                        except ValueError as exc:
-                            task_answer_errors.append(str(exc))
+                elif task_answer_form.is_valid() and task_correct_answer is not None:
+                    user_answer = task_answer_form.get_answer()
+                    is_correct = compare_answers(task_correct_answer, user_answer)
 
-                    if not task_answer_errors and task_correct_answer is not None:
-                        user_answer = _assemble_answer_structure(
-                            task_correct_answer, task_answer_fields, converted_values
-                        )
-                        is_correct = _compare_answers(task_correct_answer, user_answer)
+                    Attempt.objects.create(
+                        user=request.user,
+                        task=current_item.task,
+                        is_correct=is_correct,
+                    )
 
-                        Attempt.objects.create(
-                            user=request.user,
-                            task=current_item.task,
-                            is_correct=is_correct,
-                        )
+                    module_mastery_percent = calculate_module_progress_percent(
+                        user=request.user,
+                        module=module,
+                        enrollment=enrollment,
+                        module_items=items,
+                        completed_theory_item_ids=completed_theory_item_ids,
+                    )
+                    accessible_items = _build_accessible_items(module_mastery_percent)
+                    previous_item = _find_neighbor(current_item, -1)
+                    next_item = _find_neighbor(current_item, 1)
 
-                        module_mastery_percent = calculate_module_progress_percent(
-                            user=request.user,
-                            module=module,
-                            enrollment=enrollment,
-                            module_items=items,
-                            completed_theory_item_ids=completed_theory_item_ids,
-                        )
-                        accessible_items = _build_accessible_items(module_mastery_percent)
-                        previous_item = _find_neighbor(current_item, -1)
-                        next_item = _find_neighbor(current_item, 1)
-
-                        if is_correct:
-                            if next_item:
-                                messages.success(
-                                    request,
-                                    _("Ответ верный! Переходим к следующему заданию."),
-                                )
-                                target = next_item
-                            else:
-                                messages.success(
-                                    request,
-                                    _("Ответ верный! Это было последнее задание в модуле."),
-                                )
-                        else:
-                            messages.error(
+                    if is_correct:
+                        if next_item:
+                            messages.success(
                                 request,
-                                _("Ответ неверный. Попробуйте ещё раз."),
+                                _("Ответ верный! Переходим к следующей карточке."),
                             )
-
-                        query = {"item": target.id} if target else {}
-                        redirect_url = module.get_absolute_url()
-                        if query:
-                            redirect_url = f"{redirect_url}?{urlencode(query)}"
-                        return redirect(redirect_url)
+                            target = next_item
+                        else:
+                            messages.success(
+                                request,
+                                _("Ответ верный! Это была последняя карточка в модуле."),
+                            )
                     else:
-                        should_redirect = False
+                        messages.error(
+                            request,
+                            _("Ответ неверный. Попробуй ещё раз."),
+                        )
+
+                    query = {"item": target.id} if target else {}
+                    redirect_url = module.get_absolute_url()
+                    if query:
+                        redirect_url = f"{redirect_url}?{urlencode(query)}"
+                    return redirect(redirect_url)
+                else:
+                    should_redirect = False
             else:
                 messages.error(
                     request,
@@ -522,9 +296,6 @@ def module_detail(request, course_slug: str, module_slug: str):
                 redirect_url = f"{redirect_url}?{urlencode(query)}"
             return redirect(redirect_url)
 
-    for field in task_answer_fields:
-        field.value = task_answer_values.get(field.name, "")
-
     task_ids = [item.task_id for item in items if item.task_id]
     attempts_by_task: dict[int, list[Attempt]] = {}
     if task_ids:
@@ -570,9 +341,9 @@ def module_detail(request, course_slug: str, module_slug: str):
         "previous_item": previous_item,
         "next_item": next_item,
         "module_mastery_percent": module_mastery_percent,
-        "task_answer_fields": task_answer_fields,
-        "task_answer_values": task_answer_values,
-        "task_answer_errors": task_answer_errors,
-        "task_answer_check_available": task_answer_check_available,
+        "task_answer_form": task_answer_form,
+        "task_answer_submit_label": _("Проверить ответ"),
+        "task_answer_unavailable_message": _("Проверка ответа для этого задания пока недоступна."),
+        "task_answer_legend": _("Ответ на задание"),
     }
     return render(request, "courses/module_detail.html", context)

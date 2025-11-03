@@ -85,5 +85,5 @@ class ModuleDetailTaskAnswerTests(TestCase):
         }
         response = self.client.post(self.url, data=payload)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Заполните поле")
+        self.assertContains(response, "Заполните поле «Ответ».")
         self.assertEqual(Attempt.objects.count(), 0)

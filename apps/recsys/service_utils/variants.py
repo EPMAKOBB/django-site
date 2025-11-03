@@ -12,13 +12,14 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
 import hashlib
-from typing import Iterable, List, Optional, Mapping
+from typing import Any, Iterable, List, Optional, Mapping
 
 from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import exceptions
 
+from apps.recsys.forms import compare_answers
 from apps.recsys.models import (
     VariantAssignment,
     VariantAttempt,
@@ -35,7 +36,7 @@ TASK_PREFETCH = Prefetch(
 
 TASK_ATTEMPTS_PREFETCH = Prefetch(
     "task_attempts",
-    queryset=VariantTaskAttempt.objects.select_related("variant_task").order_by(
+    queryset=VariantTaskAttempt.objects.select_related("variant_task", "variant_task__task", "task").order_by(
         "variant_task_id", "attempt_number", "id"
     ),
 )
@@ -314,6 +315,16 @@ def _get_generated_snapshot(
     return deepcopy(snapshot.get("task", snapshot))
 
 
+def _get_generation_attempt_for_update(
+    attempt: VariantAttempt, variant_task: VariantTask
+) -> Optional[VariantTaskAttempt]:
+    return (
+        attempt.task_attempts.select_for_update()
+        .filter(variant_task=variant_task, attempt_number=0)
+        .first()
+    )
+
+
 def _normalise_answers(value):
     if isinstance(value, Mapping):
         return dict(value)
@@ -328,6 +339,56 @@ def _normalise_answers(value):
 class TaskSubmissionResult:
     attempt: VariantAttempt
     task_attempt: VariantTaskAttempt
+
+
+@transaction.atomic
+def save_task_response(
+    user,
+    attempt_id: int,
+    variant_task_id: int,
+    *,
+    answer: Any,
+) -> VariantTaskAttempt:
+    """Persist (or overwrite) the draft response for a variant task."""
+
+    try:
+        attempt = (
+            VariantAttempt.objects.select_for_update()
+            .select_related("assignment__template")
+            .prefetch_related(TASK_ATTEMPTS_PREFETCH)
+            .get(pk=attempt_id, assignment__user=user)
+        )
+    except VariantAttempt.DoesNotExist as exc:
+        raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
+
+    _ensure_active_attempt(attempt)
+    _ensure_time_limit_allows_submission(attempt)
+
+    assignment = attempt.assignment
+    variant_task = _validate_variant_task(assignment, variant_task_id)
+
+    generation_attempt = _get_generation_attempt_for_update(attempt, variant_task)
+    if generation_attempt is None:
+        _materialize_tasks_for_attempt(attempt)
+        generation_attempt = _get_generation_attempt_for_update(attempt, variant_task)
+        if generation_attempt is None:
+            raise exceptions.ValidationError("Unable to prepare task snapshot for saving the answer.")
+
+    snapshot = deepcopy(generation_attempt.task_snapshot or {})
+    base_snapshot = snapshot.get("task")
+    if base_snapshot is None:
+        base_snapshot = _get_generated_snapshot(attempt, variant_task)
+        if base_snapshot is not None:
+            snapshot["task"] = base_snapshot
+
+    snapshot["response"] = {
+        "value": deepcopy(answer),
+        "saved_at": timezone.now().isoformat(),
+    }
+
+    generation_attempt.task_snapshot = snapshot
+    generation_attempt.save(update_fields=["task_snapshot", "updated_at"])
+    return generation_attempt
 
 
 def _validate_variant_task(assignment: VariantAssignment, variant_task_id: int) -> VariantTask:
@@ -409,7 +470,7 @@ def submit_task_answer(
 
 @transaction.atomic
 def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
-    """Mark attempt as completed and persist time spent."""
+    """Mark attempt as completed, evaluate answers, and persist time spent."""
 
     try:
         attempt = (
@@ -419,9 +480,82 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
             .get(pk=attempt_id, assignment__user=user)
         )
     except VariantAttempt.DoesNotExist as exc:
-        raise exceptions.NotFound("Попытка не найдена") from exc
+        raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
 
     _ensure_active_attempt(attempt)
+
+    generation_attempts = [
+        item
+        for item in attempt.task_attempts.all()
+        if item.attempt_number == 0
+    ]
+    for generation_attempt in generation_attempts:
+        variant_task = generation_attempt.variant_task
+        task = variant_task.task
+        snapshot = deepcopy(generation_attempt.task_snapshot or {})
+        task_snapshot = snapshot.get("task", snapshot)
+        if not task_snapshot:
+            base_snapshot = _get_generated_snapshot(attempt, variant_task)
+            if base_snapshot is not None:
+                task_snapshot = base_snapshot
+
+        response_payload = snapshot.get("response")
+        response_value = None
+        if isinstance(response_payload, Mapping):
+            if "value" in response_payload:
+                response_value = response_payload.get("value")
+            elif "answer" in response_payload:
+                response_value = response_payload.get("answer")
+            elif "text" in response_payload:
+                response_value = response_payload.get("text")
+        elif response_payload is not None:
+            response_value = response_payload
+
+        correct_answer = None
+        if isinstance(task_snapshot, Mapping):
+            correct_answer = deepcopy(task_snapshot.get("correct_answer"))
+        if correct_answer is None and task is not None:
+            correct_answer = deepcopy(task.correct_answer or {})
+
+        is_correct = False
+        if correct_answer is not None and response_value is not None:
+            try:
+                is_correct = compare_answers(correct_answer, response_value)
+            except Exception:  # pragma: no cover - defensive
+                is_correct = False
+
+        actual_attempts_qs = attempt.task_attempts.filter(
+            variant_task=variant_task,
+            attempt_number__gt=0,
+        ).order_by("attempt_number")
+        next_number = actual_attempts_qs.count() + 1
+
+        if actual_attempts_qs.exists():
+            submission = actual_attempts_qs.last()
+            updated_snapshot = deepcopy(submission.task_snapshot or {})
+            if task_snapshot:
+                updated_snapshot["task"] = deepcopy(task_snapshot)
+            if response_payload is not None:
+                updated_snapshot["response"] = deepcopy(response_payload)
+            else:
+                updated_snapshot.pop("response", None)
+            submission.is_correct = bool(is_correct)
+            submission.task_snapshot = updated_snapshot
+            submission.save(update_fields=["is_correct", "task_snapshot", "updated_at"])
+        else:
+            record_snapshot = {}
+            if task_snapshot:
+                record_snapshot["task"] = deepcopy(task_snapshot)
+            if response_payload is not None:
+                record_snapshot["response"] = deepcopy(response_payload)
+            VariantTaskAttempt.objects.create(
+                variant_attempt=attempt,
+                variant_task=variant_task,
+                task=task,
+                attempt_number=next_number,
+                is_correct=bool(is_correct),
+                task_snapshot=record_snapshot,
+            )
 
     now = timezone.now()
     time_limit = attempt.assignment.template.time_limit
@@ -431,6 +565,8 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
         attempt.time_spent = now - attempt.started_at
     attempt.mark_completed()
     return attempt
+
+
 
 
 def get_attempt_with_prefetch(user, attempt_id: int) -> VariantAttempt:
@@ -489,7 +625,22 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
     progress = []
     for variant_task in template_tasks:
         task_attempts = attempts_map.get(variant_task.id, [])
-        generated_snapshot = _extract_generated_snapshot(task_attempts)
+        generated_snapshot = None
+        saved_response = None
+        saved_response_updated_at = None
+        for raw_attempt in task_attempts:
+            if raw_attempt.attempt_number == 0:
+                task_snapshot = raw_attempt.task_snapshot or {}
+                snapshot_payload = task_snapshot.get("task", task_snapshot)
+                if snapshot_payload and generated_snapshot is None:
+                    generated_snapshot = deepcopy(snapshot_payload)
+                response_payload = task_snapshot.get("response")
+                if response_payload is not None:
+                    if isinstance(response_payload, Mapping):
+                        saved_response = deepcopy(response_payload.get("value", response_payload))
+                    else:
+                        saved_response = deepcopy(response_payload)
+                    saved_response_updated_at = raw_attempt.updated_at
         actual_attempts = [
             attempt
             for attempt in task_attempts
@@ -505,6 +656,8 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
                 "attempts_used": len(actual_attempts),
                 "is_completed": any(attempt.is_correct for attempt in actual_attempts),
                 "task_snapshot": deepcopy(generated_snapshot) if generated_snapshot else None,
+                "saved_response": deepcopy(saved_response) if saved_response is not None else None,
+                "saved_response_updated_at": saved_response_updated_at,
             }
         )
 

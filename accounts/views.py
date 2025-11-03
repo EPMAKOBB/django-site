@@ -1,5 +1,8 @@
 import logging
+import json
 from collections import defaultdict
+from collections.abc import Mapping
+from copy import deepcopy
 from datetime import timedelta
 
 from django.contrib import messages
@@ -25,6 +28,7 @@ from apps.recsys.models import (
     VariantAssignment,
     VariantTask,
 )
+from apps.recsys.forms import TaskAnswerForm
 from apps.recsys.service_utils import variants as variant_services
 from apps.recsys.service_utils.type_progress import (
     TypeProgressInfo,
@@ -69,6 +73,17 @@ def _format_error_detail(detail) -> str:
     if isinstance(detail, dict):
         return " ".join(str(value) for value in detail.values())
     return str(detail)
+
+
+def _stringify_response(value):
+    if value is None or value == '':
+        return ''
+    if isinstance(value, (str, int, float, bool)):
+        return str(value)
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    except TypeError:  # pragma: no cover - defensive
+        return str(value)
 
 
 def _active_attempt(assignment):
@@ -1058,38 +1073,67 @@ def variant_attempt_work(request, attempt_id: int):
         raise Http404(str(exc)) from exc
 
     assignment = attempt.assignment
+    template_tasks = {
+        task.id: task
+        for task in assignment.template.template_tasks.select_related("task__subject", "task__type", "task").all()
+    }
+    tasks_progress = variant_services.build_tasks_progress(attempt)
+
+    invalid_form: TaskAnswerForm | None = None
+    invalid_task_id: int | None = None
 
     if request.method == "POST":
-        action = request.POST.get("action")
-        if action == "submit-task":
-            variant_task_id = request.POST.get("variant_task_id")
-            is_correct = request.POST.get("is_correct") == "1"
-            response_text = (request.POST.get("response") or "").strip()
-            if not variant_task_id:
-                messages.error(request, _("Не указан идентификатор задания."))
+        action = request.POST.get("action") or ""
+        if action == "save-task":
+            variant_task_id_raw = request.POST.get("variant_task_id")
+            try:
+                variant_task_id = int(variant_task_id_raw or "")
+            except (TypeError, ValueError):
+                messages.error(request, _("Не удалось определить задачу."))
             else:
-                try:
-                    snapshot = None
-                    if response_text:
-                        snapshot = {"text": response_text}
-                    variant_services.submit_task_answer(
-                        request.user,
-                        attempt_id=attempt_id,
-                        variant_task_id=int(variant_task_id),
-                        is_correct=is_correct,
-                        task_snapshot=snapshot,
-                    )
-                except (ValueError, TypeError):
-                    messages.error(request, _("Некорректный идентификатор задания."))
-                except drf_exceptions.ValidationError as exc:
-                    messages.error(request, _format_error_detail(exc.detail))
-                except drf_exceptions.APIException as exc:
-                    messages.error(request, _format_error_detail(getattr(exc, "detail", str(exc))))
-                except drf_exceptions.NotFound as exc:
-                    raise Http404(str(exc)) from exc
+                progress_entry = next(
+                    (entry for entry in tasks_progress if entry["variant_task_id"] == variant_task_id),
+                    None,
+                )
+                variant_task = template_tasks.get(variant_task_id)
+                if not progress_entry or not variant_task or not variant_task.task:
+                    messages.error(request, _("Задача недоступна."))
                 else:
-                    messages.success(request, _("Решение сохранено."))
-            return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
+                    snapshot = progress_entry.get("task_snapshot") or {}
+                    correct_answer = None
+                    if isinstance(snapshot, dict):
+                        correct_answer = snapshot.get("correct_answer")
+                    if correct_answer is None:
+                        correct_answer = deepcopy(variant_task.task.correct_answer or {})
+                    saved_answer = progress_entry.get("saved_response")
+                    form = TaskAnswerForm(
+                        correct_answer,
+                        data=request.POST,
+                        initial_answer=saved_answer,
+                    )
+                    if not form.is_available:
+                        messages.error(request, _("Для этой задачи пока нет формы ответа."))
+                    elif form.is_valid():
+                        try:
+                            variant_services.save_task_response(
+                                request.user,
+                                attempt_id=attempt_id,
+                                variant_task_id=variant_task_id,
+                                answer=form.get_answer(),
+                            )
+                        except drf_exceptions.ValidationError as exc:
+                            messages.error(request, _format_error_detail(exc.detail))
+                        except drf_exceptions.APIException as exc:
+                            detail = getattr(exc, "detail", str(exc))
+                            messages.error(request, _format_error_detail(detail))
+                        except drf_exceptions.NotFound as exc:
+                            raise Http404(str(exc)) from exc
+                        else:
+                            messages.success(request, _("Ответ сохранен."))
+                            return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
+                    else:
+                        invalid_form = form
+                        invalid_task_id = variant_task_id
         elif action == "finalize":
             try:
                 variant_services.finalize_attempt(request.user, attempt_id)
@@ -1101,11 +1145,13 @@ def variant_attempt_work(request, attempt_id: int):
                 messages.success(request, _("Попытка завершена."))
             return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
 
-    attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
-    assignment = attempt.assignment
-
-    tasks_progress = variant_services.build_tasks_progress(attempt)
-    template_tasks = {task.id: task for task in assignment.template.template_tasks.all()}
+        attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
+        assignment = attempt.assignment
+        template_tasks = {
+            task.id: task
+            for task in assignment.template.template_tasks.select_related("task__subject", "task__type", "task").all()
+        }
+        tasks_progress = variant_services.build_tasks_progress(attempt)
 
     tasks = []
     for item in tasks_progress:
@@ -1114,17 +1160,30 @@ def variant_attempt_work(request, attempt_id: int):
             continue
         task = variant_task.task
         snapshot = item.get("task_snapshot") or {}
-        if isinstance(snapshot, dict):
-            task_payload = snapshot.get("task") or snapshot
-        else:
-            task_payload = {}
-
+        task_payload = snapshot if isinstance(snapshot, dict) else {}
         display = {
-            "title": task_payload.get("title") or task.title,
-            "description": task_payload.get("description") or task.description,
-            "rendering_strategy": task_payload.get("rendering_strategy") or task.rendering_strategy,
+            "title": task_payload.get("title") or getattr(task, "title", ""),
+            "description": task_payload.get("description") or getattr(task, "description", ""),
+            "rendering_strategy": task_payload.get("rendering_strategy") or getattr(task, "rendering_strategy", None),
             "image": task_payload.get("image") or (task.image.url if getattr(task, "image", None) else None),
         }
+
+        saved_response = item.get("saved_response")
+        saved_response_display = _stringify_response(saved_response)
+        saved_response_updated_at = item.get("saved_response_updated_at")
+
+        correct_answer_meta = None
+        if isinstance(task_payload, dict):
+            correct_answer_meta = task_payload.get("correct_answer")
+        if correct_answer_meta is None and task is not None:
+            correct_answer_meta = deepcopy(task.correct_answer or {})
+        else:
+            correct_answer_meta = deepcopy(correct_answer_meta or {})
+
+        if invalid_form is not None and invalid_task_id == variant_task.id:
+            form = invalid_form
+        else:
+            form = TaskAnswerForm(correct_answer_meta, initial_answer=saved_response)
 
         attempts_history = []
         for attempt_entry in item.get("attempts", []):
@@ -1132,23 +1191,22 @@ def variant_attempt_work(request, attempt_id: int):
             response_payload = {}
             if isinstance(payload, dict):
                 response_payload = payload.get("response") or {}
-            response_text = ""
-            if isinstance(response_payload, dict):
-                response_text = (
-                    response_payload.get("text")
-                    or response_payload.get("answer")
-                    or response_payload.get("value")
-                    or ""
-                )
-            elif isinstance(response_payload, str):
-                response_text = response_payload
+            response_value = None
+            if isinstance(response_payload, Mapping):
+                response_value = response_payload.get("value")
+                if response_value is None:
+                    response_value = response_payload.get("answer")
+                if response_value is None:
+                    response_value = response_payload.get("text")
+            elif response_payload is not None:
+                response_value = response_payload
 
             attempts_history.append(
                 {
                     "number": attempt_entry.attempt_number,
                     "is_correct": attempt_entry.is_correct,
                     "created_at": attempt_entry.created_at,
-                    "response_text": response_text,
+                    "response_text": _stringify_response(response_value),
                 }
             )
 
@@ -1164,11 +1222,17 @@ def variant_attempt_work(request, attempt_id: int):
                 "task": task,
                 "order": item.get("order"),
                 "display": display,
-                "skills": list(task.skills.all()),
+                "skills": list(task.skills.all()) if task else [],
                 "is_completed": item.get("is_completed", False),
                 "remaining_attempts": remaining_attempts,
                 "max_attempts": max_attempts,
                 "history": attempts_history,
+                "last_attempt": attempts_history[-1] if attempts_history else None,
+                "form": form,
+                "form_available": form.is_available,
+                "saved_response_display": saved_response_display,
+                "saved_response_updated_at": saved_response_updated_at,
+                "has_saved_response": saved_response is not None,
             }
         )
 
@@ -1177,6 +1241,7 @@ def variant_attempt_work(request, attempt_id: int):
     attempt_completed = attempt.completed_at is not None
     progress_summary = variant_services.calculate_assignment_progress(assignment)
     all_completed = all(entry["is_completed"] for entry in tasks)
+    all_answers_saved = all(entry["has_saved_response"] for entry in tasks)
     time_left_delta = variant_services.get_time_left(attempt)
     time_left = _format_duration(time_left_delta) if time_left_delta else None
 
@@ -1189,9 +1254,16 @@ def variant_attempt_work(request, attempt_id: int):
         "progress_summary": progress_summary,
         "attempt_completed": attempt_completed,
         "all_completed": all_completed,
+        "all_answers_saved": all_answers_saved,
         "time_left": time_left,
+        "task_answer_submit_label": _("Сохранить ответ"),
+        "task_answer_legend": _("Ответ на задание"),
+        "task_answer_unavailable_message": _("Для этого задания пока нет формы ответа."),
     }
     return render(request, "accounts/dashboard/variant_attempt_work.html", context)
+
+
+
 
 
 @login_required

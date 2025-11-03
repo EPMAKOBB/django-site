@@ -302,3 +302,115 @@ class VariantGenerationTests(TestCase):
         self.assertEqual(snapshot["difficulty_level"], 25)
         self.assertEqual(snapshot["correct_answer"], {"value": "A"})
         self.assertIn("rendering_strategy", snapshot)
+
+    def test_save_task_response_overwrites_previous_value(self):
+        attempt = variant_service.start_new_attempt(
+            self.assignment.user, self.assignment.id
+        )
+
+        first_answer = {"value": "B"}
+        variant_service.save_task_response(
+            self.assignment.user,
+            attempt.id,
+            self.static_variant_task.id,
+            answer=first_answer,
+        )
+
+        attempt = variant_service.get_attempt_with_prefetch(
+            self.assignment.user, attempt.id
+        )
+        progress = variant_service.build_tasks_progress(attempt)
+        entry = next(
+            item for item in progress if item["variant_task_id"] == self.static_variant_task.id
+        )
+        self.assertEqual(entry["saved_response"], first_answer)
+        self.assertIsNotNone(entry["saved_response_updated_at"])
+        self.assertEqual(entry["attempts_used"], 0)
+
+        generation_attempt = attempt.task_attempts.get(
+            variant_task=self.static_variant_task,
+            attempt_number=0,
+        )
+        self.assertEqual(
+            generation_attempt.task_snapshot["response"]["value"],
+            first_answer,
+        )
+
+        second_answer = {"value": "C"}
+        variant_service.save_task_response(
+            self.assignment.user,
+            attempt.id,
+            self.static_variant_task.id,
+            answer=second_answer,
+        )
+
+        attempt = variant_service.get_attempt_with_prefetch(
+            self.assignment.user, attempt.id
+        )
+        progress = variant_service.build_tasks_progress(attempt)
+        entry = next(
+            item for item in progress if item["variant_task_id"] == self.static_variant_task.id
+        )
+        self.assertEqual(entry["saved_response"], second_answer)
+
+        generation_attempt.refresh_from_db()
+        self.assertEqual(
+            generation_attempt.task_snapshot["response"]["value"],
+            second_answer,
+        )
+
+    def test_finalize_attempt_evaluates_saved_responses(self):
+        attempt = variant_service.start_new_attempt(
+            self.assignment.user, self.assignment.id
+        )
+
+        variant_service.save_task_response(
+            self.assignment.user,
+            attempt.id,
+            self.static_variant_task.id,
+            answer={"value": "A"},
+        )
+        variant_service.save_task_response(
+            self.assignment.user,
+            attempt.id,
+            self.dynamic_variant_task.id,
+            answer={"formula": "a + c"},
+        )
+
+        variant_service.finalize_attempt(self.assignment.user, attempt.id)
+
+        attempt = variant_service.get_attempt_with_prefetch(
+            self.assignment.user, attempt.id
+        )
+        self.assertIsNotNone(attempt.completed_at)
+
+        progress = variant_service.build_tasks_progress(attempt)
+        static_entry = next(
+            item for item in progress if item["variant_task_id"] == self.static_variant_task.id
+        )
+        dynamic_entry = next(
+            item for item in progress if item["variant_task_id"] == self.dynamic_variant_task.id
+        )
+
+        self.assertTrue(static_entry["is_completed"])
+        self.assertFalse(dynamic_entry["is_completed"])
+        self.assertEqual(static_entry["attempts_used"], 1)
+        self.assertEqual(dynamic_entry["attempts_used"], 1)
+
+        static_attempt = static_entry["attempts"][0]
+        dynamic_attempt = dynamic_entry["attempts"][0]
+
+        self.assertTrue(static_attempt.is_correct)
+        self.assertEqual(
+            static_attempt.task_snapshot["response"]["value"],
+            {"value": "A"},
+        )
+        self.assertFalse(dynamic_attempt.is_correct)
+        self.assertEqual(
+            dynamic_attempt.task_snapshot["response"]["value"],
+            {"formula": "a + c"},
+        )
+
+        self.assignment.refresh_from_db()
+        progress_summary = variant_service.calculate_assignment_progress(self.assignment)
+        self.assertEqual(progress_summary["solved_tasks"], 1)
