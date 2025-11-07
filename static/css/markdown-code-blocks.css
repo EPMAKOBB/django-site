@@ -1,0 +1,73 @@
+.markdown-code-block {
+  position: relative;
+  background: #13151a;
+  color: #f8f8f2;
+  border-radius: 10px;
+  border: 1px solid #2d323f;
+  padding: 1.5rem 1.25rem 1.25rem;
+  margin: 1.5rem 0;
+  overflow: auto;
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.35);
+}
+
+.markdown-code-block code {
+  background: transparent;
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: inherit;
+  display: block;
+}
+
+.markdown-code-block[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8f93a2;
+}
+
+.markdown-code-copy {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: 1px solid #3c4354;
+  background: #1e2129;
+  color: #d7dae0;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.markdown-code-copy svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.markdown-code-copy:hover,
+.markdown-code-copy:focus-visible {
+  outline: none;
+  background: #2b313f;
+  color: #fff;
+}
+
+.markdown-code-copy:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.markdown-code-copy.copied {
+  background: #0f9d58;
+  border-color: #0f9d58;
+  color: #fff;
+}
