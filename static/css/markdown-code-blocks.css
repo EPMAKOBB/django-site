@@ -13,6 +13,8 @@
 .markdown-code-block code {
   background: transparent;
   font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  font-variant-ligatures: none; /* keep operators like >= literal */
+  font-feature-settings: "liga" 0, "calt" 0, "clig" 0;
   font-size: 0.95rem;
   line-height: 1.55;
   color: inherit;
