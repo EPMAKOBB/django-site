@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from copy import deepcopy
+import hashlib
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Prefetch
@@ -104,6 +107,51 @@ def module_detail(request, course_slug: str, module_slug: str):
             if item.min_mastery_percent <= current_mastery <= item.max_mastery_percent
         ]
 
+    def _compute_task_seed(user_id: int | None, module_id: int, item_id: int) -> int:
+        base = f"{user_id or 0}:{module_id}:{item_id}"
+        digest = hashlib.sha256(base.encode("utf-8")).digest()
+        return int.from_bytes(digest[:8], byteorder="big", signed=False)
+
+    def _build_task_display(
+        item: CourseModuleItem,
+    ) -> tuple[dict[str, object] | None, dict | None]:
+        task = item.task
+        if not task:
+            return None, None
+
+        description = task.description or ""
+        rendering_strategy = task.rendering_strategy
+        image_url = task.image.url if task.image else None
+        correct_answer = deepcopy(task.correct_answer or {})
+
+        if task.is_dynamic and task.dynamic_mode == task.DynamicMode.PRE_GENERATED:
+            seed = _compute_task_seed(
+                request.user.id if request.user.is_authenticated else None,
+                module.id,
+                item.id,
+            )
+            dataset = task.pick_pregenerated_dataset(seed=seed)
+            if dataset:
+                payload = deepcopy(dataset.parameter_values or {})
+                rendered = task.render_template_payload(payload)
+                if rendered:
+                    description = rendered
+                dataset_answer = deepcopy(dataset.correct_answer or {})
+                if dataset_answer:
+                    correct_answer = dataset_answer
+            else:
+                messages.warning(
+                    request,
+                    _("Не удалось загрузить вариант задания для этой карточки. Проверьте его настройки."),
+                )
+
+        display = {
+            "description": description,
+            "rendering_strategy": rendering_strategy,
+            "image": image_url,
+        }
+        return display, correct_answer
+
     accessible_items = _build_accessible_items(module_mastery_percent)
 
     requested_item_id = request.GET.get("item") or request.POST.get("item_id")
@@ -144,6 +192,7 @@ def module_detail(request, course_slug: str, module_slug: str):
     previous_item = _find_neighbor(current_item, -1)
     next_item = _find_neighbor(current_item, 1)
 
+    current_task_display: dict[str, object] | None = None
     task_answer_form: TaskAnswerForm | None = None
     task_correct_answer = None
     if (
@@ -151,7 +200,8 @@ def module_detail(request, course_slug: str, module_slug: str):
         and current_item.kind == current_item.ItemKind.TASK
         and current_item.task
     ):
-        task_correct_answer = current_item.task.correct_answer or {}
+        current_task_display, task_correct_answer = _build_task_display(current_item)
+        task_correct_answer = task_correct_answer or {}
         form_data = (
             request.POST
             if request.method == "POST"
@@ -340,6 +390,7 @@ def module_detail(request, course_slug: str, module_slug: str):
         "current_item_accessible": current_item in accessible_items if current_item else False,
         "previous_item": previous_item,
         "next_item": next_item,
+        "current_task_display": current_task_display,
         "module_mastery_percent": module_mastery_percent,
         "task_answer_form": task_answer_form,
         "task_answer_submit_label": _("Проверить ответ"),
