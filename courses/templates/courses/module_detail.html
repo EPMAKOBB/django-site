@@ -171,23 +171,44 @@
                   </dl>
                   <div class="module-detail__task-panel">
                     <div class="module-detail__task-statement">
-                      {% if current_item.task.description %}
-                        {% if current_item.task.rendering_strategy == current_item.task.RenderingStrategy.HTML %}
-                          <div class="module-detail__task-description" data-format="html">
-                            {{ current_item.task.description|safe }}
-                          </div>
-                        {% elif current_item.task.rendering_strategy == current_item.task.RenderingStrategy.MARKDOWN %}
-                          <div class="module-detail__task-description" data-format="markdown">
-                            {{ current_item.task.description|render_markdown }}
-                          </div>
+                      {% with display=current_task_display %}
+                        {% if display and display.description %}
+                          {% if display.rendering_strategy == current_item.task.RenderingStrategy.HTML %}
+                            <div class="module-detail__task-description" data-format="html">
+                              {{ display.description|safe }}
+                            </div>
+                          {% elif display.rendering_strategy == current_item.task.RenderingStrategy.MARKDOWN %}
+                            <div class="module-detail__task-description" data-format="markdown">
+                              {{ display.description|render_markdown }}
+                            </div>
+                          {% else %}
+                            <div class="module-detail__task-description" data-format="text">
+                              {{ display.description|linebreaks }}
+                            </div>
+                          {% endif %}
+                        {% elif current_item.task.description %}
+                          {% if current_item.task.rendering_strategy == current_item.task.RenderingStrategy.HTML %}
+                            <div class="module-detail__task-description" data-format="html">
+                              {{ current_item.task.description|safe }}
+                            </div>
+                          {% elif current_item.task.rendering_strategy == current_item.task.RenderingStrategy.MARKDOWN %}
+                            <div class="module-detail__task-description" data-format="markdown">
+                              {{ current_item.task.description|render_markdown }}
+                            </div>
+                          {% else %}
+                            <div class="module-detail__task-description" data-format="text">
+                              {{ current_item.task.description|linebreaks }}
+                            </div>
+                          {% endif %}
                         {% else %}
-                          <div class="module-detail__task-description" data-format="text">
-                            {{ current_item.task.description|linebreaks }}
+                          <p class="muted">{% trans 'Описание задания пока отсутствует.' %}</p>
+                        {% endif %}
+                        {% if display and display.image %}
+                          <div class="module-detail__task-image">
+                            <img src="{{ display.image }}" alt="{% trans 'Иллюстрация к заданию' %}">
                           </div>
                         {% endif %}
-                      {% else %}
-                        <p class="muted">{% trans 'Описание задания пока отсутствует.' %}</p>
-                      {% endif %}
+                      {% endwith %}
                     </div>
                     {% with form=task_answer_form %}
                       {% if form and form.is_available %}

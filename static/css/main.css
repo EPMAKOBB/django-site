@@ -457,7 +457,7 @@ header a:hover {
   background: rgba(10, 15, 22, 0.9);
   border: 1px solid var(--border);
   border-radius: 18px;
-  margin-bottom: var(--space-xl);
+  margin-bottom: 0;
   overflow: hidden;
 }
 
@@ -531,7 +531,7 @@ header a:hover {
 
 .module-detail__layout {
   display: grid;
-  gap: clamp(var(--space-lg), 5vw, 56px);
+  gap: clamp(var(--space-sm), 2vw, 24px);
   max-width: min(100%, 1100px);
   margin: 0 auto;
   padding: 0 var(--space-xl);
