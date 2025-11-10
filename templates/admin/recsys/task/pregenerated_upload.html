@@ -1,0 +1,52 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+    <div class="breadcrumbs">
+        <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+        &rsaquo;
+        <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+        &rsaquo;
+        <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+        &rsaquo;
+        {% translate 'Импорт предсгенерированных вариантов' %}
+    </div>
+{% endblock %}
+
+{% block content %}
+    {% url 'admin:recsys_taskpregenerateddataset_changelist' as dataset_list_url %}
+    <h1>{% translate 'Импорт предсгенерированных вариантов' %}</h1>
+    <form method="post" enctype="multipart/form-data" class="form-horizontal">
+        {% csrf_token %}
+        <div class="module aligned">
+            {% for field in form %}
+                <div class="form-row{% if field.errors %} errors{% endif %}">
+                    {{ field.label_tag }}
+                    <div class="field-box">
+                        {{ field }}
+                        {% if field.help_text %}
+                            <p class="help">{{ field.help_text }}</p>
+                        {% endif %}
+                        {% for error in field.errors %}
+                            <p class="errornote">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+            {% if form.non_field_errors %}
+                <div class="form-row errors">
+                    {% for error in form.non_field_errors %}
+                        <p class="errornote">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        {% if next_url %}
+            <input type="hidden" name="next" value="{{ next_url }}" />
+        {% endif %}
+        <div class="submit-row">
+            <a class="button cancel-button" href="{{ next_url|default:dataset_list_url }}">{% translate 'Cancel' %}</a>
+            <input type="submit" value="{% translate 'Импортировать' %}" class="default" />
+        </div>
+    </form>
+{% endblock %}
