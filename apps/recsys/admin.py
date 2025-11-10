@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.db import models as django_models
+from django.urls import reverse
 from django.utils.html import format_html
 
 from .models import (
@@ -71,15 +72,22 @@ class TaskSkillInline(admin.TabularInline):
 
 class TaskPreGeneratedDatasetInline(admin.TabularInline):
     model = TaskPreGeneratedDataset
-    extra = 1
+    extra = 0
+    max_num = 0
+    can_delete = False
     formfield_overrides = {
         django_models.JSONField: {
             "widget": forms.Textarea(attrs={"rows": 4, "cols": 80}),
         }
     }
     fields = ("parameter_values", "correct_answer", "meta", "is_active")
+    readonly_fields = fields
     verbose_name = "Pre-generated dataset"
     verbose_name_plural = "Pre-generated datasets"
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(Skill)
 class SkillAdmin(admin.ModelAdmin):
@@ -138,7 +146,12 @@ class TaskAdmin(admin.ModelAdmin):
         "rendering_strategy",
     )
     filter_horizontal = ("tags",)
-    readonly_fields = ("image_preview", "first_attempt_total", "first_attempt_failed")
+    readonly_fields = (
+        "image_preview",
+        "first_attempt_total",
+        "first_attempt_failed",
+        "pregenerated_datasets_link",
+    )
     fieldsets = (
         (
             None,
@@ -172,6 +185,12 @@ class TaskAdmin(admin.ModelAdmin):
                 "classes": ("collapse",),
             },
         ),
+        (
+            "Предсгенерированные варианты",
+            {
+                "fields": ("pregenerated_datasets_link",),
+            },
+        ),
     )
 
     @admin.display(description="Предпросмотр")
@@ -179,6 +198,43 @@ class TaskAdmin(admin.ModelAdmin):
         if obj and obj.image:
             return format_html('<img src="{}" style="max-width: 200px;" />', obj.image.url)
         return "—"
+
+    @admin.display(description="Варианты")
+    def pregenerated_datasets_link(self, obj):
+        if not obj or not obj.pk:
+            return "—"
+        changelist_url = (
+            reverse("admin:recsys_taskpregenerateddataset_changelist")
+            + f"?task__id__exact={obj.pk}"
+        )
+        return format_html(
+            '<a href="{url}" target="_blank">Список предсгенерированных вариантов</a>',
+            url=changelist_url,
+        )
+
+@admin.register(TaskPreGeneratedDataset)
+class TaskPreGeneratedDatasetAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "task",
+        "is_active",
+        "short_parameter_values",
+        "created_at",
+        "updated_at",
+    )
+    list_filter = ("task", "is_active")
+    search_fields = ("parameter_values",)
+    list_select_related = ("task",)
+    ordering = ("-updated_at",)
+    list_per_page = 50
+
+    @admin.display(description="Параметры")
+    def short_parameter_values(self, obj):
+        data = obj.parameter_values or {}
+        text = str(data)
+        if len(text) > 120:
+            text = text[:117] + "..."
+        return text
 
 
 class SkillGroupItemInline(admin.TabularInline):
