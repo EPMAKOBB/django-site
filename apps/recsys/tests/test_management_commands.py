@@ -108,4 +108,7 @@ class ImportPreGeneratedPoolCommandTests(TestCase):
         output = stdout.getvalue()
         self.assertIn("Processed 2 row(s); created 1 dataset(s)", output)
         self.assertIn("Encountered 1 parsing error(s):", output)
-        self.assertIn("Row 2: Field 'parameter_values' must be a JSON object", output)
+        self.assertIn(
+            "Строка 2: Поле 'parameter_values' должно быть JSON-объектом",
+            output,
+        )

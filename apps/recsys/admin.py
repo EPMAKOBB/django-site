@@ -1,7 +1,10 @@
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.db import models as django_models
-from django.urls import reverse
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import redirect, render
+from django.urls import path, reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.html import format_html
 
 from .models import (
@@ -24,7 +27,21 @@ from .models import (
     VariantTaskAttempt,
     TaskPreGeneratedDataset,
 )
-from .service_utils import task_generation
+from .service_utils import pregenerated_import, task_generation
+
+
+class TaskPregeneratedUploadForm(forms.Form):
+    task = forms.ModelChoiceField(queryset=Task.objects.all(), label="Задание")
+    file = forms.FileField(label="Файл с вариантами")
+    input_format = forms.ChoiceField(
+        label="Формат",
+        choices=(("csv", "CSV"), ("json", "JSON")),
+        widget=forms.RadioSelect,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["task"].queryset = Task.objects.order_by("title")
 
 
 class TaskAdminForm(forms.ModelForm):
@@ -125,6 +142,7 @@ class TaskTypeAdmin(admin.ModelAdmin):
 class TaskAdmin(admin.ModelAdmin):
     form = TaskAdminForm
     inlines = [TaskSkillInline, TaskPreGeneratedDatasetInline]
+    change_form_template = "admin/recsys/task/change_form.html"
     list_display = (
         "title",
         "type",
@@ -198,6 +216,88 @@ class TaskAdmin(admin.ModelAdmin):
         if obj and obj.image:
             return format_html('<img src="{}" style="max-width: 200px;" />', obj.image.url)
         return "—"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "pregenerated-upload/",
+                self.admin_site.admin_view(self.pregenerated_upload_view),
+                name="recsys_task_pregenerated_upload",
+            )
+        ]
+        return custom_urls + urls
+
+    def pregenerated_upload_view(self, request):
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+
+        next_url = request.GET.get("next") or request.POST.get("next")
+        initial: dict = {}
+        task_id = request.GET.get("task")
+        if task_id:
+            initial_task = Task.objects.filter(pk=task_id).first()
+            if initial_task:
+                initial["task"] = initial_task
+
+        if request.method == "POST":
+            form = TaskPregeneratedUploadForm(request.POST, request.FILES)
+            if form.is_valid():
+                task = form.cleaned_data["task"]
+                input_format = form.cleaned_data["input_format"]
+                uploaded_file = form.cleaned_data["file"]
+
+                try:
+                    result = pregenerated_import.import_pregenerated_datasets(
+                        task=task,
+                        input_file=uploaded_file,
+                        input_format=input_format,
+                    )
+                except pregenerated_import.DatasetImportError as exc:
+                    self.message_user(request, str(exc), level=messages.ERROR)
+                else:
+                    if result.processed_rows:
+                        self.message_user(
+                            request,
+                            (
+                                f"Обработано {result.processed_rows} строк(и); "
+                                f"создано {result.created_datasets} вариантов."
+                            ),
+                            level=messages.SUCCESS,
+                        )
+                    else:
+                        self.message_user(
+                            request,
+                            "Файл не содержит данных для импорта.",
+                            level=messages.WARNING,
+                        )
+
+                    for error in result.errors:
+                        self.message_user(request, error, level=messages.WARNING)
+
+                return redirect(self._get_redirect_url(request, task, next_url))
+        else:
+            form = TaskPregeneratedUploadForm(initial=initial)
+
+        context = {
+            **self.admin_site.each_context(request),
+            "opts": self.model._meta,
+            "form": form,
+            "title": "Импорт предсгенерированных вариантов",
+            "next_url": next_url
+            or request.GET.get("next")
+            or request.META.get("HTTP_REFERER"),
+        }
+        return render(request, "admin/recsys/task/pregenerated_upload.html", context)
+
+    def _get_redirect_url(self, request, task, next_url):
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url, allowed_hosts={request.get_host()}
+        ):
+            return next_url
+        if task:
+            return reverse("admin:recsys_task_change", args=[task.pk])
+        return reverse("admin:recsys_taskpregenerateddataset_changelist")
 
     @admin.display(description="Варианты")
     def pregenerated_datasets_link(self, obj):
