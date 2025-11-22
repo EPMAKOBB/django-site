@@ -58,6 +58,13 @@ def _ewma(previous: float, value: float, alpha: float) -> float:
     return previous + alpha * (value - previous)
 
 
+def _clamp_mastery(value: float | None) -> float:
+    """Clamp mastery values to the [0.0, 1.0] range."""
+    if value is None:
+        return 0.0
+    return max(0.0, min(1.0, float(value)))
+
+
 @dataclass
 class _BetaParams:
     """Simple container for parameters of a Beta distribution."""
@@ -135,7 +142,8 @@ def update_mastery(attempt: Attempt) -> Dict[str, Dict[int, float]]:
         _store_beta_params(beta_key, params)
 
         ewma_alpha = EWMA_ALPHA * attempt_weight
-        mastery_obj.mastery = _ewma(mastery_obj.mastery, params.mean, ewma_alpha)
+        previous_mastery = float(mastery_obj.mastery or 0.0)
+        mastery_obj.mastery = _clamp_mastery(_ewma(previous_mastery, params.mean, ewma_alpha))
         mastery_obj.save(update_fields=["mastery", "updated_at"])
         updated["skills"][skill.id] = mastery_obj.mastery
 
@@ -150,7 +158,8 @@ def update_mastery(attempt: Attempt) -> Dict[str, Dict[int, float]]:
     _store_beta_params(beta_key, params)
 
     ewma_alpha = EWMA_ALPHA * attempt_weight
-    type_mastery.mastery = _ewma(type_mastery.mastery, params.mean, ewma_alpha)
+    previous_mastery = float(type_mastery.mastery or 0.0)
+    type_mastery.mastery = _clamp_mastery(_ewma(previous_mastery, params.mean, ewma_alpha))
     type_mastery.save(update_fields=["mastery", "updated_at"])
     updated["task_type"][task_type.id] = type_mastery.mastery
 

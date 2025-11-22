@@ -23,6 +23,16 @@ from ..models import (
 from ..service_utils import variants as variant_service
 
 
+def _clamp_mastery_value(value):
+    """Ensure mastery percentages stay within [0.0, 1.0]."""
+    value = float(value or 0.0)
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+
 class SkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill
@@ -125,14 +135,19 @@ class AttemptSerializer(serializers.ModelSerializer):
 
 class SkillMasterySerializer(serializers.ModelSerializer):
     skill = SkillSerializer(read_only=True)
+    mastery = serializers.SerializerMethodField()
 
     class Meta:
         model = SkillMastery
         fields = ["id", "skill", "mastery"]
 
+    def get_mastery(self, obj: SkillMastery) -> float:
+        return _clamp_mastery_value(obj.mastery)
+
 
 class TypeMasterySerializer(serializers.ModelSerializer):
     task_type = TaskTypeSerializer(read_only=True)
+    mastery = serializers.SerializerMethodField()
     effective_mastery = serializers.SerializerMethodField()
     coverage_ratio = serializers.SerializerMethodField()
     required_count = serializers.SerializerMethodField()
@@ -160,13 +175,12 @@ class TypeMasterySerializer(serializers.ModelSerializer):
         progress_map = self.context.get("type_progress_map") or {}
         return progress_map.get(obj.task_type_id)
 
+    def get_mastery(self, obj: TypeMastery) -> float:
+        return _clamp_mastery_value(obj.mastery)
+
     def get_effective_mastery(self, obj: TypeMastery) -> float:
         info = self._get_progress_info(obj)
-        mastery = float(obj.mastery or 0.0)
-        if mastery < 0.0:
-            mastery = 0.0
-        if mastery > 1.0:
-            mastery = 1.0
+        mastery = _clamp_mastery_value(obj.mastery)
         if info is None:
             return mastery
         return info.effective_mastery

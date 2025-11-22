@@ -71,7 +71,7 @@ class AttemptUpdatesMasteryTests(TestCase):
         self.assertEqual(attempts[1].weight, 0.5)
 
         mastery = SkillMastery.objects.get(user=self.user, skill=self.skill)
-        self.assertEqual(mastery.mastery, -0.1)
+        self.assertEqual(mastery.mastery, 0.1)
 
     def test_variant_task_attempt_scoped_aggregation(self):
         template = factories.create_variant_template()
@@ -108,4 +108,4 @@ class AttemptUpdatesMasteryTests(TestCase):
         self.assertEqual(attempts[1].weight, 0.5)
 
         mastery = SkillMastery.objects.get(user=self.user, skill=self.skill)
-        self.assertEqual(mastery.mastery, -0.1)
+        self.assertEqual(mastery.mastery, 0.1)
