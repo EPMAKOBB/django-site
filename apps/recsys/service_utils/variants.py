@@ -522,12 +522,12 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
         if correct_answer is None and task is not None:
             correct_answer = deepcopy(task.correct_answer or {})
 
-        is_correct = False
+        computed_is_correct: bool | None = None
         if correct_answer is not None and response_value is not None:
             try:
-                is_correct = compare_answers(correct_answer, response_value)
+                computed_is_correct = compare_answers(correct_answer, response_value)
             except Exception:  # pragma: no cover - defensive
-                is_correct = False
+                computed_is_correct = False
 
         actual_attempts_qs = attempt.task_attempts.filter(
             variant_task=variant_task,
@@ -544,7 +544,10 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
                 updated_snapshot["response"] = deepcopy(response_payload)
             else:
                 updated_snapshot.pop("response", None)
-            submission.is_correct = bool(is_correct)
+            final_is_correct = (
+                submission.is_correct if computed_is_correct is None else bool(computed_is_correct)
+            )
+            submission.is_correct = final_is_correct
             submission.task_snapshot = updated_snapshot
             submission.save(update_fields=["is_correct", "task_snapshot", "updated_at"])
         else:
@@ -558,7 +561,7 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
                 variant_task=variant_task,
                 task=task,
                 attempt_number=next_number,
-                is_correct=bool(is_correct),
+                is_correct=bool(computed_is_correct),
                 task_snapshot=record_snapshot,
             )
 
