@@ -379,6 +379,8 @@ def module_detail(request, course_slug: str, module_slug: str):
             }
         )
 
+    is_last_module_item = bool(items) and current_item == items[-1]
+
     context = {
         "course": course,
         "module": module,
@@ -396,5 +398,6 @@ def module_detail(request, course_slug: str, module_slug: str):
         "task_answer_submit_label": _("Проверить ответ"),
         "task_answer_unavailable_message": _("Проверка ответа для этого задания пока недоступна."),
         "task_answer_legend": _("Ответ на задание"),
+        "is_last_module_item": is_last_module_item,
     }
     return render(request, "courses/module_detail.html", context)

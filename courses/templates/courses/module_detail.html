@@ -278,6 +278,9 @@
                   <a class="module-detail__nav-link" href="?item={{ next_item.id }}">{% trans 'Следующий доступный элемент →' %}</a>
                 {% endif %}
               </nav>
+              {% if is_last_module_item %}
+                <a class="btn" href="{% url 'accounts:dashboard-courses' %}">{% trans 'Вернуться к курсам' %}</a>
+              {% endif %}
             </footer>
           </article>
         {% else %}

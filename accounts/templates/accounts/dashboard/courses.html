@@ -1,5 +1,5 @@
 {% extends 'accounts/dashboard/base.html' %}
-{% load i18n static %}
+{% load i18n static l10n %}
 
 {% block dashboard_title %}{% trans "Курсы" %}{% endblock %}
 
@@ -59,13 +59,13 @@
                       data-kind="{{ node.kind }}"
                       data-locked="{{ node.locked|yesno:'true,false' }}"
                       data-url="{{ node.url }}"
-                      style="--graph-col: {{ node.col }}; --graph-row: {{ node.row }}; --graph-offset-x: {{ node.dx }}px; --graph-offset-y: {{ node.dy }}px; --graph-progress: {{ node.progress|floatformat:'-2' }}%;"
+                      style="--graph-col: {{ node.col }}; --graph-row: {{ node.row }}; --graph-offset-x: {{ node.dx }}px; --graph-offset-y: {{ node.dy }}px; --graph-progress: {{ node.progress|floatformat:'-2'|unlocalize }}%;"
                       {% if node.locked %}disabled{% endif %}
                       aria-pressed="false"
                     >
                       <span class="course-graph__ring" aria-hidden="true">
                         <span class="course-graph__ring-progress"></span>
-                        <span class="course-graph__ring-label">{{ node.progress|floatformat:'-1' }}%</span>
+                        <span class="course-graph__ring-label">{{ node.progress|floatformat:0 }}%</span>
                       </span>
                       <span class="course-graph__node-content">
                         <span class="course-graph__node-title">{{ node.title }}</span>
