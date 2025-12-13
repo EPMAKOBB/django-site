@@ -54,6 +54,12 @@ class TaskTag(TimeStampedModel):
 
 
 class TaskType(TimeStampedModel):
+    class ScoringScheme(models.TextChoices):
+        BINARY = "binary", "Binary (0/1)"
+        PARTIAL_PAIRS = "partial_pairs", "Partial pairs (0-2)"
+        PARTIAL_ROWS = "partial_rows", "Partial rows (0-2)"
+        MANUAL_SCALED = "manual_scaled", "Manual scaled"
+
     subject = models.ForeignKey(
         Subject, on_delete=models.CASCADE, related_name="task_types"
     )
@@ -77,6 +83,16 @@ class TaskType(TimeStampedModel):
         "TaskTag",
         blank=True,
         related_name="required_for_task_types",
+    )
+    scoring_scheme = models.CharField(
+        max_length=32,
+        choices=ScoringScheme.choices,
+        default=ScoringScheme.BINARY,
+        help_text="How to award points for answers of this task type.",
+    )
+    max_score = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Maximum primary points for this task type.",
     )
 
     class Meta:
@@ -110,6 +126,18 @@ class TaskType(TimeStampedModel):
             )
 
 class Task(TimeStampedModel):
+    scoring_scheme = models.CharField(
+        max_length=32,
+        choices=TaskType.ScoringScheme.choices,
+        null=True,
+        blank=True,
+        help_text="Optional override of task-type scoring scheme.",
+    )
+    max_score = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional override of task-type max score.",
+    )
     subject = models.ForeignKey(
         Subject, on_delete=models.CASCADE, related_name="tasks"
     )
@@ -191,6 +219,9 @@ class Task(TimeStampedModel):
                 {"difficulty_level": "Сложность должна быть в диапазоне 0–100"}
             )
 
+        if self.max_score is not None and self.max_score <= 0:
+            raise ValidationError({"max_score": "Max score must be positive."})
+
         mode = self.dynamic_mode or self.DynamicMode.GENERATOR
 
         if self.is_dynamic:
@@ -222,6 +253,12 @@ class Task(TimeStampedModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
+
+    def get_scoring_scheme(self) -> str:
+        return self.scoring_scheme or self.type.scoring_scheme
+
+    def get_max_score(self) -> int:
+        return int(self.max_score or self.type.max_score or 1)
 
     @property
     def uses_pre_generated_data(self) -> bool:
@@ -549,6 +586,8 @@ class VariantTaskAttempt(TimeStampedModel):
     )
     attempt_number = models.PositiveIntegerField(default=1)
     is_correct = models.BooleanField(default=False)
+    score = models.PositiveSmallIntegerField(null=True, blank=True)
+    max_score = models.PositiveSmallIntegerField(default=1)
     task_snapshot = models.JSONField(default=dict, blank=True)
 
     class Meta:
