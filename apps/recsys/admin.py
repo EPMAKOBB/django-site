@@ -434,6 +434,8 @@ class VariantTaskAttemptAdmin(admin.ModelAdmin):
         "variant_task",
         "attempt_number",
         "is_correct",
+        "score",
+        "max_score",
     )
     ordering = ("variant_attempt", "variant_task", "attempt_number")
     list_filter = ("variant_attempt__assignment__template", "is_correct")

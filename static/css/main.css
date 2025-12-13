@@ -40,6 +40,25 @@ ul, ol { padding-left: 1.2em; }
 input, select, textarea, button {
   font-family: inherit;
 }
+a[data-format="markdown"],
+[data-format="markdown"] {
+  display: block;
+}
+[data-format="markdown"] table {
+  border-collapse: collapse;
+  margin: var(--space-lg) auto;
+  max-width: 100%;
+  width: auto;
+}
+[data-format="markdown"] th,
+[data-format="markdown"] td {
+  border: 1px solid color-mix(in srgb, var(--text) 20%, var(--border));
+  padding: var(--space-sm) var(--space-md);
+  text-align: center;
+}
+[data-format="markdown"] th {
+  background: #1a2430;
+}
 a {
   color: var(--link);
   text-decoration: underline;
@@ -720,7 +739,9 @@ header a:hover {
 .module-detail__theory table,
 .module-detail__task-description table {
   max-width: 100%;
-  width: 100%;
+  width: auto;
+  margin-left: auto;
+  margin-right: auto;
   overflow: hidden;
 }
 

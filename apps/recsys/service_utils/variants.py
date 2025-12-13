@@ -21,6 +21,8 @@ from rest_framework import exceptions
 
 from apps.recsys.forms import compare_answers
 from apps.recsys.models import (
+    Task,
+    TaskType,
     VariantAssignment,
     VariantAttempt,
     VariantTask,
@@ -52,6 +54,104 @@ ASSIGNMENT_TEMPLATE_PREFETCH = Prefetch(
     "assignment__template__template_tasks",
     queryset=VariantTask.objects.select_related("task").order_by("order"),
 )
+
+
+def _as_list(value):
+    if isinstance(value, Mapping):
+        return list(value.values())
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return []
+
+
+def _as_rows(value):
+    raw_rows: list[Any] = []
+    if isinstance(value, Mapping):
+        raw_rows = list(value.values())
+    elif isinstance(value, (list, tuple)):
+        raw_rows = list(value)
+    rows: list[list[Any]] = []
+    for row in raw_rows:
+        if isinstance(row, Mapping):
+            base_row = list(row.values())
+        elif isinstance(row, (list, tuple)):
+            base_row = list(row)
+        else:
+            base_row = [row]
+        rows.append(base_row)
+    return rows
+
+
+def _resolve_scoring(task: Task | None, snapshot: Mapping | None) -> tuple[str, int]:
+    scheme = None
+    max_score = None
+    if snapshot:
+        scheme = snapshot.get("scoring_scheme")
+        max_score = snapshot.get("max_score")
+    if task is not None:
+        scheme = scheme or task.get_scoring_scheme()
+        max_score = max_score or task.get_max_score()
+    if not scheme:
+        scheme = TaskType.ScoringScheme.BINARY
+    try:
+        max_score_int = int(max_score) if max_score is not None else 1
+    except Exception:
+        max_score_int = 1
+    return scheme, max_score_int
+
+
+def _grade_answer(
+    scoring_scheme: str,
+    correct_answer: Any,
+    response_value: Any,
+    *,
+    max_score: int,
+) -> tuple[Optional[int], Optional[bool]]:
+    if scoring_scheme == TaskType.ScoringScheme.MANUAL_SCALED:
+        return None, None
+
+    if scoring_scheme == TaskType.ScoringScheme.PARTIAL_PAIRS:
+        expected = _as_list(correct_answer)[:2]
+        actual = _as_list(response_value)[:2]
+        score = 0
+        for idx in range(min(len(expected), len(actual))):
+            try:
+                if compare_answers(expected[idx], actual[idx]):
+                    score += 1
+            except Exception:
+                continue
+        score = min(score, max_score)
+        return score, score == max_score
+
+    if scoring_scheme == TaskType.ScoringScheme.PARTIAL_ROWS:
+        expected_rows = _as_rows(correct_answer)[:2]
+        actual_rows = _as_rows(response_value)[:2]
+        score = 0
+        for idx in range(min(len(expected_rows), len(actual_rows))):
+            exp_row = expected_rows[idx][:2]
+            act_row = actual_rows[idx][:2]
+            if len(act_row) < len(exp_row):
+                continue
+            row_ok = True
+            for value_idx in range(len(exp_row)):
+                try:
+                    if not compare_answers(exp_row[value_idx], act_row[value_idx]):
+                        row_ok = False
+                        break
+                except Exception:
+                    row_ok = False
+                    break
+            if row_ok:
+                score += 1
+        score = min(score, max_score)
+        return score, score == max_score
+
+    # Default/binary scoring
+    try:
+        is_correct = compare_answers(correct_answer, response_value)
+    except Exception:
+        is_correct = False
+    return (max_score if is_correct else 0), bool(is_correct)
 
 
 def _base_assignment_queryset():
@@ -182,12 +282,14 @@ def _materialize_tasks_for_attempt(attempt: VariantAttempt) -> None:
         snapshot = _generate_task_snapshot(attempt, variant_task)
         if snapshot is None:
             continue
+        max_score = snapshot.get("max_score", 1)
         VariantTaskAttempt.objects.create(
             variant_attempt=attempt,
             variant_task=variant_task,
             task=variant_task.task,
             attempt_number=0,
             is_correct=False,
+            max_score=max_score,
             task_snapshot={"task": snapshot},
         )
 
@@ -201,6 +303,8 @@ def _generate_task_snapshot(
 
     image_url = task.image.url if task.image else None
     correct_answer = deepcopy(task.correct_answer or {})
+    scoring_scheme = task.get_scoring_scheme()
+    max_score = task.get_max_score()
 
     if task.is_dynamic:
         seed = _compute_task_seed(attempt, variant_task)
@@ -231,6 +335,8 @@ def _generate_task_snapshot(
                 },
                 "image": image_url,
                 "difficulty_level": task.difficulty_level,
+                "scoring_scheme": scoring_scheme,
+                "max_score": max_score,
             }
 
             if dataset_answer:
@@ -264,6 +370,8 @@ def _generate_task_snapshot(
             "image": image_url,
             "correct_answer": correct_answer,
             "difficulty_level": task.difficulty_level,
+            "scoring_scheme": scoring_scheme,
+            "max_score": max_score,
         }
         if generation.answers is not None:
             snapshot["answers"] = _normalise_answers(generation.answers)
@@ -280,6 +388,8 @@ def _generate_task_snapshot(
         "image": image_url,
         "correct_answer": correct_answer,
         "difficulty_level": task.difficulty_level,
+        "scoring_scheme": scoring_scheme,
+        "max_score": max_score,
     }
     if task.default_payload:
         snapshot["payload"] = deepcopy(task.default_payload)
@@ -458,15 +568,47 @@ def submit_task_answer(
                 else None,
                 "correct_answer": deepcopy(variant_task.task.correct_answer or {}),
                 "difficulty_level": variant_task.task.difficulty_level,
+                "scoring_scheme": variant_task.task.get_scoring_scheme(),
+                "max_score": variant_task.task.get_max_score(),
             }
         }
+
+    task_payload = snapshot.get("task")
+    scoring_scheme, max_score = _resolve_scoring(
+        variant_task.task, task_payload if isinstance(task_payload, Mapping) else None
+    )
+
+    response_value = None
+    if task_snapshot and isinstance(task_snapshot, Mapping):
+        for key in ("value", "answer", "text"):
+            if key in task_snapshot:
+                response_value = task_snapshot.get(key)
+                break
+    correct_answer = None
+    if isinstance(task_payload, Mapping):
+        correct_answer = deepcopy(task_payload.get("correct_answer"))
+    if correct_answer is None and variant_task.task:
+        correct_answer = deepcopy(variant_task.task.correct_answer or {})
+
+    computed_score = None
+    computed_is_correct = None
+    if correct_answer is not None and response_value is not None:
+        computed_score, computed_is_correct = _grade_answer(
+            scoring_scheme,
+            correct_answer,
+            response_value,
+            max_score=max_score,
+        )
+    final_is_correct = is_correct if computed_is_correct is None else bool(computed_is_correct)
 
     task_attempt = VariantTaskAttempt.objects.create(
         variant_attempt=attempt,
         variant_task=variant_task,
         task=variant_task.task,
         attempt_number=next_number,
-        is_correct=is_correct,
+        is_correct=final_is_correct,
+        score=computed_score,
+        max_score=max_score,
         task_snapshot=snapshot,
     )
 
@@ -522,12 +664,18 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
         if correct_answer is None and task is not None:
             correct_answer = deepcopy(task.correct_answer or {})
 
+        scoring_scheme, max_score = _resolve_scoring(
+            task, task_snapshot if isinstance(task_snapshot, Mapping) else None
+        )
+        computed_score: int | None = None
         computed_is_correct: bool | None = None
         if correct_answer is not None and response_value is not None:
-            try:
-                computed_is_correct = compare_answers(correct_answer, response_value)
-            except Exception:  # pragma: no cover - defensive
-                computed_is_correct = False
+            computed_score, computed_is_correct = _grade_answer(
+                scoring_scheme,
+                correct_answer,
+                response_value,
+                max_score=max_score,
+            )
 
         actual_attempts_qs = attempt.task_attempts.filter(
             variant_task=variant_task,
@@ -548,8 +696,10 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
                 submission.is_correct if computed_is_correct is None else bool(computed_is_correct)
             )
             submission.is_correct = final_is_correct
+            submission.score = computed_score
+            submission.max_score = max_score
             submission.task_snapshot = updated_snapshot
-            submission.save(update_fields=["is_correct", "task_snapshot", "updated_at"])
+            submission.save(update_fields=["is_correct", "score", "max_score", "task_snapshot", "updated_at"])
         else:
             record_snapshot = {}
             if task_snapshot:
@@ -562,6 +712,8 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
                 task=task,
                 attempt_number=next_number,
                 is_correct=bool(computed_is_correct),
+                score=computed_score,
+                max_score=max_score,
                 task_snapshot=record_snapshot,
             )
 
@@ -671,4 +823,3 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
 
     progress.sort(key=lambda item: item["order"])
     return progress
-
