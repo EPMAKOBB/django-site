@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from typing import Any, Sequence
 
 from django import forms
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
+
+from subjects.models import Subject
+from .models import ExamVersion, Task, TaskAttachment, TaskType, Source, SourceVariant
 
 
 @dataclass(frozen=True)
@@ -338,3 +342,94 @@ class TaskAnswerForm(forms.Form):
 
     def get_answer(self) -> Any:
         return self.answer
+
+
+class TaskUploadForm(forms.ModelForm):
+    """
+    Simplified form for creating a task with optional image and up to two files.
+    """
+
+    image = forms.ImageField(required=False)
+    file_a = forms.FileField(required=False, help_text="Основной файл (или A для задачи 27)")
+    file_b = forms.FileField(required=False, help_text="Дополнительный файл (B для задачи 27)")
+
+    class Meta:
+        model = Task
+        fields = [
+            "subject",
+            "exam_version",
+            "type",
+            "source",
+            "source_variant",
+            "slug",
+            "title",
+            "description",
+            "rendering_strategy",
+            "difficulty_level",
+        ]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 6}),
+        }
+
+    def clean_slug(self):
+        value = self.cleaned_data.get("slug") or self.cleaned_data.get("title")
+        value = slugify(value or "")
+        if not value:
+            raise forms.ValidationError("Slug обязателен.")
+        return value
+
+    def clean(self):
+        cleaned = super().clean()
+        subject: Subject | None = cleaned.get("subject")
+        exam: ExamVersion | None = cleaned.get("exam_version")
+        task_type: TaskType | None = cleaned.get("type")
+        source: Source | None = cleaned.get("source")
+        source_variant: SourceVariant | None = cleaned.get("source_variant")
+
+        if exam and subject and exam.subject_id != subject.id:
+            self.add_error("exam_version", "Версия экзамена должна совпадать с предметом.")
+        if task_type and subject and task_type.subject_id != subject.id:
+            self.add_error("type", "Тип задачи должен совпадать с предметом.")
+        if source_variant:
+            if source and source_variant.source_id != source.id:
+                self.add_error("source_variant", "Вариант источника должен соответствовать источнику.")
+            if not source:
+                cleaned["source"] = source_variant.source
+        return cleaned
+
+    def create_task_with_attachments(self) -> Task:
+        """
+        Save task and attachments based on uploaded files.
+        """
+        task: Task = self.save(commit=False)
+        task.is_dynamic = False
+        task.save()
+        self.save_m2m()
+
+        files_to_create: list[TaskAttachment] = []
+        upload_map = [
+            ("A", self.files.get("file_a")),
+            ("B", self.files.get("file_b")),
+        ]
+        for order, (label, uploaded) in enumerate(upload_map, start=1):
+            if not uploaded:
+                continue
+            files_to_create.append(
+                TaskAttachment(
+                    task=task,
+                    kind=TaskAttachment.Kind.FILE,
+                    file=uploaded,
+                    label=label,
+                    order=order,
+                )
+            )
+
+        if files_to_create:
+            TaskAttachment.objects.bulk_create(files_to_create)
+
+        image = self.files.get("image")
+        if image:
+            task.image = image
+            task.save(update_fields=["image"])
+
+        return task

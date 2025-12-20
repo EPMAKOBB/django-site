@@ -36,6 +36,7 @@ urlpatterns = [
 
     path('recsys/dashboard/', recsys_views.dashboard, name='recsys_dashboard'),
     path('recsys/user/<int:user_id>/', recsys_views.teacher_user, name='recsys_teacher_user'),
+    path('tasks/upload/', recsys_views.task_upload, name='tasks_upload'),
     path('tasks/', recsys_views.tasks_list, name='tasks_list'),
 
 ]

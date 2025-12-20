@@ -3,12 +3,14 @@ from __future__ import annotations
 from copy import deepcopy
 from string import Formatter
 from typing import Mapping
+import os
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.safestring import mark_safe
+from django.utils.text import slugify
 
 from subjects.models import Subject
 
@@ -51,6 +53,42 @@ class TaskTag(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class Source(TimeStampedModel):
+    name = models.CharField(max_length=150, unique=True)
+    slug = models.SlugField(max_length=150, unique=True, blank=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        indexes = [
+            models.Index(fields=["name"]),
+            models.Index(fields=["slug"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - human readable
+        return self.name
+
+
+class SourceVariant(TimeStampedModel):
+    source = models.ForeignKey(Source, on_delete=models.CASCADE, related_name="variants")
+    label = models.CharField(
+        max_length=150,
+        help_text="Например: дата варианта (13.12.2025) или номер (19).",
+    )
+    slug = models.SlugField(max_length=150, blank=True)
+
+    class Meta:
+        ordering = ["source__name", "label"]
+        unique_together = ("source", "label")
+        indexes = [
+            models.Index(fields=["source", "label"]),
+            models.Index(fields=["source", "slug"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - human readable
+        return f"{self.source} — {self.label}"
 
 
 class TaskType(TimeStampedModel):
@@ -120,12 +158,68 @@ class TaskType(TimeStampedModel):
     def clean(self):
         super().clean()
 
+        raw_slug = self.slug or self.title
+        self.slug = slugify(raw_slug or "") or self.slug
+        if not self.slug:
+            raise ValidationError({"slug": "Slug is required."})
+
+        if self.type and self.type.subject_id != self.subject_id:
+            raise ValidationError({"type": "Task type must match task subject."})
+        if self.exam_version and self.exam_version.subject_id != self.subject_id:
+            raise ValidationError({"exam_version": "Exam version must match task subject."})
+
         if self.exam_version and self.exam_version.subject_id != self.subject_id:
             raise ValidationError(
                 {"exam_version": "Версия экзамена должна соответствовать предмету"}
             )
 
+def _exam_version_slug(task: "Task") -> str:
+    """
+    Build a stable slug for exam version or subject, used in storage paths.
+    Falls back to subject name/slug when exam_version is not set.
+    """
+    if task.exam_version:
+        base = slugify(task.exam_version.name)
+        if base:
+            return base
+        return f"exam-{task.exam_version_id or 'unknown'}"
+    base = slugify(getattr(task.subject, "slug", None) or task.subject.name)
+    return base or f"subject-{task.subject_id or 'unknown'}"
+
+
+def task_attachment_upload_to(instance: "TaskAttachment", filename: str) -> str:
+    """
+    Store files under tasks/<exam_version>/files|images/<task_slug>-<label>.<ext>
+    """
+    task = instance.task
+    exam_slug = _exam_version_slug(task)
+    kind_folder = "images" if getattr(instance, "kind", "") == "image" else "files"
+
+    # Build base name
+    base_slug = task.slug or slugify(task.title) or f"task-{task.pk or 'new'}"
+    label_part = ""
+    if instance.download_name_override:
+        label_part = slugify(instance.download_name_override)
+    elif instance.label:
+        label_part = slugify(instance.label)
+    elif instance.order and instance.order > 1:
+        label_part = f"{instance.order:02d}"
+
+    stem = f"{base_slug}-{label_part}" if label_part else base_slug
+    root, ext = os.path.splitext(filename)
+    safe_ext = ext.lower() if ext else ""
+    final_name = f"{stem}{safe_ext}"
+    return f"tasks/{exam_slug}/{kind_folder}/{final_name}"
+
+
 class Task(TimeStampedModel):
+    slug = models.SlugField(
+        max_length=128,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Machine-friendly code, e.g. 17-01-krylov",
+    )
     scoring_scheme = models.CharField(
         max_length=32,
         choices=TaskType.ScoringScheme.choices,
@@ -140,6 +234,20 @@ class Task(TimeStampedModel):
     )
     subject = models.ForeignKey(
         Subject, on_delete=models.CASCADE, related_name="tasks"
+    )
+    source = models.ForeignKey(
+        Source,
+        on_delete=models.SET_NULL,
+        related_name="tasks",
+        null=True,
+        blank=True,
+    )
+    source_variant = models.ForeignKey(
+        SourceVariant,
+        on_delete=models.SET_NULL,
+        related_name="tasks",
+        null=True,
+        blank=True,
     )
     exam_version = models.ForeignKey(
         "ExamVersion",
@@ -198,6 +306,20 @@ class Task(TimeStampedModel):
 
     def clean(self):
         super().clean()
+
+        raw_slug = self.slug or self.title
+        self.slug = slugify(raw_slug or "") or self.slug
+        if not self.slug:
+            raise ValidationError({"slug": "Slug is required."})
+
+        if self.type and self.type.subject_id != self.subject_id:
+            raise ValidationError({"type": "Task type must match task subject."})
+        if self.exam_version and self.exam_version.subject_id != self.subject_id:
+            raise ValidationError({"exam_version": "Exam version must match task subject."})
+        if self.source_variant and self.source and self.source_variant.source_id != self.source_id:
+            raise ValidationError({"source_variant": "Вариант источника должен совпадать с источником."})
+        if self.source_variant and not self.source:
+            self.source = self.source_variant.source
 
         payload = self.default_payload or {}
         if not isinstance(payload, dict):
@@ -322,6 +444,36 @@ class Task(TimeStampedModel):
             return None
         index = seed % total
         return queryset.order_by("id")[index]
+
+
+class TaskAttachment(TimeStampedModel):
+    class Kind(models.TextChoices):
+        FILE = "file", "File"
+        IMAGE = "image", "Image"
+
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attachments")
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.FILE)
+    file = models.FileField(upload_to=task_attachment_upload_to)
+    label = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Optional marker like A/B or 01 for multiple files.",
+    )
+    download_name_override = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="If set, this name is suggested for download instead of slug-based.",
+    )
+    order = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ["task", "kind", "order", "id"]
+        indexes = [
+            models.Index(fields=["task", "kind", "order"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.task.slug or self.task_id} ({self.kind})"
 
 
 class TaskSkill(TimeStampedModel):
