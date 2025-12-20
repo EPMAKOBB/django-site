@@ -6,12 +6,16 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.html import format_html
+from django.utils.text import slugify
 
 from .models import (
     Skill,
     TaskTag,
     TaskType,
     Task,
+    TaskAttachment,
+    Source,
+    SourceVariant,
     TaskSkill,
     ExamVersion,
     SkillGroup,
@@ -75,6 +79,13 @@ class TaskAdminForm(forms.ModelForm):
         self.fields["generator_slug"].required = False
         self.fields["difficulty_level"].help_text = "Число от 0 до 100"
 
+    def clean_slug(self):
+        value = self.cleaned_data.get("slug") or self.cleaned_data.get("title")
+        value = slugify(value or "")
+        if not value:
+            raise forms.ValidationError("Slug is required.")
+        return value
+
     def clean_generator_slug(self):
         slug = self.cleaned_data.get("generator_slug") or ""
         if slug and not task_generation.is_generator_registered(slug):
@@ -104,6 +115,12 @@ class TaskPreGeneratedDatasetInline(admin.TabularInline):
 
     def has_add_permission(self, request, obj=None):
         return False
+
+
+class TaskAttachmentInline(admin.TabularInline):
+    model = TaskAttachment
+    extra = 2
+    fields = ("kind", "label", "download_name_override", "order", "file")
 
 
 @admin.register(Skill)
@@ -138,15 +155,31 @@ class TaskTypeAdmin(admin.ModelAdmin):
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
 
+@admin.register(Source)
+class SourceAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug")
+    search_fields = ("name", "slug")
+
+
+@admin.register(SourceVariant)
+class SourceVariantAdmin(admin.ModelAdmin):
+    list_display = ("label", "source", "slug")
+    list_filter = ("source",)
+    search_fields = ("label", "slug", "source__name")
+
+
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
     form = TaskAdminForm
-    inlines = [TaskSkillInline, TaskPreGeneratedDatasetInline]
+    inlines = [TaskSkillInline, TaskAttachmentInline, TaskPreGeneratedDatasetInline]
     change_form_template = "admin/recsys/task/change_form.html"
     list_display = (
+        "slug",
         "title",
         "type",
         "subject",
+        "source",
+        "source_variant",
         "exam_version",
         "is_dynamic",
         "dynamic_mode",
@@ -154,10 +187,12 @@ class TaskAdmin(admin.ModelAdmin):
         "difficulty_level",
         "rendering_strategy",
     )
-    search_fields = ("title", "generator_slug")
+    search_fields = ("title", "slug", "generator_slug")
     list_filter = (
         "type",
         "subject",
+        "source",
+        "source_variant",
         "exam_version",
         "is_dynamic",
         "dynamic_mode",
@@ -175,10 +210,13 @@ class TaskAdmin(admin.ModelAdmin):
             None,
             {
                 "fields": (
+                    "slug",
                     "title",
                     "subject",
                     "exam_version",
                     "type",
+                    "source",
+                    "source_variant",
                     "description",
                     "tags",
                     "rendering_strategy",

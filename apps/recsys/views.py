@@ -1,11 +1,14 @@
 
+from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db.models import Case, IntegerField, Value, When
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from .models import ExamVersion, SkillMastery, Task
 from .recommendation import recommend_tasks
+from .forms import TaskUploadForm
 from accounts.models import StudentProfile
 
 
@@ -129,3 +132,24 @@ def tasks_list(request):
         "order": order,
     }
     return render(request, "recsys/tasks_list.html", context)
+
+
+@staff_member_required
+def task_upload(request):
+    """
+    Simple staff-only uploader for tasks with optional files (A/B) and image.
+    """
+    if request.method == "POST":
+        form = TaskUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            task = form.create_task_with_attachments()
+            messages.success(request, f"Задача создана: {task.slug}")
+            return redirect("tasks_upload")
+    else:
+        form = TaskUploadForm()
+
+    return render(
+        request,
+        "recsys/task_upload.html",
+        {"form": form},
+    )
