@@ -349,7 +349,7 @@ class TaskUploadForm(forms.ModelForm):
     Simplified form for creating a task with optional image and up to two files.
     """
 
-    image = forms.ImageField(required=False)
+    image = forms.FileField(required=False, help_text="SVG/PNG/JPEG и др.")
     file_a = forms.FileField(required=False, help_text="Основной файл (или A для задачи 27)")
     file_b = forms.FileField(required=False, help_text="Дополнительный файл (B для задачи 27)")
 
@@ -424,12 +424,20 @@ class TaskUploadForm(forms.ModelForm):
                 )
             )
 
+        # Image as attachment (allows SVG and other formats)
+        image_file = self.files.get("image")
+        if image_file:
+            files_to_create.append(
+                TaskAttachment(
+                    task=task,
+                    kind=TaskAttachment.Kind.IMAGE,
+                    file=image_file,
+                    label="img",
+                    order=0,
+                )
+            )
+
         if files_to_create:
             TaskAttachment.objects.bulk_create(files_to_create)
-
-        image = self.files.get("image")
-        if image:
-            task.image = image
-            task.save(update_fields=["image"])
 
         return task

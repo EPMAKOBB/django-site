@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="220" viewBox="0 0 220 220">
+  <style>
+    .pt { fill: #000; }
+    .edge { stroke: #000; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .lbl { font-family: Arial, sans-serif; font-size: 22px; fill: #000; }
+  </style>
+
+  <!-- Outer pentagon: H-D-A-C-B -->
+  <polygon class="edge" points="25,85 110,25 195,85 165,185 55,185"/>
+
+  <!-- Inner edges (5) -->
+  <line class="edge" x1="25"  y1="85"  x2="90"  y2="85"/>    <!-- H-F -->
+  <line class="edge" x1="90"  y1="85"  x2="95"  y2="125"/>   <!-- F-E -->
+  <line class="edge" x1="95"  y1="125" x2="140" y2="105"/>   <!-- E-G -->
+  <line class="edge" x1="140" y1="105" x2="195" y2="85"/>    <!-- G-A -->
+  <line class="edge" x1="140" y1="105" x2="165" y2="185"/>   <!-- G-C -->
+
+  <!-- Points -->
+  <circle class="pt" cx="195" cy="85"  r="4"/><!-- A -->
+  <circle class="pt" cx="55"  cy="185" r="4"/><!-- B -->
+  <circle class="pt" cx="165" cy="185" r="4"/><!-- C -->
+  <circle class="pt" cx="110" cy="25"  r="4"/><!-- D -->
+  <circle class="pt" cx="25"  cy="85"  r="4"/><!-- H -->
+
+  <circle class="pt" cx="95"  cy="125" r="4"/><!-- E -->
+  <circle class="pt" cx="90"  cy="85"  r="4"/><!-- F -->
+  <circle class="pt" cx="140" cy="105" r="4"/><!-- G -->
+
+  <!-- Labels (moved to avoid overlaps) -->
+  <text class="lbl" x="206" y="90">A</text>
+  <text class="lbl" x="45"  y="214">B</text>
+  <text class="lbl" x="172" y="214">C</text>
+  <text class="lbl" x="102" y="16">D</text>
+  <text class="lbl" x="6"   y="92">H</text>
+
+  <text class="lbl" x="78"  y="152">E</text>
+  <text class="lbl" x="100" y="82">F</text>
+  <text class="lbl" x="126" y="100">G</text>
+</svg>
