@@ -191,6 +191,9 @@
             {{ form.image }}{{ form.image.errors }}
           </div>
         </div>
+        <div class="hint" id="preview-urls">
+          <div>Пути загрузки сформируются после выбора версии и slug.</div>
+        </div>
       </div>
 
       <div style="margin-top: 16px;">
@@ -199,4 +202,116 @@
     </form>
   </div>
 </div>
+
+<script>
+  (function() {
+    // Простая транслитерация и slugify для автозаполнения
+    const map = {
+      а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'j',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ы:'y',э:'e',ю:'yu',я:'ya',
+      ъ:'',ь:''
+    };
+    function slugify(text) {
+      return (text || "")
+        .toString()
+        .trim()
+        .toLowerCase()
+        .split("")
+        .map(ch => map[ch] !== undefined ? map[ch] : ch)
+        .join("")
+        .replace(/[^a-z0-9\\-\\s_]+/g, "")
+        .replace(/[\\s_]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+    }
+
+    const title = document.getElementById("id_title");
+    const slug = document.getElementById("id_slug");
+    const typeSel = document.getElementById("id_type");
+    const sourceSel = document.getElementById("id_source");
+    const variantSel = document.getElementById("id_source_variant");
+    const examSel = document.getElementById("id_exam_version");
+    const preview = document.getElementById("preview-urls");
+
+    let lastAutoTitle = "";
+    let lastAutoSlug = "";
+
+    function extractTypeNumber(text) {
+      const m = /тип\s*([0-9]+)/i.exec(text || "");
+      return m ? m[1] : "";
+    }
+
+    function suggestTitle(force = false) {
+      if (!title || !typeSel || !sourceSel || !variantSel) return;
+      const current = title.value.trim();
+      const untouched = !current || current === lastAutoTitle;
+      if (!untouched && !force) return; // пользователь уже что-то ввёл
+
+      const tText = typeSel.options[typeSel.selectedIndex]?.text || "";
+      const tNum = extractTypeNumber(tText);
+      const vText = variantSel.options[variantSel.selectedIndex]?.text || "";
+
+      const parts = [];
+      if (tNum) parts.push(tNum);
+      if (vText) parts.push(vText);
+      const suggestion = parts.join(" ");
+      title.value = suggestion;
+      lastAutoTitle = suggestion;
+      suggestSlug(true);
+    }
+
+    function suggestSlug(force = false) {
+      if (!slug) return;
+      const base = slug.value.trim() || title?.value || "";
+      const newSlug = slugify(base);
+      const untouched = !slug.value || slug.value === lastAutoSlug;
+      if (untouched || force) {
+        slug.value = newSlug;
+        lastAutoSlug = newSlug;
+      }
+      updatePreview();
+    }
+
+    function getExt(input) {
+      const val = input?.value || "";
+      const dot = val.lastIndexOf(".");
+      if (dot === -1) return "<ext>";
+      return val.slice(dot);
+    }
+
+    function updatePreview() {
+      if (!preview || !examSel || !slug) return;
+      const examText = examSel.options[examSel.selectedIndex]?.text || "";
+      const examSlug = slugify(examText) || "exam";
+      const taskSlug = slug.value.trim() || "task";
+      const imgExt = getExt(document.getElementById("id_image"));
+      const fileAExt = getExt(document.getElementById("id_file_a"));
+      const fileBExt = getExt(document.getElementById("id_file_b"));
+      const lines = [];
+      lines.push(`Картинка: tasks/${examSlug}/images/${taskSlug}${imgExt}`);
+      lines.push(`Файл A: tasks/${examSlug}/files/${taskSlug}-a${fileAExt}`);
+      lines.push(`Файл B: tasks/${examSlug}/files/${taskSlug}-b${fileBExt}`);
+      preview.innerHTML = lines.map(t => `<div>${t}</div>`).join("");
+    }
+
+    ["change","input"].forEach(evt => {
+      if (title) title.addEventListener(evt, () => suggestSlug(false));
+      if (slug) slug.addEventListener(evt, updatePreview);
+      if (typeSel) typeSel.addEventListener(evt, () => suggestTitle(true));
+      if (sourceSel) sourceSel.addEventListener(evt, () => suggestTitle(true));
+      if (variantSel) variantSel.addEventListener(evt, () => suggestTitle(true));
+      if (examSel) examSel.addEventListener(evt, updatePreview);
+    });
+
+    // также реагируем на выбор файлов, чтобы подставить расширение
+    ["id_image", "id_file_a", "id_file_b"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("change", updatePreview);
+    });
+
+    // начальное заполнение
+    suggestTitle(true);
+    suggestSlug(true);
+    updatePreview();
+  })();
+</script>
 {% endblock %}
