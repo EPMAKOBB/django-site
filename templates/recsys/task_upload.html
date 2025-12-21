@@ -314,4 +314,68 @@
     updatePreview();
   })();
 </script>
+<script>
+  // Фильтрация экзаменов и типов по предмету/экзамену
+  const EXAM_VERSIONS = JSON.parse('{{ exam_versions_json|escapejs }}');
+  const TASK_TYPES = JSON.parse('{{ task_types_json|escapejs }}');
+
+  (function () {
+    const subjectSel = document.getElementById("id_subject");
+    const examSel = document.getElementById("id_exam_version");
+    const typeSel = document.getElementById("id_type");
+
+    function populate(select, items, currentValue) {
+      if (!select) return;
+      const prev = currentValue || select.value;
+      select.innerHTML = "";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "—";
+      select.appendChild(placeholder);
+      items.forEach((item) => {
+        const opt = document.createElement("option");
+        opt.value = String(item.id);
+        opt.textContent = item.name;
+        if (String(item.id) === String(prev)) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function filterExamVersions() {
+      if (!examSel) return;
+      const subj = subjectSel ? subjectSel.value : "";
+      const filtered = subj
+        ? EXAM_VERSIONS.filter((v) => String(v.subject_id) === String(subj))
+        : EXAM_VERSIONS;
+      populate(examSel, filtered, examSel.value);
+    }
+
+    function filterTaskTypes() {
+      if (!typeSel) return;
+      const subj = subjectSel ? subjectSel.value : "";
+      const exam = examSel ? examSel.value : "";
+      let filtered = TASK_TYPES;
+      if (exam) {
+        filtered = filtered.filter((t) => String(t.exam_version_id) === String(exam));
+      } else if (subj) {
+        filtered = filtered.filter((t) => String(t.subject_id) === String(subj));
+      }
+      populate(typeSel, filtered, typeSel.value);
+    }
+
+    if (subjectSel) {
+      subjectSel.addEventListener("change", () => {
+        filterExamVersions();
+        filterTaskTypes();
+      });
+    }
+    if (examSel) {
+      examSel.addEventListener("change", filterTaskTypes);
+    }
+
+    // initial populate
+    filterExamVersions();
+    filterTaskTypes();
+  })();
+</script>
 {% endblock %}

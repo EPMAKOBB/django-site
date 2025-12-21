@@ -151,45 +151,30 @@ LOGGING = {
     },
 }
 
-# Media storage: use Yandex Object Storage (S3 compatible) when configured
-#
-# Required env vars when using Yandex Object Storage:
-#   AWS_ACCESS_KEY_ID
-#   AWS_SECRET_ACCESS_KEY
-#   AWS_STORAGE_BUCKET_NAME
-# Optional (with sensible defaults for Yandex):
-#   AWS_S3_REGION_NAME (e.g., "ru-central1")
-#   AWS_S3_ENDPOINT_URL (default: "https://storage.yandexcloud.net")
-#   AWS_S3_CUSTOM_DOMAIN (e.g., "<bucket>.storage.yandexcloud.net")
+# Media storage: теперь используем файловую систему (Railway Volume /app/media).
+# При необходимости можно снова включить S3, установив USE_S3_MEDIA=true и переменные AWS_*
+USE_S3_MEDIA = os.environ.get("USE_S3_MEDIA", "false").lower() == "true"
 
-_AWS_BUCKET = os.environ.get("AWS_STORAGE_BUCKET_NAME")
-_if_s3 = bool(_AWS_BUCKET)
+if USE_S3_MEDIA:
+    _AWS_BUCKET = os.environ.get("AWS_STORAGE_BUCKET_NAME")
+    if _AWS_BUCKET:
+        AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "ru-central1")
+        AWS_S3_ENDPOINT_URL = os.environ.get(
+            "AWS_S3_ENDPOINT_URL", "https://storage.yandexcloud.net"
+        )
+        AWS_S3_SIGNATURE_VERSION = os.environ.get("AWS_S3_SIGNATURE_VERSION", "s3v4")
+        AWS_S3_ADDRESSING_STYLE = os.environ.get("AWS_S3_ADDRESSING_STYLE", "virtual")
+        AWS_DEFAULT_ACL = os.environ.get("AWS_DEFAULT_ACL") or None
+        AWS_S3_FILE_OVERWRITE = os.environ.get("AWS_S3_FILE_OVERWRITE", "False").lower() == "true"
+        AWS_QUERYSTRING_AUTH = os.environ.get("AWS_QUERYSTRING_AUTH", "False").lower() == "true"
+        AWS_S3_CUSTOM_DOMAIN = os.environ.get(
+            "AWS_S3_CUSTOM_DOMAIN", f"{_AWS_BUCKET}.storage.yandexcloud.net"
+        )
+        DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+    else:
+        USE_S3_MEDIA = False  # fallback to local if нет bucket
 
-if _if_s3:
-    # Endpoint/region defaults for Yandex Object Storage
-    AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "ru-central1")
-    AWS_S3_ENDPOINT_URL = os.environ.get(
-        "AWS_S3_ENDPOINT_URL", "https://storage.yandexcloud.net"
-    )
-    AWS_S3_SIGNATURE_VERSION = os.environ.get("AWS_S3_SIGNATURE_VERSION", "s3v4")
-    AWS_S3_ADDRESSING_STYLE = os.environ.get("AWS_S3_ADDRESSING_STYLE", "virtual")
-
-    # Recommended settings (can override via AWS_DEFAULT_ACL env, e.g. "public-read")
-    AWS_DEFAULT_ACL = os.environ.get("AWS_DEFAULT_ACL") or None
-    AWS_S3_FILE_OVERWRITE = False
-    AWS_QUERYSTRING_AUTH = os.environ.get("AWS_QUERYSTRING_AUTH", "False").lower() == "true"
-
-    # Optional custom domain for cleaner URLs
-    AWS_S3_CUSTOM_DOMAIN = os.environ.get(
-        "AWS_S3_CUSTOM_DOMAIN", f"{_AWS_BUCKET}.storage.yandexcloud.net"
-    )
-
-    # Use S3Boto3 for media files
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-
-    # MEDIA_URL will be served via the S3 custom domain by default
-    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
-else:
-    # Local media fallback (e.g., for development if bucket not configured)
-    MEDIA_URL = "/media/"
-    MEDIA_ROOT = BASE_DIR / "media"
+if not USE_S3_MEDIA:
+    MEDIA_URL = os.environ.get("MEDIA_URL", "/media/")
+    MEDIA_ROOT = os.environ.get("MEDIA_ROOT", str(BASE_DIR / "media"))

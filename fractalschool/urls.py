@@ -42,5 +42,6 @@ urlpatterns = [
 ]
 
 # Serve uploaded media locally during development when S3 is not configured
-if settings.DEBUG and not os.environ.get("AWS_STORAGE_BUCKET_NAME"):
+# Локальная подача media, когда не используем S3 (напр. Railway volume /app/media)
+if not getattr(settings, "USE_S3_MEDIA", False):
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

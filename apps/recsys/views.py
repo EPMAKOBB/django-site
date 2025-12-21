@@ -1,4 +1,6 @@
 
+import json
+
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
@@ -6,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Case, IntegerField, Value, When
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import ExamVersion, SkillMastery, Task
+from .models import ExamVersion, SkillMastery, Task, TaskType
 from .recommendation import recommend_tasks
 from .forms import TaskUploadForm
 from accounts.models import StudentProfile
@@ -151,5 +153,21 @@ def task_upload(request):
     return render(
         request,
         "recsys/task_upload.html",
-        {"form": form},
+        {
+            "form": form,
+            "exam_versions_json": json.dumps(
+                list(
+                    ExamVersion.objects.values("id", "subject_id", "name").order_by(
+                        "subject__name", "name"
+                    )
+                )
+            ),
+            "task_types_json": json.dumps(
+                list(
+                    TaskType.objects.values(
+                        "id", "subject_id", "exam_version_id", "name"
+                    ).order_by("subject__name", "exam_version__name", "name")
+                )
+            ),
+        },
     )

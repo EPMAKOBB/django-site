@@ -7,6 +7,7 @@ from typing import Any, Sequence
 from django import forms
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
+import re
 
 from subjects.models import Subject
 from .models import ExamVersion, Task, TaskAttachment, TaskType, Source, SourceVariant
@@ -437,7 +438,35 @@ class TaskUploadForm(forms.ModelForm):
                 )
             )
 
-        if files_to_create:
-            TaskAttachment.objects.bulk_create(files_to_create)
+        for att in files_to_create:
+            att.save()
+
+        # Replace tokens ![[att:<id_or_label>]] in description with real URLs
+        if task.description:
+            # Use all attachments of the task (existing + new)
+            attachments = list(task.attachments.all())
+            by_id = {a.id: a for a in attachments if a.id}
+            by_label = { (a.label or "").lower(): a for a in attachments if a.label }
+            pattern = re.compile(r"!\[\[att:([A-Za-z0-9_-]+)\]\]", re.IGNORECASE)
+
+            def _replace(match: re.Match[str]) -> str:
+                token = match.group(1)
+                att = None
+                if token.isdigit():
+                    att = by_id.get(int(token))
+                if not att:
+                    att = by_label.get(token.lower())
+                if not att:
+                    return match.group(0)
+                url = att.file.url
+                label = att.label or f"att{att.id}"
+                if att.kind == TaskAttachment.Kind.IMAGE:
+                    return f"![{label}]({url})"
+                return f"[{label}]({url})"
+
+            new_desc = pattern.sub(_replace, task.description)
+            if new_desc != task.description:
+                task.description = new_desc
+                task.save(update_fields=["description"])
 
         return task
