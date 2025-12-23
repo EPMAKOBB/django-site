@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Загрузка задач{% endblock %}
+{% block title %}Загрузка задачи{% endblock %}
 
 {% block content %}
 <style>
@@ -104,12 +104,76 @@
     border-radius: 8px;
     margin-bottom: 12px;
   }
+  select[multiple] {
+    min-height: 140px;
+  }
+  .inline-note {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+  .skill-suggestions {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: #0c1326;
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+  }
+  .suggestion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-weight: 600;
+  }
+  .pill-button {
+    background: transparent;
+    color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .pill-button:hover {
+    background: rgba(37, 99, 235, 0.1);
+    border-color: var(--panel-accent);
+  }
+  .pill-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .suggestions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .suggestion-chip {
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 6px 10px;
+    background: #0e1528;
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease, transform 0.08s ease;
+  }
+  .suggestion-chip:hover {
+    border-color: var(--panel-accent);
+    transform: translateY(-1px);
+  }
+  .muted {
+    color: var(--text-muted);
+  }
 </style>
 
 <div class="upload-wrapper">
   <div class="upload-header">
-    <h2>Загрузка задач</h2>
-    <p>Быстрая форма: slug по формату <code>17-01-krylov</code>, файлы кладутся в бакет автоматически.</p>
+    <h2>Загрузка задачи</h2>
+    <p>Подсказка: slug в формате <code>17-01-krylov</code>, а пути к файлам и картинкам строятся по этому slug.</p>
   </div>
 
   <div class="upload-card">
@@ -141,7 +205,7 @@
           <div class="hint">Например: 17-01-krylov</div>
         </div>
         <div class="form-field">
-          <label for="{{ form.title.id_for_label }}">Название</label>
+          <label for="{{ form.title.id_for_label }}">Заголовок</label>
           {{ form.title }}{{ form.title.errors }}
         </div>
       </div>
@@ -150,12 +214,12 @@
         <div class="form-field">
           <label for="{{ form.source.id_for_label }}">Источник</label>
           {{ form.source }}{{ form.source.errors }}
-          <div class="hint">Например: ЕГКР, Реальный экзамен, Крылов.</div>
+          <div class="hint">Например: КИМ, учебник, авторская подборка.</div>
         </div>
         <div class="form-field">
           <label for="{{ form.source_variant.id_for_label }}">Вариант в источнике</label>
           {{ form.source_variant }}{{ form.source_variant.errors }}
-          <div class="hint">Например: 13.12.2025 или 19.</div>
+          <div class="hint">Например: 13.12.2025 или № 19.</div>
         </div>
       </div>
 
@@ -164,9 +228,15 @@
         {{ form.description }}{{ form.description.errors }}
       </div>
 
+      <div class="form-field" style="margin-top: 10px;">
+        <label for="{{ form.correct_answer.id_for_label }}">Правильный ответ</label>
+        {{ form.correct_answer }}{{ form.correct_answer.errors }}
+        <span class="inline-note">JSON структура ответа, например {"value": 42} или {"choices": [1, 2, 3]}.</span>
+      </div>
+
       <div class="form-grid" style="margin-top: 10px;">
         <div class="form-field">
-          <label for="{{ form.rendering_strategy.id_for_label }}">Формат отображения</label>
+          <label for="{{ form.rendering_strategy.id_for_label }}">Режим рендера</label>
           {{ form.rendering_strategy }}{{ form.rendering_strategy.errors }}
         </div>
         <div class="form-field">
@@ -175,8 +245,28 @@
         </div>
       </div>
 
+      <div class="form-grid" style="margin-top: 10px;">
+        <div class="form-field">
+          <label for="{{ form.tags.id_for_label }}">Обязательные теги типа</label>
+          {{ form.tags }}{{ form.tags.errors }}
+          <span class="inline-note" id="tags-helper">Список подстраивается под выбранный тип задачи.</span>
+        </div>
+        <div class="form-field">
+          <label for="{{ form.skills.id_for_label }}">Навыки задачи</label>
+          {{ form.skills }}{{ form.skills.errors }}
+          <span class="inline-note">Фильтруются по предмету. Вес каждого выбранного навыка = 1.0.</span>
+          <div class="skill-suggestions">
+            <div class="suggestion-header">
+              <span>Подсказки по навыкам</span>
+              <button type="button" class="pill-button" id="fetch-skill-suggestions">Предложить</button>
+            </div>
+            <div id="skill-suggestions-list" class="suggestions-list"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="files-block">
-        <p><strong>Файлы</strong> (для задачи 27 — A/B; для остальных достаточно A):</p>
+        <p><strong>Прикрепления</strong> (для задачи 27 используйте A/B; для других задач - любые метки):</p>
         <div class="form-grid">
           <div class="form-field">
             <label for="{{ form.file_a.id_for_label }}">Файл A</label>
@@ -192,7 +282,7 @@
           </div>
         </div>
         <div class="hint" id="preview-urls">
-          <div>Пути загрузки сформируются после выбора версии и slug.</div>
+          <div>Используйте токены в описании: ![[att:img]] для картинки, ![[att:a]] и ![[att:b]] для файлов. После сохранения они превратятся в ссылки.</div>
         </div>
       </div>
 
@@ -205,10 +295,12 @@
 
 <script>
   (function() {
-    // Простая транслитерация и slugify для автозаполнения
     const map = {
-      а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'j',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ы:'y',э:'e',ю:'yu',я:'ya',
-      ъ:'',ь:''
+      "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh",
+      "з": "z", "и": "i", "й": "j", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o",
+      "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f", "х": "h", "ц": "c",
+      "ч": "ch", "ш": "sh", "щ": "sch", "ы": "y", "э": "e", "ю": "yu", "я": "ya",
+      "ъ": "", "ь": ""
     };
     function slugify(text) {
       return (text || "")
@@ -236,7 +328,7 @@
     let lastAutoSlug = "";
 
     function extractTypeNumber(text) {
-      const m = /тип\s*([0-9]+)/i.exec(text || "");
+      const m = /тип\\s*([0-9]+)/i.exec(text || "");
       return m ? m[1] : "";
     }
 
@@ -244,7 +336,7 @@
       if (!title || !typeSel || !sourceSel || !variantSel) return;
       const current = title.value.trim();
       const untouched = !current || current === lastAutoTitle;
-      if (!untouched && !force) return; // пользователь уже что-то ввёл
+      if (!untouched && !force) return;
 
       const tText = typeSel.options[typeSel.selectedIndex]?.text || "";
       const tNum = extractTypeNumber(tText);
@@ -271,10 +363,10 @@
       updatePreview();
     }
 
-    function getExt(input) {
+    function getExt(input, fallback = "") {
       const val = input?.value || "";
       const dot = val.lastIndexOf(".");
-      if (dot === -1) return "<ext>";
+      if (dot === -1) return fallback;
       return val.slice(dot);
     }
 
@@ -283,13 +375,14 @@
       const examText = examSel.options[examSel.selectedIndex]?.text || "";
       const examSlug = slugify(examText) || "exam";
       const taskSlug = slug.value.trim() || "task";
-      const imgExt = getExt(document.getElementById("id_image"));
-      const fileAExt = getExt(document.getElementById("id_file_a"));
-      const fileBExt = getExt(document.getElementById("id_file_b"));
+      const imgExt = getExt(document.getElementById("id_image"), ".png");
+      const fileAExt = getExt(document.getElementById("id_file_a"), "");
+      const fileBExt = getExt(document.getElementById("id_file_b"), "");
       const lines = [];
-      lines.push(`Картинка: tasks/${examSlug}/images/${taskSlug}${imgExt}`);
-      lines.push(`Файл A: tasks/${examSlug}/files/${taskSlug}-a${fileAExt}`);
-      lines.push(`Файл B: tasks/${examSlug}/files/${taskSlug}-b${fileBExt}`);
+      lines.push(`Картинка: ![[att:img]] -> tasks/${examSlug}/images/${taskSlug}${imgExt}`);
+      lines.push(`Файл A: ![[att:a]] -> tasks/${examSlug}/files/${taskSlug}-a${fileAExt || "<ext>"}`);
+      lines.push(`Файл B: ![[att:b]] -> tasks/${examSlug}/files/${taskSlug}-b${fileBExt || "<ext>"}`);
+      lines.push("Токены будут заменены на ссылки после сохранения.");
       preview.innerHTML = lines.map(t => `<div>${t}</div>`).join("");
     }
 
@@ -302,22 +395,22 @@
       if (examSel) examSel.addEventListener(evt, updatePreview);
     });
 
-    // также реагируем на выбор файлов, чтобы подставить расширение
     ["id_image", "id_file_a", "id_file_b"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener("change", updatePreview);
     });
 
-    // начальное заполнение
     suggestTitle(true);
     suggestSlug(true);
     updatePreview();
   })();
 </script>
 <script>
-  // Фильтрация экзаменов и типов по предмету/экзамену
   const EXAM_VERSIONS = JSON.parse('{{ exam_versions_json|escapejs }}');
   const TASK_TYPES = JSON.parse('{{ task_types_json|escapejs }}');
+  const REQUIRED_TAGS = JSON.parse('{{ required_tags_json|escapejs }}');
+  const SKILLS = JSON.parse('{{ skills_json|escapejs }}');
+  const SKILL_SUGGESTIONS = JSON.parse('{{ skill_suggestions_json|escapejs }}');
 
   (function () {
     const subjectSel = document.getElementById("id_subject");
@@ -330,7 +423,7 @@
       select.innerHTML = "";
       const placeholder = document.createElement("option");
       placeholder.value = "";
-      placeholder.textContent = "—";
+      placeholder.textContent = "-";
       select.appendChild(placeholder);
       items.forEach((item) => {
         const opt = document.createElement("option");
@@ -361,6 +454,9 @@
         filtered = filtered.filter((t) => String(t.subject_id) === String(subj));
       }
       populate(typeSel, filtered, typeSel.value);
+      if (typeSel) {
+        typeSel.dispatchEvent(new Event("change"));
+      }
     }
 
     if (subjectSel) {
@@ -373,9 +469,124 @@
       examSel.addEventListener("change", filterTaskTypes);
     }
 
-    // initial populate
     filterExamVersions();
     filterTaskTypes();
+  })();
+</script>
+<script>
+  (function() {
+    const subjectSel = document.getElementById("id_subject");
+    const typeSel = document.getElementById("id_type");
+    const tagsSelect = document.getElementById("id_tags");
+    const skillsSelect = document.getElementById("id_skills");
+    const suggestionsList = document.getElementById("skill-suggestions-list");
+    const suggestBtn = document.getElementById("fetch-skill-suggestions");
+    const tagsHelper = document.getElementById("tags-helper");
+
+    function updateTagOptions() {
+      if (!tagsSelect) return;
+      const typeId = typeSel ? typeSel.value : "";
+      const tags = (typeId && REQUIRED_TAGS[typeId]) || [];
+      const selected = new Set(Array.from(tagsSelect.options).filter((o) => o.selected).map((o) => o.value));
+      tagsSelect.innerHTML = "";
+
+      if (!tags.length) {
+        tagsSelect.disabled = true;
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = typeId ? "Для типа нет обязательных тегов" : "Выберите тип задачи";
+        tagsSelect.appendChild(opt);
+        if (tagsHelper) tagsHelper.textContent = opt.textContent;
+        return;
+      }
+
+      tagsSelect.disabled = false;
+      tags.forEach((tag) => {
+        const opt = document.createElement("option");
+        opt.value = String(tag.id);
+        opt.textContent = tag.name;
+        if (selected.has(String(tag.id))) opt.selected = true;
+        tagsSelect.appendChild(opt);
+      });
+      if (tagsHelper) tagsHelper.textContent = "Выберите теги из обязательного списка типа.";
+    }
+
+    function updateSkillOptions() {
+      if (!skillsSelect) return;
+      const subj = subjectSel ? subjectSel.value : "";
+      const selected = new Set(Array.from(skillsSelect.options).filter((o) => o.selected).map((o) => o.value));
+      const filtered = subj ? SKILLS.filter((s) => String(s.subject_id) === String(subj)) : SKILLS;
+      skillsSelect.innerHTML = "";
+
+      if (!filtered.length) {
+        skillsSelect.disabled = true;
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = subj ? "Навыки не найдены" : "Сначала выберите предмет";
+        skillsSelect.appendChild(opt);
+        return;
+      }
+
+      skillsSelect.disabled = false;
+      filtered.forEach((skill) => {
+        const opt = document.createElement("option");
+        opt.value = String(skill.id);
+        opt.textContent = skill.name;
+        if (selected.has(String(skill.id))) opt.selected = true;
+        skillsSelect.appendChild(opt);
+      });
+    }
+
+    function ensureSkillOption(skillId, name) {
+      if (!skillsSelect) return null;
+      let option = Array.from(skillsSelect.options).find((o) => String(o.value) === String(skillId));
+      if (!option) {
+        option = document.createElement("option");
+        option.value = String(skillId);
+        option.textContent = name || `Навык ${skillId}`;
+        option.selected = true;
+        skillsSelect.appendChild(option);
+      }
+      return option;
+    }
+
+    function renderSkillSuggestions() {
+      if (!suggestionsList) return;
+      const typeId = typeSel ? typeSel.value : "";
+      suggestionsList.innerHTML = "";
+
+      if (!typeId) {
+        suggestionsList.innerHTML = '<span class="muted">Сначала выберите тип задачи.</span>';
+        return;
+      }
+
+      const suggestions = SKILL_SUGGESTIONS[typeId] || [];
+      if (!suggestions.length) {
+        suggestionsList.innerHTML = '<span class="muted">Пока нет задач этого типа с навыками.</span>';
+        return;
+      }
+
+      suggestions.forEach((entry) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "suggestion-chip";
+        btn.textContent = `${entry.name} · ${entry.usage}`;
+        btn.title = `Используется в ${entry.usage} задаче(ах) этого типа`;
+        btn.addEventListener("click", () => {
+          const option = ensureSkillOption(entry.id, entry.name);
+          if (option) option.selected = !option.selected;
+        });
+        suggestionsList.appendChild(btn);
+      });
+    }
+
+    if (subjectSel) subjectSel.addEventListener("change", () => { updateSkillOptions(); updateTagOptions(); });
+    if (typeSel) typeSel.addEventListener("change", () => { updateTagOptions(); renderSkillSuggestions(); });
+    if (suggestBtn) suggestBtn.addEventListener("click", renderSkillSuggestions);
+
+    updateSkillOptions();
+    updateTagOptions();
+    renderSkillSuggestions();
   })();
 </script>
 {% endblock %}

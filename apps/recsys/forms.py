@@ -10,7 +10,17 @@ from django.utils.translation import gettext_lazy as _
 import re
 
 from subjects.models import Subject
-from .models import ExamVersion, Task, TaskAttachment, TaskType, Source, SourceVariant
+from .models import (
+    ExamVersion,
+    Skill,
+    Task,
+    TaskAttachment,
+    TaskSkill,
+    TaskTag,
+    TaskType,
+    Source,
+    SourceVariant,
+)
 
 
 @dataclass(frozen=True)
@@ -350,6 +360,23 @@ class TaskUploadForm(forms.ModelForm):
     Simplified form for creating a task with optional image and up to two files.
     """
 
+    correct_answer = forms.JSONField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 4, "placeholder": '{"value": 42}'}),
+        help_text="JSON со структурой правильного ответа.",
+    )
+    tags = forms.ModelMultipleChoiceField(
+        queryset=TaskTag.objects.none(),
+        required=False,
+        help_text="Только обязательные теги выбранного типа.",
+        widget=forms.SelectMultiple(attrs={"size": 5}),
+    )
+    skills = forms.ModelMultipleChoiceField(
+        queryset=Skill.objects.none(),
+        required=False,
+        help_text="Навыки предмета. Вес по умолчанию = 1.0.",
+        widget=forms.SelectMultiple(attrs={"size": 6}),
+    )
     image = forms.FileField(required=False, help_text="SVG/PNG/JPEG и др.")
     file_a = forms.FileField(required=False, help_text="Основной файл (или A для задачи 27)")
     file_b = forms.FileField(required=False, help_text="Дополнительный файл (B для задачи 27)")
@@ -365,6 +392,8 @@ class TaskUploadForm(forms.ModelForm):
             "slug",
             "title",
             "description",
+            "correct_answer",
+            "tags",
             "rendering_strategy",
             "difficulty_level",
         ]
@@ -372,11 +401,30 @@ class TaskUploadForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"rows": 6}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "tags" in self.fields:
+            self.fields["tags"].queryset = TaskTag.objects.select_related("subject").order_by(
+                "subject__name", "name"
+            )
+        if "skills" in self.fields:
+            self.fields["skills"].queryset = Skill.objects.select_related("subject").order_by(
+                "subject__name", "name"
+            )
+
     def clean_slug(self):
         value = self.cleaned_data.get("slug") or self.cleaned_data.get("title")
         value = slugify(value or "")
         if not value:
             raise forms.ValidationError("Slug обязателен.")
+        return value
+
+    def clean_correct_answer(self):
+        value = self.cleaned_data.get("correct_answer")
+        if value in (None, "", {}):
+            return {}
+        if not isinstance(value, dict):
+            raise forms.ValidationError("Правильный ответ должен быть объектом JSON.")
         return value
 
     def clean(self):
@@ -391,6 +439,20 @@ class TaskUploadForm(forms.ModelForm):
             self.add_error("exam_version", "Версия экзамена должна совпадать с предметом.")
         if task_type and subject and task_type.subject_id != subject.id:
             self.add_error("type", "Тип задачи должен совпадать с предметом.")
+        if task_type and "tags" in cleaned:
+            required_ids = set(task_type.required_tags.values_list("id", flat=True))
+            selected_ids = (
+                set(cleaned.get("tags").values_list("id", flat=True))
+                if cleaned.get("tags")
+                else set()
+            )
+            extra = selected_ids - required_ids
+            if extra:
+                self.add_error("tags", "Можно выбрать только обязательные теги выбранного типа.")
+        if subject and cleaned.get("skills"):
+            bad_skills = [s for s in cleaned["skills"] if s.subject_id != subject.id]
+            if bad_skills:
+                self.add_error("skills", "Все выбранные навыки должны относиться к предмету задания.")
         if source_variant:
             if source and source_variant.source_id != source.id:
                 self.add_error("source_variant", "Вариант источника должен соответствовать источнику.")
@@ -440,6 +502,11 @@ class TaskUploadForm(forms.ModelForm):
 
         for att in files_to_create:
             att.save()
+
+        # Attach selected skills with default weight
+        skills = list(self.cleaned_data.get("skills") or [])
+        for skill in skills:
+            TaskSkill.objects.get_or_create(task=task, skill=skill, defaults={"weight": 1.0})
 
         # Replace tokens ![[att:<id_or_label>]] in description with real URLs
         if task.description:

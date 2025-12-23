@@ -158,20 +158,8 @@ class TaskType(TimeStampedModel):
     def clean(self):
         super().clean()
 
-        raw_slug = self.slug or self.title
-        self.slug = slugify(raw_slug or "") or self.slug
-        if not self.slug:
-            raise ValidationError({"slug": "Slug is required."})
-
-        if self.type and self.type.subject_id != self.subject_id:
-            raise ValidationError({"type": "Task type must match task subject."})
         if self.exam_version and self.exam_version.subject_id != self.subject_id:
             raise ValidationError({"exam_version": "Exam version must match task subject."})
-
-        if self.exam_version and self.exam_version.subject_id != self.subject_id:
-            raise ValidationError(
-                {"exam_version": "Версия экзамена должна соответствовать предмету"}
-            )
 
 def _exam_version_slug(task: "Task") -> str:
     """

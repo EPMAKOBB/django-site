@@ -5,10 +5,10 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db.models import Case, IntegerField, Value, When
+from django.db.models import Case, Count, IntegerField, Value, When
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import ExamVersion, SkillMastery, Task, TaskType
+from .models import ExamVersion, Skill, SkillMastery, Task, TaskSkill, TaskTag, TaskType
 from .recommendation import recommend_tasks
 from .forms import TaskUploadForm
 from accounts.models import StudentProfile
@@ -150,24 +150,62 @@ def task_upload(request):
     else:
         form = TaskUploadForm()
 
+    exam_versions = list(
+        ExamVersion.objects.values("id", "subject_id", "name").order_by(
+            "subject__name", "name"
+        )
+    )
+    task_types = list(
+        TaskType.objects.select_related("subject", "exam_version")
+        .prefetch_related("required_tags")
+        .order_by("subject__name", "exam_version__name", "name")
+    )
+    task_types_payload = [
+        {
+            "id": t.id,
+            "subject_id": t.subject_id,
+            "exam_version_id": t.exam_version_id,
+            "name": t.name,
+        }
+        for t in task_types
+    ]
+    type_required_tags = {
+        t.id: [{"id": tag.id, "name": tag.name} for tag in t.required_tags.all()]
+        for t in task_types
+    }
+    skills = list(
+        Skill.objects.values("id", "subject_id", "name").order_by("subject__name", "name")
+    )
+    skill_suggestions: dict[int, list[dict]] = {}
+    suggestions_qs = (
+        TaskSkill.objects.values(
+            "task__type_id", "skill_id", "skill__name", "skill__subject_id"
+        )
+        .annotate(usage=Count("id"))
+        .order_by("skill__name")
+    )
+    for entry in suggestions_qs:
+        type_id = entry["task__type_id"]
+        if not type_id:
+            continue
+        skill_suggestions.setdefault(type_id, []).append(
+            {
+                "id": entry["skill_id"],
+                "name": entry["skill__name"],
+                "subject_id": entry["skill__subject_id"],
+                "usage": entry["usage"],
+            }
+        )
+
     return render(
         request,
         "recsys/task_upload.html",
         {
             "form": form,
-            "exam_versions_json": json.dumps(
-                list(
-                    ExamVersion.objects.values("id", "subject_id", "name").order_by(
-                        "subject__name", "name"
-                    )
-                )
-            ),
-            "task_types_json": json.dumps(
-                list(
-                    TaskType.objects.values(
-                        "id", "subject_id", "exam_version_id", "name"
-                    ).order_by("subject__name", "exam_version__name", "name")
-                )
-            ),
+            "exam_versions_json": json.dumps(exam_versions, ensure_ascii=False),
+            "task_types_json": json.dumps(task_types_payload, ensure_ascii=False),
+            "required_tags_json": json.dumps(type_required_tags, ensure_ascii=False),
+            "skills_json": json.dumps(skills, ensure_ascii=False),
+            "skill_suggestions_json": json.dumps(skill_suggestions, ensure_ascii=False),
         },
     )
