@@ -91,6 +91,51 @@ class SourceVariant(TimeStampedModel):
         return f"{self.source} — {self.label}"
 
 
+class AnswerSchema(TimeStampedModel):
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="answer_schemas"
+    )
+    exam_version = models.ForeignKey(
+        "ExamVersion",
+        on_delete=models.CASCADE,
+        related_name="answer_schemas",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    config = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Structure of answer fields (rows/columns, types, validation, optionality) "
+            "used to render input UI and normalise answers."
+        ),
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["subject", "exam_version", "name"]
+        unique_together = ("subject", "exam_version", "name")
+        indexes = [
+            models.Index(fields=["subject", "exam_version", "name", "is_active"])
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - human readable
+        if self.exam_version:
+            return f"{self.name} ({self.exam_version.name})"
+        return f"{self.name} ({self.subject.name})"
+
+    def clean(self):
+        super().clean()
+        if self.exam_version and self.exam_version.subject_id != self.subject_id:
+            raise ValidationError({"exam_version": "Exam version must match schema subject."})
+        if self.config is None:
+            self.config = {}
+        if not isinstance(self.config, dict):
+            raise ValidationError({"config": "Answer schema config must be a JSON object."})
+
+
 class TaskType(TimeStampedModel):
     class ScoringScheme(models.TextChoices):
         BINARY = "binary", "Binary (0/1)"
@@ -121,6 +166,14 @@ class TaskType(TimeStampedModel):
         "TaskTag",
         blank=True,
         related_name="required_for_task_types",
+    )
+    answer_schema = models.ForeignKey(
+        AnswerSchema,
+        on_delete=models.SET_NULL,
+        related_name="task_types",
+        null=True,
+        blank=True,
+        help_text="How many answer inputs to show and of what kind (per subject/exam).",
     )
     scoring_scheme = models.CharField(
         max_length=32,
@@ -160,6 +213,15 @@ class TaskType(TimeStampedModel):
 
         if self.exam_version and self.exam_version.subject_id != self.subject_id:
             raise ValidationError({"exam_version": "Exam version must match task subject."})
+        if self.answer_schema and self.answer_schema.subject_id != self.subject_id:
+            raise ValidationError({"answer_schema": "Answer schema must match task subject."})
+        if (
+            self.answer_schema
+            and self.answer_schema.exam_version_id
+            and self.exam_version_id
+            and self.answer_schema.exam_version_id != self.exam_version_id
+        ):
+            raise ValidationError({"answer_schema": "Answer schema exam version must match task type exam version."})
 
 def _exam_version_slug(task: "Task") -> str:
     """
@@ -214,6 +276,14 @@ class Task(TimeStampedModel):
         null=True,
         blank=True,
         help_text="Optional override of task-type scoring scheme.",
+    )
+    answer_schema = models.ForeignKey(
+        AnswerSchema,
+        on_delete=models.SET_NULL,
+        related_name="tasks",
+        null=True,
+        blank=True,
+        help_text="Optional override of task-type answer schema (fields per answer).",
     )
     max_score = models.PositiveSmallIntegerField(
         null=True,
@@ -304,6 +374,12 @@ class Task(TimeStampedModel):
             raise ValidationError({"type": "Task type must match task subject."})
         if self.exam_version and self.exam_version.subject_id != self.subject_id:
             raise ValidationError({"exam_version": "Exam version must match task subject."})
+        if self.answer_schema and self.answer_schema.subject_id != self.subject_id:
+            raise ValidationError({"answer_schema": "Answer schema must match task subject."})
+        if self.answer_schema and self.answer_schema.exam_version_id:
+            effective_exam_id = self.exam_version_id or self.type.exam_version_id
+            if effective_exam_id and effective_exam_id != self.answer_schema.exam_version_id:
+                raise ValidationError({"answer_schema": "Answer schema exam version must match task exam version."})
         if self.source_variant and self.source and self.source_variant.source_id != self.source_id:
             raise ValidationError({"source_variant": "Вариант источника должен совпадать с источником."})
         if self.source_variant and not self.source:
@@ -369,6 +445,9 @@ class Task(TimeStampedModel):
 
     def get_max_score(self) -> int:
         return int(self.max_score or self.type.max_score or 1)
+
+    def get_answer_schema(self) -> "AnswerSchema | None":
+        return self.answer_schema or self.type.answer_schema
 
     @property
     def uses_pre_generated_data(self) -> bool:
