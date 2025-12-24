@@ -448,6 +448,8 @@ class TaskUploadForm(forms.ModelForm):
         value = parsed_from_inputs if parsed_from_inputs is not None else self.cleaned_data.get("correct_answer")
         if value in (None, "", {}):
             return {}
+        if not isinstance(value, dict):
+            value = {"value": value}
         return value
 
     def _coerce_cell(self, input_type: str, value: Any, *, label: str, max_length: int | None = None) -> Any:

@@ -393,11 +393,18 @@ class Task(TimeStampedModel):
         # Normalise JSON field to avoid shared mutable defaults
         self.default_payload = deepcopy(payload)
 
-        answer = self.correct_answer or {}
-        if not isinstance(answer, dict):
-            raise ValidationError(
-                {"correct_answer": "Правильный ответ должен быть объектом JSON"}
-            )
+        answer = self.correct_answer if self.correct_answer not in (None, "") else {}
+        schema = None
+        try:
+            schema = self.get_answer_schema()
+        except Exception:
+            schema = None
+
+        if schema is None:
+            if not isinstance(answer, dict):
+                raise ValidationError(
+                    {"correct_answer": "Правильный ответ должен быть объектом JSON"}
+                )
         self.correct_answer = deepcopy(answer)
 
         if not 0 <= self.difficulty_level <= 100:
