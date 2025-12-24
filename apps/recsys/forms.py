@@ -8,10 +8,12 @@ from django import forms
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 import re
+import json
 
 from subjects.models import Subject
 from .models import (
     ExamVersion,
+    AnswerSchema,
     Skill,
     Task,
     TaskAttachment,
@@ -360,6 +362,7 @@ class TaskUploadForm(forms.ModelForm):
     Simplified form for creating a task with optional image and up to two files.
     """
 
+    answer_inputs = forms.CharField(required=False, widget=forms.HiddenInput())
     correct_answer = forms.JSONField(
         required=False,
         widget=forms.Textarea(attrs={"rows": 4, "placeholder": '{"value": 42}'}),
@@ -403,6 +406,20 @@ class TaskUploadForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._task_type: TaskType | None = None
+        # When bound, try to resolve task type early for validation hooks
+        type_id = None
+        if "data" in kwargs:
+            data = kwargs["data"]
+        else:
+            data = self.data
+        try:
+            type_id = int(data.get("type")) if data else None
+        except (TypeError, ValueError):
+            type_id = None
+        if type_id:
+            self._task_type = TaskType.objects.select_related("answer_schema").filter(id=type_id).first()
+
         if "tags" in self.fields:
             self.fields["tags"].queryset = TaskTag.objects.select_related("subject").order_by(
                 "subject__name", "name"
@@ -420,12 +437,111 @@ class TaskUploadForm(forms.ModelForm):
         return value
 
     def clean_correct_answer(self):
-        value = self.cleaned_data.get("correct_answer")
+        raw_from_inputs = self.cleaned_data.get("answer_inputs")
+        parsed_from_inputs = None
+        if raw_from_inputs:
+            try:
+                parsed_from_inputs = json.loads(raw_from_inputs)
+            except json.JSONDecodeError as exc:
+                raise forms.ValidationError("Невозможно распарсить ответ из формы ввода.") from exc
+
+        value = parsed_from_inputs if parsed_from_inputs is not None else self.cleaned_data.get("correct_answer")
         if value in (None, "", {}):
             return {}
-        if not isinstance(value, dict):
-            raise forms.ValidationError("Правильный ответ должен быть объектом JSON.")
         return value
+
+    def _coerce_cell(self, input_type: str, value: Any, *, label: str, max_length: int | None = None) -> Any:
+        if value is None or value == "":
+            raise forms.ValidationError(f"Заполните поле «{label}».")
+        if input_type == "uint":
+            try:
+                ivalue = int(value)
+            except (TypeError, ValueError):
+                raise forms.ValidationError(f"Поле «{label}» должно быть целым числом.")
+            if ivalue < 0:
+                raise forms.ValidationError(f"Поле «{label}» должно быть неотрицательным.")
+            return ivalue
+        if input_type == "int":
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                raise forms.ValidationError(f"Поле «{label}» должно быть целым числом.")
+        if input_type == "float":
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                raise forms.ValidationError(f"Поле «{label}» должно быть числом.")
+        # string / text / char fallback
+        text = "" if value is None else str(value)
+        if input_type == "char":
+            max_length = max_length or 1
+        if max_length is not None and len(text) > max_length:
+            raise forms.ValidationError(f"Поле «{label}» должно содержать не более {max_length} символа.")
+        return text
+
+    def _normalize_answer_by_schema(self, schema: AnswerSchema, value: Any) -> Any:
+        cfg = schema.config or {}
+        rows = int(cfg.get("rows") or 1)
+        cols = int(cfg.get("cols") or 1)
+        input_type = cfg.get("input_type") or "string"
+        allow_blank_rows = bool(cfg.get("allow_blank_rows"))
+        per_cell_max_length = cfg.get("per_cell_max_length")
+        if per_cell_max_length:
+            input_type = "char"
+            try:
+                per_cell_max_length = int(per_cell_max_length)
+            except (TypeError, ValueError):
+                per_cell_max_length = 1
+
+        def coerce_cell(val: Any, *, row: int, col: int) -> Any:
+            label = f"({row + 1}, {col + 1})"
+            return self._coerce_cell(input_type, val, label=label, max_length=per_cell_max_length)
+
+        # 1x1 scalar
+        if rows == 1 and cols == 1:
+            if isinstance(value, list) and len(value) == 1:
+                value = value[0]
+            return coerce_cell(value, row=0, col=0)
+
+        # Single row, multiple columns -> flat list
+        if rows == 1:
+            if not isinstance(value, (list, tuple)):
+                raise forms.ValidationError("Ответ должен содержать список из %d элементов." % cols)
+            if len(value) != cols:
+                raise forms.ValidationError("Ответ должен содержать ровно %d элементов." % cols)
+            return [coerce_cell(v, row=0, col=idx) for idx, v in enumerate(value)]
+
+        # Multiple rows -> list of rows
+        if not isinstance(value, (list, tuple)):
+            raise forms.ValidationError("Ответ должен содержать список строк длиной %d." % rows)
+
+        normalized_rows: list[list[Any]] = []
+        for r in range(rows):
+            row_val = value[r] if r < len(value) else []
+            if row_val in ("", None):
+                row_val = []
+            if not isinstance(row_val, (list, tuple)):
+                raise forms.ValidationError(f"Строка {r+1} должна быть списком из {cols} элементов.")
+            if not allow_blank_rows and len(row_val) != cols:
+                raise forms.ValidationError(f"Строка {r+1} должна содержать ровно {cols} элементов.")
+
+            row_items: list[Any] = []
+            for c in range(cols):
+                if c < len(row_val):
+                    cell_val = row_val[c]
+                else:
+                    cell_val = None
+                if allow_blank_rows and (cell_val in ("", None)):
+                    row_items.append(None)
+                    continue
+                row_items.append(coerce_cell(cell_val, row=r, col=c))
+            normalized_rows.append(row_items)
+
+        if allow_blank_rows:
+            # Remove trailing rows that are fully empty
+            while normalized_rows and all(v is None for v in normalized_rows[-1]):
+                normalized_rows.pop()
+        return normalized_rows
 
     def clean(self):
         cleaned = super().clean()
@@ -458,6 +574,15 @@ class TaskUploadForm(forms.ModelForm):
                 self.add_error("source_variant", "Вариант источника должен соответствовать источнику.")
             if not source:
                 cleaned["source"] = source_variant.source
+
+        answer_value = cleaned.get("correct_answer")
+        if task_type and task_type.answer_schema and answer_value not in (None, {}):
+            try:
+                normalized_answer = self._normalize_answer_by_schema(task_type.answer_schema, answer_value)
+            except forms.ValidationError as exc:
+                self.add_error("correct_answer", exc)
+            else:
+                cleaned["correct_answer"] = normalized_answer
         return cleaned
 
     def create_task_with_attachments(self) -> Task:

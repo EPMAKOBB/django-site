@@ -160,12 +160,22 @@ def task_upload(request):
         .prefetch_related("required_tags")
         .order_by("subject__name", "exam_version__name", "name")
     )
+    answer_schemas = {
+        t.id: {
+            "id": t.answer_schema.id,
+            "name": t.answer_schema.name,
+            "config": t.answer_schema.config,
+        }
+        for t in task_types
+        if t.answer_schema
+    }
     task_types_payload = [
         {
             "id": t.id,
             "subject_id": t.subject_id,
             "exam_version_id": t.exam_version_id,
             "name": t.name,
+            "answer_schema_id": t.answer_schema_id,
         }
         for t in task_types
     ]
@@ -207,5 +217,6 @@ def task_upload(request):
             "required_tags_json": json.dumps(type_required_tags, ensure_ascii=False),
             "skills_json": json.dumps(skills, ensure_ascii=False),
             "skill_suggestions_json": json.dumps(skill_suggestions, ensure_ascii=False),
+            "answer_schemas_json": json.dumps(answer_schemas, ensure_ascii=False),
         },
     )
