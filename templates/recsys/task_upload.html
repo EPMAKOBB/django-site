@@ -168,6 +168,29 @@
   .muted {
     color: var(--text-muted);
   }
+  .answer-grid {
+    display: grid;
+    gap: 10px;
+  }
+  .answer-row {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+  .answer-cell label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+  .answer-input {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-main);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
 </style>
 
 <div class="upload-wrapper">
@@ -229,9 +252,18 @@
       </div>
 
       <div class="form-field" style="margin-top: 10px;">
-        <label for="{{ form.correct_answer.id_for_label }}">Правильный ответ</label>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <label for="{{ form.correct_answer.id_for_label }}" style="margin:0;">Правильный ответ</label>
+          <button type="button" class="pill-button" id="toggle-answer-builder">Показать поля ответа</button>
+          <span id="answer-schema-title" class="inline-note"></span>
+        </div>
+        {{ form.answer_inputs }}
+        <div id="answer-builder" class="files-block" style="display:none; margin-top:10px;">
+          <div id="answer-fields"></div>
+          <div class="hint" id="answer-builder-hint"></div>
+        </div>
         {{ form.correct_answer }}{{ form.correct_answer.errors }}
-        <span class="inline-note">JSON структура ответа, например {"value": 42} или {"choices": [1, 2, 3]}.</span>
+        <span class="inline-note">JSON структура ответа, например {"value": 42}. При наличии схемы ответ можно ввести через поля выше.</span>
       </div>
 
       <div class="form-grid" style="margin-top: 10px;">
@@ -353,13 +385,22 @@
 
     function suggestSlug(force = false) {
       if (!slug) return;
-      const base = slug.value.trim() || title?.value || "";
-      const newSlug = slugify(base);
-      const untouched = !slug.value || slug.value === lastAutoSlug;
-      if (untouched || force) {
-        slug.value = newSlug;
-        lastAutoSlug = newSlug;
+      const typeText = typeSel?.options[typeSel.selectedIndex]?.text || "";
+      const typeNum = extractTypeNumber(typeText) || (typeSel?.value || "");
+      const currentValue = slug.value.trim();
+      const baseText = title?.value || "";
+      const untouched = !currentValue || currentValue === lastAutoSlug;
+      if (!untouched && !force) {
+        updatePreview();
+        return;
       }
+      const parts = [];
+      if (typeNum) parts.push(typeNum);
+      const baseSlug = slugify(baseText || currentValue || "");
+      if (baseSlug) parts.push(baseSlug);
+      const newSlug = parts.join("-");
+      slug.value = newSlug;
+      lastAutoSlug = newSlug;
       updatePreview();
     }
 
@@ -411,6 +452,7 @@
   const REQUIRED_TAGS = JSON.parse('{{ required_tags_json|escapejs }}');
   const SKILLS = JSON.parse('{{ skills_json|escapejs }}');
   const SKILL_SUGGESTIONS = JSON.parse('{{ skill_suggestions_json|escapejs }}');
+  const ANSWER_SCHEMAS = JSON.parse('{{ answer_schemas_json|escapejs }}');
 
   (function () {
     const subjectSel = document.getElementById("id_subject");
@@ -587,6 +629,208 @@
     updateSkillOptions();
     updateTagOptions();
     renderSkillSuggestions();
+  })();
+</script>
+<script>
+  (function() {
+    const typeSel = document.getElementById("id_type");
+    const toggleBtn = document.getElementById("toggle-answer-builder");
+    const builder = document.getElementById("answer-builder");
+    const fields = document.getElementById("answer-fields");
+    const builderHint = document.getElementById("answer-builder-hint");
+    const schemaTitle = document.getElementById("answer-schema-title");
+    const hiddenAnswer = document.getElementById("id_answer_inputs");
+    const correctAnswer = document.getElementById("id_correct_answer");
+    const form = document.querySelector("form");
+
+    function currentSchema() {
+      const typeId = typeSel ? typeSel.value : "";
+      if (!typeId) return null;
+      return ANSWER_SCHEMAS[String(typeId)] || null;
+    }
+
+    function resetBuilderState() {
+      if (fields) fields.innerHTML = "";
+      if (builder) builder.style.display = "none";
+      if (schemaTitle) schemaTitle.textContent = "";
+      if (toggleBtn) toggleBtn.textContent = "Показать поля ответа";
+      if (hiddenAnswer) hiddenAnswer.value = "";
+    }
+
+    function buildInputs(schema) {
+      if (!fields || !schema) return;
+      fields.innerHTML = "";
+      const cfg = schema.config || {};
+      const rows = Number(cfg.rows || 1);
+      const cols = Number(cfg.cols || 1);
+      const inputType = cfg.input_type || "string";
+      const perCellMax = cfg.per_cell_max_length ? Number(cfg.per_cell_max_length) : null;
+      const allowBlankRows = !!cfg.allow_blank_rows;
+
+      const container = document.createElement("div");
+      container.className = "answer-grid";
+
+      for (let r = 0; r < rows; r++) {
+        const rowEl = document.createElement("div");
+        rowEl.className = "answer-row";
+        for (let c = 0; c < cols; c++) {
+          const wrap = document.createElement("div");
+          wrap.className = "answer-cell";
+          const label = document.createElement("label");
+          label.textContent = rows > 1 ? `Строка ${r + 1}, поле ${c + 1}` : `Поле ${c + 1}`;
+          const input = document.createElement("input");
+          input.name = `answer_r${r}_c${c}`;
+          input.dataset.row = String(r);
+          input.dataset.col = String(c);
+          input.className = "answer-input";
+          if (inputType === "uint" || inputType === "int" || inputType === "float") {
+            input.type = "number";
+            if (inputType === "uint") input.min = "0";
+            if (inputType === "float") input.step = "any";
+          } else {
+            input.type = "text";
+          }
+          if (perCellMax) input.maxLength = perCellMax;
+          wrap.appendChild(label);
+          wrap.appendChild(input);
+          rowEl.appendChild(wrap);
+        }
+        container.appendChild(rowEl);
+      }
+
+      fields.appendChild(container);
+      if (builderHint) {
+        const hints = [];
+        hints.push(`Схема: ${rows}×${cols}, тип: ${inputType}`);
+        if (perCellMax) hints.push(`Лимит символов в клетке: ${perCellMax}`);
+        if (allowBlankRows) hints.push("Пустые строки можно оставить незаполненными.");
+        builderHint.textContent = hints.join(" · ");
+      }
+
+      setupAutoAdvance(cfg);
+      syncAnswerPayload();
+      Array.from(fields.querySelectorAll("input")).forEach((input) => {
+        input.addEventListener("input", syncAnswerPayload);
+      });
+    }
+
+    function setupAutoAdvance(cfg) {
+      const rows = Number(cfg.rows || 1);
+      const cols = Number(cfg.cols || 1);
+      const perCellMax = cfg.per_cell_max_length ? Number(cfg.per_cell_max_length) : null;
+      if (!(rows === 1 && cols > 1 && perCellMax === 1)) return;
+      const inputs = Array.from(fields.querySelectorAll("input.answer-input"));
+      inputs.forEach((input, idx) => {
+        input.addEventListener("input", (e) => {
+          const val = e.target.value || "";
+          if (val.length >= 1 && idx < inputs.length - 1) {
+            inputs[idx + 1].focus();
+            inputs[idx + 1].select();
+          }
+        });
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Backspace" && !e.target.value && idx > 0) {
+            inputs[idx - 1].focus();
+          }
+        });
+      });
+    }
+
+    function collectPayload() {
+      const schema = currentSchema();
+      if (!schema || !fields) return null;
+      const cfg = schema.config || {};
+      const rows = Number(cfg.rows || 1);
+      const cols = Number(cfg.cols || 1);
+      const allowBlankRows = !!cfg.allow_blank_rows;
+      const perCellMax = cfg.per_cell_max_length ? Number(cfg.per_cell_max_length) : null;
+      const inputType = cfg.input_type || "string";
+
+      const fetchCell = (r, c) => {
+        const input = fields.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
+        return input ? input.value : "";
+      };
+
+      if (rows === 1 && cols === 1) {
+        return fetchCell(0, 0);
+      }
+
+      if (rows === 1) {
+        return Array.from({ length: cols }, (_, c) => fetchCell(0, c));
+      }
+
+      const matrix = [];
+      for (let r = 0; r < rows; r++) {
+        const rowVals = Array.from({ length: cols }, (_, c) => fetchCell(r, c));
+        if (allowBlankRows && rowVals.every((v) => v === "")) {
+          matrix.push([]);
+        } else {
+          matrix.push(rowVals);
+        }
+      }
+
+      if (allowBlankRows) {
+        while (matrix.length && (matrix[matrix.length - 1].length === 0 || matrix[matrix.length - 1].every((v) => v === ""))) {
+          matrix.pop();
+        }
+      }
+      return matrix;
+    }
+
+    function syncAnswerPayload() {
+      const schema = currentSchema();
+      if (!schema) return;
+      const payload = collectPayload();
+      if (payload === null || payload === undefined) return;
+      const serialised = JSON.stringify(payload);
+      if (hiddenAnswer) hiddenAnswer.value = serialised;
+      if (correctAnswer) {
+        correctAnswer.value = serialised;
+      }
+    }
+
+    function maybeEnableBuilder() {
+      const schema = currentSchema();
+      if (!toggleBtn) return;
+      if (!schema) {
+        toggleBtn.disabled = true;
+        resetBuilderState();
+        return;
+      }
+      toggleBtn.disabled = false;
+      if (schemaTitle) schemaTitle.textContent = `Схема: ${schema.name}`;
+    }
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        const schema = currentSchema();
+        if (!schema) return;
+        const isOpen = builder && builder.style.display === "block";
+        if (builder) builder.style.display = isOpen ? "none" : "block";
+        toggleBtn.textContent = isOpen ? "Показать поля ответа" : "Скрыть поля ответа";
+        if (!isOpen) {
+          buildInputs(schema);
+        }
+      });
+    }
+
+    if (typeSel) {
+      typeSel.addEventListener("change", () => {
+        resetBuilderState();
+        maybeEnableBuilder();
+      });
+    }
+
+    if (form) {
+      form.addEventListener("submit", () => {
+        const schema = currentSchema();
+        if (schema && builder && builder.style.display === "block") {
+          syncAnswerPayload();
+        }
+      });
+    }
+
+    maybeEnableBuilder();
   })();
 </script>
 {% endblock %}
