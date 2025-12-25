@@ -448,7 +448,8 @@ class TaskUploadForm(forms.ModelForm):
         value = parsed_from_inputs if parsed_from_inputs is not None else self.cleaned_data.get("correct_answer")
         if value in (None, "", {}):
             return {}
-        if not isinstance(value, dict):
+        has_schema = bool(self._task_type and self._task_type.answer_schema_id)
+        if not has_schema and not isinstance(value, dict):
             value = {"value": value}
         return value
 
@@ -501,6 +502,8 @@ class TaskUploadForm(forms.ModelForm):
 
         # 1x1 scalar
         if rows == 1 and cols == 1:
+            if isinstance(value, dict) and "value" in value:
+                value = value.get("value")
             if isinstance(value, list) and len(value) == 1:
                 value = value[0]
             return coerce_cell(value, row=0, col=0)
