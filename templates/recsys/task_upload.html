@@ -371,7 +371,7 @@
     let lastAutoSlug = "";
 
     function extractTypeNumber(text) {
-      const m = /тип\\s*([0-9]+)/i.exec(text || "");
+      const m = /тип\\s*([0-9]+)/i.exec(text || "") || /([0-9]+)/.exec(text || "");
       return m ? m[1] : "";
     }
 
@@ -397,7 +397,7 @@
     function suggestSlug(force = false) {
       if (!slug) return;
       const typeText = typeSel?.options[typeSel.selectedIndex]?.text || "";
-      const typeNum = extractTypeNumber(typeText) || (typeSel?.value || "");
+      const typeNum = extractTypeNumber(typeText) || "";
       const currentValue = slug.value.trim();
       const baseText = title?.value || "";
       const untouched = !currentValue || currentValue === lastAutoSlug;
