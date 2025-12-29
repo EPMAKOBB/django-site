@@ -631,7 +631,7 @@ class TaskUploadForm(forms.ModelForm):
             provided_name = (provided_names[index - 1] if index - 1 < len(provided_names) else "").strip()
             download_name = provided_name or uploaded.name
             base_label_source = provided_name or uploaded.name
-            label_slug = slugify(base_label_source) or f"file{index}"
+            label_slug = slugify(Path(base_label_source).stem) or f"file{index}"
 
             files_to_create.append(
                 TaskAttachment(
