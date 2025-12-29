@@ -202,6 +202,59 @@
     border-radius: 8px;
     padding: 8px 10px;
   }
+  .attachments-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .attachments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .attachment-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .attachment-row input[type="file"] {
+    color: var(--text-muted);
+  }
+  .attachment-name {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-main);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .attachment-remove {
+    padding: 6px 12px;
+  }
+  .uploading-indicator {
+    display: none;
+    gap: 8px;
+    align-items: center;
+    color: var(--text-muted);
+    margin-top: 6px;
+    font-size: 0.95rem;
+  }
+  .uploading-indicator.visible {
+    display: inline-flex;
+  }
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--input-border);
+    border-top-color: var(--panel-accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 </style>
 
 <div class="upload-wrapper">
@@ -309,23 +362,28 @@
       </div>
 
       <div class="files-block">
-        <p><strong>Прикрепления</strong> (для задачи 27 используйте A/B; для других задач - любые метки):</p>
-        <div class="form-grid">
-          <div class="form-field">
-            <label for="{{ form.file_a.id_for_label }}">Файл A</label>
-            {{ form.file_a }}{{ form.file_a.errors }}
-          </div>
-          <div class="form-field">
-            <label for="{{ form.file_b.id_for_label }}">Файл B</label>
-            {{ form.file_b }}{{ form.file_b.errors }}
-          </div>
-          <div class="form-field">
-            <label for="{{ form.image.id_for_label }}">Картинка (опционально)</label>
-            {{ form.image }}{{ form.image.errors }}
-          </div>
+        <p><strong>Прикрепления</strong> (по умолчанию 0; добавьте столько, сколько нужно):</p>
+        <div class="attachments-actions">
+          <button type="button" class="pill-button" id="add-attachment">+ Добавить Task attachment</button>
+          <span class="inline-note">Для каждого файла задайте имя, по умолчанию оно заполняется slug + расширение.</span>
+        </div>
+        <div style="display:none;">
+          {{ form.attachments }}
+        </div>
+        <div id="attachments-list" class="attachments-list"></div>
+        {% if form.attachments.errors %}
+          <div class="errorlist">{{ form.attachments.errors }}</div>
+        {% endif %}
+        <div id="attachment-uploading" class="uploading-indicator">
+          <span class="spinner"></span>
+          <span>Загружаем из буфера…</span>
+        </div>
+        <div class="form-field" style="margin-top: 10px;">
+          <label for="{{ form.image.id_for_label }}">Картинка (опционально)</label>
+          {{ form.image }}{{ form.image.errors }}
         </div>
         <div class="hint" id="preview-urls">
-          <div>Используйте токены в описании: ![[att:img]] для картинки, ![[att:a]] и ![[att:b]] для файлов. После сохранения они превратятся в ссылки.</div>
+          <div>Используйте токены в описании: ![[att:img]] для картинки. Для файлов токен строится по имени: например, если имя <code>task-1.pdf</code>, токен будет ![[att:task-1]].</div>
         </div>
       </div>
 
@@ -366,6 +424,11 @@
     const variantSel = document.getElementById("id_source_variant");
     const examSel = document.getElementById("id_exam_version");
     const preview = document.getElementById("preview-urls");
+    const attachmentsList = document.getElementById("attachments-list");
+    const addAttachmentBtn = document.getElementById("add-attachment");
+    const hiddenAttachmentsField = document.getElementById("id_attachments"); // rendered hidden, used as prototype
+    const descriptionField = document.getElementById("id_description");
+    const uploadingIndicator = document.getElementById("attachment-uploading");
 
     let lastAutoTitle = "";
     let lastAutoSlug = "";
@@ -406,8 +469,17 @@
         return;
       }
       const parts = [];
+      let baseSlug = slugify(baseText || currentValue || "");
+      // Убираем дублирующийся номер типа из начала baseSlug, если он уже есть
+      if (typeNum && baseSlug === typeNum) {
+        baseSlug = "";
+      } else if (typeNum && baseSlug.startsWith(`${typeNum}-`)) {
+        baseSlug = baseSlug.slice((`${typeNum}-`).length);
+      } else if (typeNum && baseSlug.startsWith(typeNum)) {
+        baseSlug = baseSlug.slice(typeNum.length);
+        if (baseSlug.startsWith("-")) baseSlug = baseSlug.slice(1);
+      }
       if (typeNum) parts.push(typeNum);
-      const baseSlug = slugify(baseText || currentValue || "");
       if (baseSlug) parts.push(baseSlug);
       const newSlug = parts.join("-");
       slug.value = newSlug;
@@ -415,11 +487,116 @@
       updatePreview();
     }
 
-    function getExt(input, fallback = "") {
-      const val = input?.value || "";
+    function getExtFromName(value, fallback = "") {
+      const val = value || "";
       const dot = val.lastIndexOf(".");
       if (dot === -1) return fallback;
       return val.slice(dot);
+    }
+
+    function getExtFromInput(input, fallback = "") {
+      if (!input) return fallback;
+      if (input.files && input.files.length) {
+        return getExtFromName(input.files[0].name, fallback);
+      }
+      return getExtFromName(input.value || "", fallback);
+    }
+
+    function showUploading() {
+      if (uploadingIndicator) {
+        uploadingIndicator.classList.add("visible");
+      }
+    }
+
+    function hideUploading() {
+      if (uploadingIndicator) {
+        uploadingIndicator.classList.remove("visible");
+      }
+    }
+
+    function makeAttachmentRow() {
+      if (!attachmentsList) return null;
+      const row = document.createElement("div");
+      row.className = "attachment-row";
+
+      const fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.name = "attachments";
+      fileInput.className = "attachment-file";
+      fileInput.accept = hiddenAttachmentsField?.accept || "";
+      fileInput.required = false;
+
+      const nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.name = "attachment_names";
+      nameInput.className = "attachment-name";
+      nameInput.placeholder = "Имя файла";
+      nameInput.dataset.auto = "true";
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "pill-button attachment-remove";
+      removeBtn.textContent = "×";
+
+      const refreshSuggestedName = () => {
+        const fileName = fileInput.files?.[0]?.name || "";
+        if (!fileName) return;
+        const slugValue = (slug?.value || "").trim() || "task";
+        const ext = getExtFromName(fileName, "");
+        const suggested = `${slugValue}${ext}`;
+        if (!nameInput.value || nameInput.dataset.auto === "true") {
+          nameInput.value = suggested;
+          nameInput.dataset.auto = "true";
+        }
+      };
+
+      fileInput.addEventListener("change", () => {
+        refreshSuggestedName();
+        updatePreview();
+      });
+      nameInput.addEventListener("input", () => {
+        nameInput.dataset.auto = "false";
+        updatePreview();
+      });
+      removeBtn.addEventListener("click", () => {
+        row.remove();
+        updatePreview();
+      });
+
+      row.appendChild(fileInput);
+      row.appendChild(nameInput);
+      row.appendChild(removeBtn);
+      attachmentsList.appendChild(row);
+      return { row, fileInput, nameInput, refreshSuggestedName };
+    }
+
+    function attachmentRows() {
+      return Array.from(document.querySelectorAll(".attachment-row"));
+    }
+
+    function refreshAutoNamesForSlug() {
+      attachmentRows().forEach((row) => {
+        const fileInput = row.querySelector(".attachment-file");
+        const nameInput = row.querySelector(".attachment-name");
+        if (!fileInput || !nameInput) return;
+        if (nameInput.dataset.auto !== "true") return;
+        if (!fileInput.files || !fileInput.files.length) return;
+        const ext = getExtFromInput(fileInput, "");
+        const slugValue = (slug?.value || "").trim() || "task";
+        nameInput.value = `${slugValue}${ext}`;
+      });
+    }
+
+    function insertTextAtCursor(field, text) {
+      if (!field) return;
+      const start = field.selectionStart ?? field.value.length;
+      const end = field.selectionEnd ?? field.value.length;
+      const before = field.value.slice(0, start);
+      const after = field.value.slice(end);
+      field.value = `${before}${text}${after}`;
+      const newPos = start + text.length;
+      field.setSelectionRange(newPos, newPos);
+      field.focus();
     }
 
     function updatePreview() {
@@ -427,31 +604,86 @@
       const examText = examSel.options[examSel.selectedIndex]?.text || "";
       const examSlug = slugify(examText) || "exam";
       const taskSlug = slug.value.trim() || "task";
-      const imgExt = getExt(document.getElementById("id_image"), ".png");
-      const fileAExt = getExt(document.getElementById("id_file_a"), "");
-      const fileBExt = getExt(document.getElementById("id_file_b"), "");
+      const imgExt = getExtFromInput(document.getElementById("id_image"), ".png");
+      const rows = attachmentRows();
       const lines = [];
       lines.push(`Картинка: ![[att:img]] -> tasks/${examSlug}/images/${taskSlug}${imgExt}`);
-      lines.push(`Файл A: ![[att:a]] -> tasks/${examSlug}/files/${taskSlug}-a${fileAExt || "<ext>"}`);
-      lines.push(`Файл B: ![[att:b]] -> tasks/${examSlug}/files/${taskSlug}-b${fileBExt || "<ext>"}`);
+      const fileLines = [];
+      rows.forEach((row, idx) => {
+        const fileInput = row.querySelector(".attachment-file");
+        const nameInput = row.querySelector(".attachment-name");
+        const file = fileInput?.files?.[0];
+        if (!file) return;
+        const ext = getExtFromName(file.name, "");
+        const nameVal = (nameInput?.value || "").trim();
+        const labelSource = nameVal || file.name || `file${idx + 1}`;
+        const labelSlug = slugify(labelSource) || `file${idx + 1}`;
+        const token = labelSlug.toLowerCase();
+        const downloadName = nameVal || `${taskSlug}${ext || ""}`;
+        fileLines.push(`Файл ${downloadName}: ![[att:${token}]] -> tasks/${examSlug}/files/${taskSlug}-${token}${ext || "<ext>"}`);
+      });
+      if (!fileLines.length) {
+        lines.push("Файлы: нет (можно оставить пустым).");
+      } else {
+        lines.push(...fileLines);
+      }
       lines.push("Токены будут заменены на ссылки после сохранения.");
       preview.innerHTML = lines.map(t => `<div>${t}</div>`).join("");
     }
 
     ["change","input"].forEach(evt => {
       if (title) title.addEventListener(evt, () => suggestSlug(false));
-      if (slug) slug.addEventListener(evt, updatePreview);
+      if (slug) slug.addEventListener(evt, () => { refreshAutoNamesForSlug(); updatePreview(); });
       if (typeSel) typeSel.addEventListener(evt, () => suggestTitle(true));
       if (sourceSel) sourceSel.addEventListener(evt, () => suggestTitle(true));
       if (variantSel) variantSel.addEventListener(evt, () => suggestTitle(true));
       if (examSel) examSel.addEventListener(evt, updatePreview);
     });
 
-    ["id_image", "id_file_a", "id_file_b"].forEach(id => {
+    if (addAttachmentBtn) {
+      addAttachmentBtn.addEventListener("click", () => {
+        const created = makeAttachmentRow();
+        if (created) {
+          created.refreshSuggestedName();
+        }
+      });
+    }
+
+    async function handlePasteAsAttachment(event) {
+      const files = event.clipboardData?.files;
+      if (!files || !files.length) return;
+      event.preventDefault();
+      showUploading();
+      const tokens = [];
+      for (const file of files) {
+        const created = makeAttachmentRow();
+        if (!created) continue;
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        created.fileInput.files = dt.files;
+        created.refreshSuggestedName();
+        const nameVal = (created.nameInput?.value || file.name || "").trim();
+        const labelSlug = slugify(nameVal || file.name || `file${Date.now()}`) || `file${Date.now()}`;
+        tokens.push(`![[att:${labelSlug.toLowerCase()}]]`);
+      }
+      hideUploading();
+      updatePreview();
+      if (tokens.length && descriptionField) {
+        const insert = (descriptionField.value ? " " : "") + tokens.join(" ");
+        insertTextAtCursor(descriptionField, insert);
+      }
+    }
+
+    if (descriptionField) {
+      descriptionField.addEventListener("paste", handlePasteAsAttachment);
+    }
+
+    ["id_image"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener("change", updatePreview);
     });
 
+    // Start with zero attachments; user can add via the button.
     suggestTitle(true);
     suggestSlug(true);
     updatePreview();

@@ -119,7 +119,7 @@ class TaskPreGeneratedDatasetInline(admin.TabularInline):
 
 class TaskAttachmentInline(admin.TabularInline):
     model = TaskAttachment
-    extra = 2
+    extra = 0
     fields = ("kind", "label", "download_name_override", "order", "file")
 
 
