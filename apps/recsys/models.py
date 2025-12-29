@@ -249,7 +249,8 @@ def task_attachment_upload_to(instance: "TaskAttachment", filename: str) -> str:
     base_slug = task.slug or slugify(task.title) or f"task-{task.pk or 'new'}"
     label_part = ""
     if instance.download_name_override:
-        label_part = slugify(instance.download_name_override)
+        stem_override = os.path.splitext(instance.download_name_override)[0]
+        label_part = slugify(stem_override)
     elif instance.label:
         label_part = slugify(instance.label)
     elif instance.order and instance.order > 1:
