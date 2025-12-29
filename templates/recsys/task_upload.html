@@ -494,6 +494,19 @@
       return val.slice(dot);
     }
 
+    function stripExt(value) {
+      const val = value || "";
+      const dot = val.lastIndexOf(".");
+      if (dot === -1) return val;
+      return val.slice(0, dot);
+    }
+
+    function buildLabelSlug(raw) {
+      const base = stripExt(raw || "").trim();
+      const slugified = slugify(base);
+      return slugified.replace(/^-+|-+$/g, "") || "file";
+    }
+
     function getExtFromInput(input, fallback = "") {
       if (!input) return fallback;
       if (input.files && input.files.length) {
@@ -617,7 +630,7 @@
         const ext = getExtFromName(file.name, "");
         const nameVal = (nameInput?.value || "").trim();
         const labelSource = nameVal || file.name || `file${idx + 1}`;
-        const labelSlug = slugify(labelSource) || `file${idx + 1}`;
+        const labelSlug = buildLabelSlug(labelSource) || `file${idx + 1}`;
         const token = labelSlug.toLowerCase();
         const downloadName = nameVal || `${taskSlug}${ext || ""}`;
         fileLines.push(`Файл ${downloadName}: ![[att:${token}]] -> tasks/${examSlug}/files/${taskSlug}-${token}${ext || "<ext>"}`);
@@ -663,7 +676,7 @@
         created.fileInput.files = dt.files;
         created.refreshSuggestedName();
         const nameVal = (created.nameInput?.value || file.name || "").trim();
-        const labelSlug = slugify(nameVal || file.name || `file${Date.now()}`) || `file${Date.now()}`;
+        const labelSlug = buildLabelSlug(nameVal || file.name || `file${Date.now()}`) || `file${Date.now()}`;
         tokens.push(`![[att:${labelSlug.toLowerCase()}]]`);
       }
       hideUploading();
