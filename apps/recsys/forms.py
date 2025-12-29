@@ -675,15 +675,21 @@ class TaskUploadForm(forms.ModelForm):
                 keys: set[str] = set()
                 label = (att.label or "").lower()
                 if label:
+                    slug_label = slugify(label)
                     keys.add(label)
-                    keys.add(slugify(label))
+                    keys.add(slug_label)
+                    keys.add(slug_label.replace("-", ""))
                 file_name = Path(att.file.name).name
                 stem = Path(file_name).stem.lower()
                 if stem:
-                    keys.add(slugify(stem))
+                    slug_stem = slugify(stem)
+                    keys.add(slug_stem)
+                    keys.add(slug_stem.replace("-", ""))
                 if att.download_name_override:
                     dn_stem = Path(att.download_name_override).stem.lower()
-                    keys.add(slugify(dn_stem))
+                    slug_dn = slugify(dn_stem)
+                    keys.add(slug_dn)
+                    keys.add(slug_dn.replace("-", ""))
                 return {k for k in keys if k}
 
             by_token: dict[str, TaskAttachment] = {}
@@ -699,7 +705,16 @@ class TaskUploadForm(forms.ModelForm):
                 if token.isdigit():
                     att = by_id.get(int(token))
                 if not att:
-                    att = by_token.get(token.lower())
+                    token_lower = token.lower()
+                    att = by_token.get(token_lower)
+                if not att:
+                    # Try stripping known extensions
+                    for ext in (".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp"):
+                        if token_lower.endswith(ext):
+                            trimmed = token_lower[: -len(ext)]
+                            att = by_token.get(trimmed) or by_token.get(slugify(trimmed))
+                            if att:
+                                break
                 if not att:
                     return match.group(0)
                 url = att.file.url
