@@ -670,7 +670,27 @@ class TaskUploadForm(forms.ModelForm):
             # Use all attachments of the task (existing + new)
             attachments = list(task.attachments.all())
             by_id = {a.id: a for a in attachments if a.id}
-            by_label = { (a.label or "").lower(): a for a in attachments if a.label }
+
+            def _token_keys(att: TaskAttachment) -> set[str]:
+                keys: set[str] = set()
+                label = (att.label or "").lower()
+                if label:
+                    keys.add(label)
+                    keys.add(slugify(label))
+                file_name = Path(att.file.name).name
+                stem = Path(file_name).stem.lower()
+                if stem:
+                    keys.add(slugify(stem))
+                if att.download_name_override:
+                    dn_stem = Path(att.download_name_override).stem.lower()
+                    keys.add(slugify(dn_stem))
+                return {k for k in keys if k}
+
+            by_token: dict[str, TaskAttachment] = {}
+            for att in attachments:
+                for key in _token_keys(att):
+                    by_token.setdefault(key, att)
+
             pattern = re.compile(r"!\[\[att:([A-Za-z0-9_-]+)\]\]", re.IGNORECASE)
 
             def _replace(match: re.Match[str]) -> str:
@@ -679,7 +699,7 @@ class TaskUploadForm(forms.ModelForm):
                 if token.isdigit():
                     att = by_id.get(int(token))
                 if not att:
-                    att = by_label.get(token.lower())
+                    att = by_token.get(token.lower())
                 if not att:
                     return match.group(0)
                 url = att.file.url
