@@ -256,6 +256,9 @@ def task_attachment_upload_to(instance: "TaskAttachment", filename: str) -> str:
     elif instance.order and instance.order > 1:
         label_part = f"{instance.order:02d}"
 
+    if label_part and label_part == base_slug:
+        label_part = ""
+
     stem = f"{base_slug}-{label_part}" if label_part else base_slug
     root, ext = os.path.splitext(filename)
     safe_ext = ext.lower() if ext else ""
