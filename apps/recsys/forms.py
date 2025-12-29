@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Sequence
+from pathlib import Path
 
 from django import forms
 from django.utils.text import slugify
@@ -359,8 +360,25 @@ class TaskAnswerForm(forms.Form):
 
 class TaskUploadForm(forms.ModelForm):
     """
-    Simplified form for creating a task with optional image and up to two files.
+    Simplified form for creating a task with optional image and attachments.
     """
+
+    class MultiFileInput(forms.ClearableFileInput):
+        allow_multiple_selected = True
+
+    class MultiFileField(forms.FileField):
+        def to_python(self, data):
+            if not data:
+                return []
+            if isinstance(data, (list, tuple)):
+                return [forms.FileField.to_python(self, item) for item in data if item]
+            return [forms.FileField.to_python(self, data)]
+
+        def clean(self, data, initial=None):
+            files = self.to_python(data)
+            if self.required and not files:
+                raise forms.ValidationError(self.error_messages["required"], code="required")
+            return files
 
     answer_inputs = forms.CharField(required=False, widget=forms.HiddenInput())
     correct_answer = forms.JSONField(
@@ -381,8 +399,11 @@ class TaskUploadForm(forms.ModelForm):
         widget=forms.SelectMultiple(attrs={"size": 6}),
     )
     image = forms.FileField(required=False, help_text="SVG/PNG/JPEG и др.")
-    file_a = forms.FileField(required=False, help_text="Основной файл (или A для задачи 27)")
-    file_b = forms.FileField(required=False, help_text="Дополнительный файл (B для задачи 27)")
+    attachments = MultiFileField(
+        required=False,
+        widget=MultiFileInput(attrs={"multiple": True}),
+        help_text="Основной файл (или несколько).",
+    )
 
     class Meta:
         model = Task
@@ -600,20 +621,26 @@ class TaskUploadForm(forms.ModelForm):
         self.save_m2m()
 
         files_to_create: list[TaskAttachment] = []
-        upload_map = [
-            ("A", self.files.get("file_a")),
-            ("B", self.files.get("file_b")),
-        ]
-        for order, (label, uploaded) in enumerate(upload_map, start=1):
+        uploaded_files = list(self.files.getlist("attachments")) if hasattr(self.files, "getlist") else []
+        provided_names = list(self.data.getlist("attachment_names")) if hasattr(self, "data") else []
+
+        for index, uploaded in enumerate(uploaded_files, start=1):
             if not uploaded:
                 continue
+
+            provided_name = (provided_names[index - 1] if index - 1 < len(provided_names) else "").strip()
+            download_name = provided_name or uploaded.name
+            base_label_source = provided_name or uploaded.name
+            label_slug = slugify(base_label_source) or f"file{index}"
+
             files_to_create.append(
                 TaskAttachment(
                     task=task,
                     kind=TaskAttachment.Kind.FILE,
                     file=uploaded,
-                    label=label,
-                    order=order,
+                    label=label_slug[:50],
+                    download_name_override=download_name[:255] if download_name else "",
+                    order=index,
                 )
             )
 
