@@ -432,6 +432,20 @@
 
     let lastAutoTitle = "";
     let lastAutoSlug = "";
+    const sourceMap = new Map(SOURCES.map((s) => [String(s.id), s]));
+    const variantMap = new Map(SOURCE_VARIANTS.map((v) => [String(v.id), v]));
+
+    function currentSourceSlug() {
+      const sid = sourceSel ? sourceSel.value : "";
+      const source = sourceMap.get(String(sid));
+      return source?.slug || "";
+    }
+
+    function currentVariantSlug() {
+      const vid = variantSel ? variantSel.value : "";
+      const variant = variantMap.get(String(vid));
+      return variant?.slug || "";
+    }
 
     function extractTypeNumber(text) {
       const m = /тип\\s*([0-9]+)/i.exec(text || "") || /([0-9]+)/.exec(text || "");
@@ -469,7 +483,9 @@
         return;
       }
       const parts = [];
-      let baseSlug = slugify(baseText || currentValue || "");
+      const variantSlug = currentVariantSlug();
+      const sourceSlug = currentSourceSlug();
+      let baseSlug = variantSlug || sourceSlug || slugify(baseText || currentValue || "");
       // Убираем дублирующийся номер типа из начала baseSlug, если он уже есть
       if (typeNum && baseSlug === typeNum) {
         baseSlug = "";
@@ -709,6 +725,8 @@
   const SKILLS = JSON.parse('{{ skills_json|escapejs }}');
   const SKILL_SUGGESTIONS = JSON.parse('{{ skill_suggestions_json|escapejs }}');
   const ANSWER_SCHEMAS = JSON.parse('{{ answer_schemas_json|escapejs }}');
+  const SOURCES = JSON.parse('{{ sources_json|escapejs }}');
+  const SOURCE_VARIANTS = JSON.parse('{{ source_variants_json|escapejs }}');
 
   (function () {
     const subjectSel = document.getElementById("id_subject");

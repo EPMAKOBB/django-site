@@ -154,6 +154,12 @@ class TaskType(TimeStampedModel):
         blank=True,
     )
     name = models.CharField(max_length=100)
+    slug = models.SlugField(
+        max_length=128,
+        null=True,
+        blank=True,
+        help_text="Machine-friendly code, e.g. algebra-basic",
+    )
     description = models.TextField(blank=True)
     display_order = models.PositiveIntegerField(
         default=0,
@@ -192,10 +198,18 @@ class TaskType(TimeStampedModel):
             models.UniqueConstraint(
                 fields=["subject", "exam_version", "name"],
                 name="task_type_subject_exam_name_unique",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["subject", "exam_version", "slug"],
+                name="task_type_subject_exam_slug_unique",
+            ),
         ]
         indexes = [
-            models.Index(fields=["subject", "exam_version", "display_order", "name"])
+            models.Index(fields=["subject", "exam_version", "display_order", "name"]),
+            models.Index(
+                fields=["subject", "exam_version", "slug"],
+                name="recsys_tt_subj_exam_slug_idx",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -208,8 +222,18 @@ class TaskType(TimeStampedModel):
         suffix = f"{self.name} (без версии экзамена)"
         return f"{prefix} · {suffix}"
 
+    def _normalize_slug(self) -> None:
+        raw_slug = self.slug or self.name
+        slug_value = slugify(raw_slug or "")
+        if slug_value:
+            self.slug = slug_value
+
     def clean(self):
         super().clean()
+
+        self._normalize_slug()
+        if not self.slug:
+            raise ValidationError({"slug": "Slug is required."})
 
         if self.exam_version and self.exam_version.subject_id != self.subject_id:
             raise ValidationError({"exam_version": "Exam version must match task subject."})
@@ -222,6 +246,10 @@ class TaskType(TimeStampedModel):
             and self.answer_schema.exam_version_id != self.exam_version_id
         ):
             raise ValidationError({"answer_schema": "Answer schema exam version must match task type exam version."})
+
+    def save(self, *args, **kwargs):
+        self._normalize_slug()
+        super().save(*args, **kwargs)
 
 def _exam_version_slug(task: "Task") -> str:
     """

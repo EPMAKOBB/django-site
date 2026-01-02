@@ -57,6 +57,7 @@ class TaskTypeSerializer(serializers.ModelSerializer):
             "subject",
             "exam_version",
             "name",
+            "slug",
             "description",
             "display_order",
             "required_tags",

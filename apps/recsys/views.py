@@ -175,6 +175,7 @@ def task_upload(request):
             "subject_id": t.subject_id,
             "exam_version_id": t.exam_version_id,
             "name": t.name,
+            "slug": t.slug,
             "answer_schema_id": t.answer_schema_id,
         }
         for t in task_types
@@ -207,6 +208,13 @@ def task_upload(request):
             }
         )
 
+    sources = list(
+        Source.objects.values("id", "slug", "name").order_by("name")
+    )
+    source_variants = list(
+        SourceVariant.objects.values("id", "source_id", "slug", "label").order_by("source__name", "label")
+    )
+
     return render(
         request,
         "recsys/task_upload.html",
@@ -218,5 +226,7 @@ def task_upload(request):
             "skills_json": json.dumps(skills, ensure_ascii=False),
             "skill_suggestions_json": json.dumps(skill_suggestions, ensure_ascii=False),
             "answer_schemas_json": json.dumps(answer_schemas, ensure_ascii=False),
+            "sources_json": json.dumps(sources, ensure_ascii=False),
+            "source_variants_json": json.dumps(source_variants, ensure_ascii=False),
         },
     )

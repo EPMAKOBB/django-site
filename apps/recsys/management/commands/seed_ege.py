@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 from django.core.management.base import BaseCommand
+from django.utils.text import slugify
 
 from apps.recsys.models import (
     ExamVersion,
@@ -28,8 +29,11 @@ class Command(BaseCommand):
                 name=str(i),
                 subject=subject,
                 exam_version=exam_version,
-                defaults={"display_order": i},
+                defaults={"display_order": i, "slug": slugify(str(i))},
             )
+            if not task_type.slug:
+                task_type.slug = slugify(task_type.name) or f"type-{task_type.pk}"
+                task_type.save(update_fields=["slug"])
             if task_type.display_order != i:
                 task_type.display_order = i
                 task_type.save(update_fields=["display_order"])
