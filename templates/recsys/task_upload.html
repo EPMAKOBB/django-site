@@ -395,6 +395,17 @@
 </div>
 
 <script>
+  const EXAM_VERSIONS = JSON.parse('{{ exam_versions_json|escapejs }}');
+  const TASK_TYPES = JSON.parse('{{ task_types_json|escapejs }}');
+  const REQUIRED_TAGS = JSON.parse('{{ required_tags_json|escapejs }}');
+  const SKILLS = JSON.parse('{{ skills_json|escapejs }}');
+  const SKILL_SUGGESTIONS = JSON.parse('{{ skill_suggestions_json|escapejs }}');
+  const ANSWER_SCHEMAS = JSON.parse('{{ answer_schemas_json|escapejs }}');
+  const SOURCES = JSON.parse('{{ sources_json|escapejs }}');
+  const SOURCE_VARIANTS = JSON.parse('{{ source_variants_json|escapejs }}');
+</script>
+
+<script>
   (function() {
     const map = {
       "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh",
@@ -719,15 +730,6 @@
   })();
 </script>
 <script>
-  const EXAM_VERSIONS = JSON.parse('{{ exam_versions_json|escapejs }}');
-  const TASK_TYPES = JSON.parse('{{ task_types_json|escapejs }}');
-  const REQUIRED_TAGS = JSON.parse('{{ required_tags_json|escapejs }}');
-  const SKILLS = JSON.parse('{{ skills_json|escapejs }}');
-  const SKILL_SUGGESTIONS = JSON.parse('{{ skill_suggestions_json|escapejs }}');
-  const ANSWER_SCHEMAS = JSON.parse('{{ answer_schemas_json|escapejs }}');
-  const SOURCES = JSON.parse('{{ sources_json|escapejs }}');
-  const SOURCE_VARIANTS = JSON.parse('{{ source_variants_json|escapejs }}');
-
   (function () {
     const subjectSel = document.getElementById("id_subject");
     const examSel = document.getElementById("id_exam_version");
