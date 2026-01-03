@@ -8,7 +8,17 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Case, Count, IntegerField, Value, When
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import ExamVersion, Skill, SkillMastery, Task, TaskSkill, TaskTag, TaskType
+from .models import (
+    ExamVersion,
+    Skill,
+    SkillMastery,
+    Source,
+    SourceVariant,
+    Task,
+    TaskSkill,
+    TaskTag,
+    TaskType,
+)
 from .recommendation import recommend_tasks
 from .forms import TaskUploadForm
 from accounts.models import StudentProfile
