@@ -808,6 +808,19 @@ class VariantAttempt(TimeStampedModel):
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     time_spent = models.DurationField(null=True, blank=True)
+    active_variant_task = models.ForeignKey(
+        "VariantTask",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="Variant task currently opened by the student (for per-task timers).",
+    )
+    active_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the current task timer was started.",
+    )
 
     class Meta:
         ordering = ["assignment", "attempt_number"]
@@ -847,6 +860,7 @@ class VariantTaskAttempt(TimeStampedModel):
     score = models.PositiveSmallIntegerField(null=True, blank=True)
     max_score = models.PositiveSmallIntegerField(default=1)
     task_snapshot = models.JSONField(default=dict, blank=True)
+    time_spent = models.DurationField(null=True, blank=True)
 
     class Meta:
         ordering = ["variant_attempt", "variant_task", "attempt_number"]
@@ -884,3 +898,44 @@ class TaskPreGeneratedDataset(TimeStampedModel):
 
     def __str__(self) -> str:  # pragma: no cover - human-readable representation
         return f"Dataset #{self.pk} for {self.task}"
+
+
+class VariantTaskTimeLog(TimeStampedModel):
+    class StopReason(models.TextChoices):
+        SWITCH = "switch", "Switched to another task"
+        SAVE = "save", "Answer saved"
+        SUBMIT = "submit", "Answer submitted"
+        FINALIZE = "finalize", "Attempt finalized"
+        CLEAR = "clear", "Answer cleared"
+        AUTO = "auto", "Auto stop"
+
+    variant_attempt = models.ForeignKey(
+        VariantAttempt,
+        on_delete=models.CASCADE,
+        related_name="time_logs",
+    )
+    variant_task = models.ForeignKey(
+        VariantTask,
+        on_delete=models.CASCADE,
+        related_name="time_logs",
+    )
+    started_at = models.DateTimeField()
+    stopped_at = models.DateTimeField(null=True, blank=True)
+    duration = models.DurationField(null=True, blank=True)
+    stop_reason = models.CharField(
+        max_length=16,
+        choices=StopReason.choices,
+        default=StopReason.SWITCH,
+    )
+    auto_stopped = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["variant_attempt", "variant_task", "stopped_at"]),
+            models.Index(fields=["variant_attempt", "stopped_at"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - human readable
+        task_label = f"{self.variant_task_id}" if self.variant_task_id else "?"
+        return f"Time log for task {task_label} (attempt {self.variant_attempt_id})"

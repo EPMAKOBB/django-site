@@ -306,6 +306,7 @@ class VariantTaskAttemptSerializer(serializers.ModelSerializer):
             "task",
             "attempt_number",
             "is_correct",
+            "time_spent",
             "task_snapshot",
             "created_at",
             "updated_at",
@@ -367,6 +368,7 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
                     "saved_response": item.get("saved_response"),
                     "saved_response_updated_at": saved_response_updated_at,
                     "attempts": attempts_serializer.data,
+                    "time_spent": item.get("time_spent"),
                 }
             )
         return progress

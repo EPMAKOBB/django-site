@@ -158,6 +158,67 @@ class VariantAttemptStartView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+class VariantAttemptDetailView(APIView):
+    """Return attempt with tasks progress."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, attempt_id: int, *args, **kwargs):
+        attempt = variant_service.get_attempt_with_prefetch(request.user, attempt_id)
+        serializer = VariantAttemptSerializer(attempt, context={"request": request})
+        return Response(serializer.data)
+
+
+class VariantTaskFocusView(APIView):
+    """Mark a task as opened to start/stop per-task timers."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, attempt_id: int, variant_task_id: int, *args, **kwargs):
+        attempt = variant_service.set_active_task(request.user, attempt_id, variant_task_id)
+        attempt = variant_service.get_attempt_with_prefetch(request.user, attempt.id)
+        serializer = VariantAttemptSerializer(attempt, context={"request": request})
+        return Response(serializer.data)
+
+
+class VariantTaskSaveView(APIView):
+    """Save draft answer for a task (without scoring)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    class InputSerializer(serializers.Serializer):
+        answer = serializers.JSONField()
+
+    def post(self, request, attempt_id: int, variant_task_id: int, *args, **kwargs):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        generation_attempt = variant_service.save_task_response(
+            request.user,
+            attempt_id,
+            variant_task_id,
+            answer=serializer.validated_data["answer"],
+        )
+        attempt = variant_service.get_attempt_with_prefetch(request.user, generation_attempt.variant_attempt_id)
+        response_serializer = VariantAttemptSerializer(attempt, context={"request": request})
+        return Response(response_serializer.data)
+
+
+class VariantTaskClearView(APIView):
+    """Clear saved draft answer and restart timer."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, attempt_id: int, variant_task_id: int, *args, **kwargs):
+        generation_attempt = variant_service.clear_task_response(
+            request.user,
+            attempt_id,
+            variant_task_id,
+        )
+        attempt = variant_service.get_attempt_with_prefetch(request.user, generation_attempt.variant_attempt_id)
+        serializer = VariantAttemptSerializer(attempt, context={"request": request})
+        return Response(serializer.data)
+
+
 class VariantTaskSubmitView(APIView):
     """Persist an answer for a single task inside the attempt."""
 

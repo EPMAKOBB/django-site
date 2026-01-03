@@ -30,6 +30,11 @@ urlpatterns = [
         views.variant_attempt_work,
         name="variant-attempt-work",
     ),
+    path(
+        "dashboard/attempts/<int:attempt_id>/solver/",
+        views.variant_attempt_solver,
+        name="variant-attempt-solver",
+    ),
     # Variant basket routes (teacher only)
     path("dashboard/variant-basket/", views.variant_basket_edit, name="variant-basket-edit"),
     path("dashboard/variant-basket/add/", views.variant_basket_add, name="variant-basket-add"),

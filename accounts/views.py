@@ -1263,6 +1263,31 @@ def variant_attempt_work(request, attempt_id: int):
     return render(request, "accounts/dashboard/variant_attempt_work.html", context)
 
 
+@login_required
+def variant_attempt_solver(request, attempt_id: int):
+    """Interactive solver UI with per-task timers driven by API endpoints."""
+
+    role = _get_dashboard_role(request)
+    try:
+        attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
+    except drf_exceptions.NotFound as exc:
+        raise Http404(str(exc)) from exc
+
+    assignment = attempt.assignment
+    time_left_delta = variant_services.get_time_left(attempt)
+    time_left = _format_duration(time_left_delta) if time_left_delta else None
+
+    context = {
+        "active_tab": "tasks",
+        "role": role,
+        "attempt_id": attempt.id,
+        "assignment": assignment,
+        "attempt": attempt,
+        "time_left": time_left,
+    }
+    return render(request, "accounts/dashboard/variant_attempt_solver.html", context)
+
+
 
 
 
