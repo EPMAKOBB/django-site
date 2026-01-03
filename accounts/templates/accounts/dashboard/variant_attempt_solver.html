@@ -1,0 +1,293 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load i18n markdown_extras %}
+
+{% block dashboard_title %}{% trans "Решение варианта" %}{% endblock %}
+
+{% block dashboard_content %}
+<section class="solver">
+  <header class="solver__header">
+    <div>
+      <p class="solver__eyebrow">{% trans "Вариант" %}</p>
+      <h2 class="solver__title">{{ assignment.template.name }}</h2>
+    </div>
+    <div class="solver__meta">
+      <span class="solver__badge">{% blocktrans %}Попытка #{{ attempt.attempt_number }}{% endblocktrans %}</span>
+      {% if time_left %}
+        <span class="solver__badge solver__badge--muted">{% trans "Осталось времени" %}: {{ time_left }}</span>
+      {% endif %}
+    </div>
+    <div class="solver__actions">
+      <button id="solver-finalize" class="btn btn-primary">{% trans "Отправить на проверку" %}</button>
+      <a class="btn" href="{% url 'accounts:assignment-detail' assignment.id %}">{% trans "К списку" %}</a>
+    </div>
+  </header>
+
+  <div class="solver__layout">
+    <aside class="solver__sidebar" aria-label="{% trans 'Задачи варианта' %}">
+      <ul id="solver-task-list" class="solver__task-list"></ul>
+    </aside>
+
+    <main class="solver__main" aria-live="polite">
+      <div id="solver-status" class="solver__status" role="status"></div>
+      <article class="solver__task-card" id="solver-task-card">
+        <header class="solver__task-header">
+          <div>
+            <p class="solver__eyebrow" id="solver-task-type"></p>
+            <h3 id="solver-task-title" class="solver__task-title"></h3>
+          </div>
+          <div class="solver__badges">
+            <span id="solver-task-difficulty" class="solver__badge solver__badge--muted"></span>
+            <span id="solver-task-state" class="solver__badge"></span>
+          </div>
+        </header>
+        <div id="solver-task-body" class="solver__task-body"></div>
+        <footer class="solver__footer">
+          <label class="solver__label" for="solver-answer">{% trans "Ответ" %}</label>
+          <textarea id="solver-answer" class="solver__answer" rows="4" placeholder="{% trans 'Введите ответ или JSON' %}"></textarea>
+          <div class="solver__controls">
+            <button id="solver-save" class="btn btn--primary">{% trans "Сохранить ответ" %}</button>
+            <button id="solver-edit" class="btn" hidden>{% trans "Изменить ответ" %}</button>
+            <button id="solver-clear" class="btn btn--danger" hidden>{% trans "Удалить ответ" %}</button>
+          </div>
+        </footer>
+      </article>
+    </main>
+  </div>
+</section>
+
+<script>
+(function() {
+  const attemptId = {{ attempt_id }};
+  const taskListEl = document.getElementById("solver-task-list");
+  const statusEl = document.getElementById("solver-status");
+  const titleEl = document.getElementById("solver-task-title");
+  const typeEl = document.getElementById("solver-task-type");
+  const bodyEl = document.getElementById("solver-task-body");
+  const difficultyEl = document.getElementById("solver-task-difficulty");
+  const stateEl = document.getElementById("solver-task-state");
+  const answerEl = document.getElementById("solver-answer");
+  const saveBtn = document.getElementById("solver-save");
+  const editBtn = document.getElementById("solver-edit");
+  const clearBtn = document.getElementById("solver-clear");
+  const finalizeBtn = document.getElementById("solver-finalize");
+
+  let attempt = null;
+  let currentVariantTaskId = null;
+  let isSaved = false;
+
+  function csrfToken() {
+    const value = document.cookie.split(";").map(v => v.trim()).find(v => v.startsWith("csrftoken="));
+    return value ? decodeURIComponent(value.split("=")[1]) : "";
+  }
+
+  function jsonOrText(value) {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (_) {
+      return value ?? "";
+    }
+  }
+
+  function renderStatus(message, kind="info") {
+    if (!message) { statusEl.textContent = ""; statusEl.className = "solver__status"; return; }
+    statusEl.textContent = message;
+    statusEl.className = "solver__status solver__status--" + kind;
+  }
+
+  function renderTaskList() {
+    if (!attempt || !attempt.tasks_progress) return;
+    taskListEl.innerHTML = "";
+    const tasks = [...attempt.tasks_progress].sort((a, b) => (a.order || 0) - (b.order || 0));
+    tasks.forEach((task, idx) => {
+      const li = document.createElement("li");
+      li.className = "solver__task-item";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "solver__task-button";
+      btn.textContent = task.order || (idx + 1);
+      if (task.variant_task_id === currentVariantTaskId) {
+        btn.classList.add("is-active");
+      }
+      btn.addEventListener("click", () => selectTask(task.variant_task_id));
+      li.appendChild(btn);
+      taskListEl.appendChild(li);
+    });
+  }
+
+  function renderTask(task) {
+    titleEl.textContent = task.task_snapshot?.title || task.task_snapshot?.content?.title || "";
+    const desc = task.task_snapshot?.description || task.task_snapshot?.content?.statement || "";
+    bodyEl.innerHTML = desc ? desc : "<p class='muted'>{% trans 'Условие недоступно' %}</p>";
+    typeEl.textContent = task.task_id ? ("ID: " + task.task_id) : "";
+    difficultyEl.textContent = task.task_snapshot?.difficulty_level ? ("{% trans 'Сложность' %} " + task.task_snapshot.difficulty_level) : "";
+    const saved = task.saved_response !== null && task.saved_response !== undefined;
+    isSaved = saved;
+    answerEl.disabled = attempt.completed_at !== null || saved;
+    saveBtn.hidden = attempt.completed_at !== null;
+    editBtn.hidden = attempt.completed_at !== null || !saved;
+    clearBtn.hidden = attempt.completed_at !== null || !saved;
+    stateEl.textContent = saved ? "{% trans 'Ответ сохранен' %}" : "{% trans 'Без ответа' %}";
+    stateEl.className = "solver__badge " + (saved ? "solver__badge--active" : "solver__badge--muted");
+    answerEl.value = saved ? jsonOrText(task.saved_response) : "";
+    saveBtn.textContent = saved ? "{% trans 'Сохранить ответ' %}" : "{% trans 'Сохранить ответ' %}";
+    editBtn.textContent = "{% trans 'Изменить ответ' %}";
+  }
+
+  async function fetchAttempt() {
+    const resp = await fetch(`/api/variants/attempts/${attemptId}/`, {credentials: "same-origin"});
+    if (!resp.ok) throw new Error("Не удалось загрузить попытку");
+    attempt = await resp.json();
+    renderTaskList();
+    if (!currentVariantTaskId && attempt.tasks_progress?.length) {
+      selectTask(attempt.tasks_progress[0].variant_task_id);
+    }
+  }
+
+  async function focusTask(variantTaskId) {
+    await fetch(`/api/variants/attempts/${attemptId}/tasks/${variantTaskId}/focus/`, {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken()},
+      credentials: "same-origin"
+    });
+  }
+
+  async function selectTask(variantTaskId) {
+    currentVariantTaskId = variantTaskId;
+    await focusTask(variantTaskId);
+    await fetchAttempt();
+    const task = attempt.tasks_progress.find(t => t.variant_task_id === variantTaskId);
+    if (task) {
+      renderTask(task);
+      renderTaskList();
+      renderStatus("");
+    }
+  }
+
+  function parseAnswer() {
+    const raw = answerEl.value;
+    if (!raw.trim()) return "";
+    try {
+      return JSON.parse(raw);
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  async function saveAnswer() {
+    if (!currentVariantTaskId) return;
+    const payload = parseAnswer();
+    renderStatus("{% trans 'Сохраняем...' %}");
+    const resp = await fetch(`/api/variants/attempts/${attemptId}/tasks/${currentVariantTaskId}/save/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken()
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({answer: payload})
+    });
+    if (!resp.ok) {
+        renderStatus("{% trans 'Не удалось сохранить ответ' %}", "error");
+        return;
+    }
+    attempt = await resp.json();
+    const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
+    if (task) renderTask(task);
+    renderTaskList();
+    renderStatus("{% trans 'Ответ сохранен' %}", "success");
+  }
+
+  async function clearAnswer() {
+    if (!currentVariantTaskId) return;
+    renderStatus("{% trans 'Удаляем ответ...' %}");
+    const resp = await fetch(`/api/variants/attempts/${attemptId}/tasks/${currentVariantTaskId}/clear/`, {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken()},
+      credentials: "same-origin"
+    });
+    if (!resp.ok) {
+      renderStatus("{% trans 'Не удалось удалить ответ' %}", "error");
+      return;
+    }
+    attempt = await resp.json();
+    const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
+    if (task) {
+      renderTask(task);
+      renderTaskList();
+    }
+    renderStatus("{% trans 'Ответ удален, таймер запущен' %}", "success");
+  }
+
+  async function finalizeAttempt() {
+    renderStatus("{% trans 'Отправляем на проверку...' %}");
+    const resp = await fetch(`/api/variants/attempts/${attemptId}/finalize/`, {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken()},
+      credentials: "same-origin"
+    });
+    if (!resp.ok) {
+      renderStatus("{% trans 'Не удалось завершить попытку' %}", "error");
+      return;
+    }
+    attempt = await resp.json();
+    renderStatus("{% trans 'Попытка отправлена' %}", "success");
+    renderTaskList();
+    if (currentVariantTaskId) {
+      const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
+      if (task) renderTask(task);
+    }
+    answerEl.disabled = true;
+    saveBtn.disabled = true;
+    editBtn.disabled = true;
+    clearBtn.disabled = true;
+    finalizeBtn.disabled = true;
+  }
+
+  saveBtn.addEventListener("click", saveAnswer);
+  editBtn.addEventListener("click", () => {
+    answerEl.disabled = false;
+    saveBtn.hidden = false;
+    editBtn.hidden = true;
+    clearBtn.hidden = false;
+    focusTask(currentVariantTaskId);
+  });
+  clearBtn.addEventListener("click", clearAnswer);
+  finalizeBtn.addEventListener("click", finalizeAttempt);
+
+  fetchAttempt().catch(() => renderStatus("{% trans 'Не удалось загрузить данные' %}", "error"));
+})();
+</script>
+
+<style>
+.solver { display: grid; gap: 16px; }
+.solver__header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.solver__title { margin: 0; }
+.solver__eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; color: #666; }
+.solver__meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.solver__badge { background: #eef2ff; color: #1d1d2b; padding: 6px 10px; border-radius: 12px; font-size: 12px; }
+.solver__badge--muted { background: #f2f2f2; color: #555; }
+.solver__badge--active { background: #e0f7e9; color: #0f5132; }
+.solver__actions { display: flex; gap: 8px; }
+.solver__layout { display: grid; grid-template-columns: 180px 1fr; gap: 16px; }
+.solver__sidebar { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
+.solver__task-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; }
+.solver__task-button { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #d4d4d8; background: white; cursor: pointer; }
+.solver__task-button.is-active { background: #111827; color: white; border-color: #111827; }
+.solver__main { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 16px; min-height: 400px; }
+.solver__task-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.solver__task-title { margin: 0; }
+.solver__task-body { margin: 12px 0; }
+.solver__footer { display: grid; gap: 8px; }
+.solver__answer { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #d1d5db; font-family: monospace; }
+.solver__controls { display: flex; gap: 8px; align-items: center; }
+.solver__label { font-weight: 600; }
+.solver__status { margin-bottom: 8px; min-height: 20px; }
+.solver__status--success { color: #0f5132; }
+.solver__status--error { color: #842029; }
+.muted { color: #6b7280; }
+@media (max-width: 960px) {
+  .solver__layout { grid-template-columns: 1fr; }
+  .solver__sidebar { order: 2; }
+}
+</style>
+{% endblock %}

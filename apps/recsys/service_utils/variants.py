@@ -27,6 +27,7 @@ from apps.recsys.models import (
     VariantAttempt,
     VariantTask,
     VariantTaskAttempt,
+    VariantTaskTimeLog,
 )
 from . import task_generation
 
@@ -274,6 +275,41 @@ def start_new_attempt(user, assignment_id: int) -> VariantAttempt:
     return _create_attempt_with_generation(assignment)
 
 
+@transaction.atomic
+def set_active_task(user, attempt_id: int, variant_task_id: int) -> VariantAttempt:
+    """Mark which task is currently opened by the student to manage per-task timers."""
+
+    try:
+        attempt = (
+            VariantAttempt.objects.select_for_update()
+            .select_related("assignment__template")
+            .get(pk=attempt_id, assignment__user=user)
+        )
+    except VariantAttempt.DoesNotExist as exc:
+        raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
+
+    _ensure_active_attempt(attempt)
+    _ensure_time_limit_allows_submission(attempt)
+
+    assignment = attempt.assignment
+    variant_task = _validate_variant_task(assignment, variant_task_id)
+    now = timezone.now()
+
+    # If the same task is already active but timer is missing, restart it.
+    if attempt.active_variant_task_id == variant_task.id:
+        if attempt.active_started_at is None:
+            _start_task_timer(attempt, variant_task, now=now)
+        return attempt
+
+    _stop_active_task_timer(
+        attempt,
+        reason=VariantTaskTimeLog.StopReason.SWITCH,
+        now=now,
+    )
+    _start_task_timer(attempt, variant_task, now=now)
+    return attempt
+
+
 def _materialize_tasks_for_attempt(attempt: VariantAttempt) -> None:
     template_tasks = list(
         attempt.assignment.template.template_tasks.select_related("task").all()
@@ -402,6 +438,103 @@ def _compute_task_seed(attempt: VariantAttempt, variant_task: VariantTask) -> in
     return int.from_bytes(digest[:8], byteorder="big", signed=False)
 
 
+def _sum_logged_duration(attempt: VariantAttempt, variant_task: VariantTask) -> timedelta | None:
+    qs = VariantTaskTimeLog.objects.filter(
+        variant_attempt=attempt,
+        variant_task=variant_task,
+        duration__isnull=False,
+    ).values_list("duration", flat=True)
+    total = timedelta(0)
+    for item in qs:
+        total += item
+    return total if total != timedelta(0) else None
+
+
+def _stop_active_task_timer(
+    attempt: VariantAttempt,
+    *,
+    reason: str,
+    now=None,
+    only_if_task: VariantTask | None = None,
+    auto: bool = False,
+) -> None:
+    if attempt.active_variant_task_id is None or attempt.active_started_at is None:
+        return
+    if only_if_task and attempt.active_variant_task_id != only_if_task.id:
+        return
+
+    now = now or timezone.now()
+    start_ts = attempt.active_started_at
+    duration = now - start_ts
+    VariantTaskTimeLog.objects.create(
+        variant_attempt=attempt,
+        variant_task_id=attempt.active_variant_task_id,
+        started_at=start_ts,
+        stopped_at=now,
+        duration=duration,
+        stop_reason=reason,
+        auto_stopped=auto,
+    )
+    attempt.active_variant_task = None
+    attempt.active_started_at = None
+    attempt.save(update_fields=["active_variant_task", "active_started_at", "updated_at"])
+
+
+def _start_task_timer(attempt: VariantAttempt, variant_task: VariantTask, *, now=None) -> None:
+    now = now or timezone.now()
+    attempt.active_variant_task = variant_task
+    attempt.active_started_at = now
+    attempt.save(update_fields=["active_variant_task", "active_started_at", "updated_at"])
+
+
+@transaction.atomic
+def clear_task_response(
+    user,
+    attempt_id: int,
+    variant_task_id: int,
+) -> VariantTaskAttempt:
+    """Remove saved draft answer for a task and restart its timer."""
+
+    try:
+        attempt = (
+            VariantAttempt.objects.select_for_update()
+            .select_related("assignment__template")
+            .prefetch_related(TASK_ATTEMPTS_PREFETCH)
+            .get(pk=attempt_id, assignment__user=user)
+        )
+    except VariantAttempt.DoesNotExist as exc:
+        raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
+
+    _ensure_active_attempt(attempt)
+    _ensure_time_limit_allows_submission(attempt)
+
+    assignment = attempt.assignment
+    variant_task = _validate_variant_task(assignment, variant_task_id)
+    generation_attempt = _get_generation_attempt_for_update(attempt, variant_task)
+    if generation_attempt is None:
+        _materialize_tasks_for_attempt(attempt)
+        generation_attempt = _get_generation_attempt_for_update(attempt, variant_task)
+        if generation_attempt is None:
+            raise exceptions.ValidationError("Unable to prepare task snapshot for clearing the answer.")
+
+    now = timezone.now()
+    _stop_active_task_timer(
+        attempt,
+        reason=VariantTaskTimeLog.StopReason.CLEAR,
+        now=now,
+        auto=False,
+    )
+
+    snapshot = deepcopy(generation_attempt.task_snapshot or {})
+    if "response" in snapshot:
+        snapshot.pop("response", None)
+    generation_attempt.task_snapshot = snapshot
+    generation_attempt.save(update_fields=["task_snapshot", "updated_at"])
+
+    _start_task_timer(attempt, variant_task, now=now)
+    return generation_attempt
+
+
 def _extract_generated_snapshot(
     attempts: list[VariantTaskAttempt],
 ) -> Optional[dict]:
@@ -482,6 +615,14 @@ def save_task_response(
     assignment = attempt.assignment
     variant_task = _validate_variant_task(assignment, variant_task_id)
 
+    now = timezone.now()
+    _stop_active_task_timer(
+        attempt,
+        reason=VariantTaskTimeLog.StopReason.SAVE,
+        now=now,
+        only_if_task=variant_task,
+    )
+
     generation_attempt = _get_generation_attempt_for_update(attempt, variant_task)
     if generation_attempt is None:
         _materialize_tasks_for_attempt(attempt)
@@ -549,6 +690,14 @@ def submit_task_answer(
     if task_limit is not None and next_number > task_limit:
         raise exceptions.ValidationError("Достигнут лимит попыток по заданию")
 
+    now = timezone.now()
+    _stop_active_task_timer(
+        attempt,
+        reason=VariantTaskTimeLog.StopReason.SUBMIT,
+        now=now,
+        only_if_task=variant_task,
+    )
+
     base_snapshot = _get_generated_snapshot(attempt, variant_task)
     snapshot = {}
     if base_snapshot is not None:
@@ -600,6 +749,7 @@ def submit_task_answer(
             max_score=max_score,
         )
     final_is_correct = is_correct if computed_is_correct is None else bool(computed_is_correct)
+    time_spent = _sum_logged_duration(attempt, variant_task)
 
     task_attempt = VariantTaskAttempt.objects.create(
         variant_attempt=attempt,
@@ -610,6 +760,7 @@ def submit_task_answer(
         score=computed_score,
         max_score=max_score,
         task_snapshot=snapshot,
+        time_spent=time_spent,
     )
 
     return TaskSubmissionResult(attempt=attempt, task_attempt=task_attempt)
@@ -630,6 +781,12 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
         raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
 
     _ensure_active_attempt(attempt)
+    _stop_active_task_timer(
+        attempt,
+        reason=VariantTaskTimeLog.StopReason.FINALIZE,
+        now=timezone.now(),
+        auto=True,
+    )
 
     generation_attempts = [
         item
@@ -676,6 +833,7 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
                 response_value,
                 max_score=max_score,
             )
+        time_spent = _sum_logged_duration(attempt, variant_task)
 
         actual_attempts_qs = attempt.task_attempts.filter(
             variant_task=variant_task,
@@ -699,7 +857,10 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
             submission.score = computed_score
             submission.max_score = max_score
             submission.task_snapshot = updated_snapshot
-            submission.save(update_fields=["is_correct", "score", "max_score", "task_snapshot", "updated_at"])
+            submission.time_spent = time_spent
+            submission.save(
+                update_fields=["is_correct", "score", "max_score", "task_snapshot", "time_spent", "updated_at"]
+            )
         else:
             record_snapshot = {}
             if task_snapshot:
@@ -715,6 +876,7 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
                 score=computed_score,
                 max_score=max_score,
                 task_snapshot=record_snapshot,
+                time_spent=time_spent,
             )
 
     now = timezone.now()
@@ -806,6 +968,7 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
             for attempt in task_attempts
             if attempt.attempt_number > 0
         ]
+        aggregated_time = _sum_logged_duration(attempt, variant_task)
         progress.append(
             {
                 "variant_task_id": variant_task.id,
@@ -818,6 +981,7 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
                 "task_snapshot": deepcopy(generated_snapshot) if generated_snapshot else None,
                 "saved_response": deepcopy(saved_response) if saved_response is not None else None,
                 "saved_response_updated_at": saved_response_updated_at,
+                "time_spent": aggregated_time,
             }
         )
 

@@ -13,6 +13,10 @@ from .views import (
     VariantAssignmentHistoryView,
     VariantAttemptFinalizeView,
     VariantAttemptStartView,
+    VariantAttemptDetailView,
+    VariantTaskFocusView,
+    VariantTaskSaveView,
+    VariantTaskClearView,
     VariantTaskSubmitView,
 )
 
@@ -45,9 +49,29 @@ urlpatterns = [
         name="variant-attempt-start",
     ),
     path(
+        "api/variants/attempts/<int:attempt_id>/",
+        VariantAttemptDetailView.as_view(),
+        name="variant-attempt-detail",
+    ),
+    path(
         "api/variants/attempts/<int:attempt_id>/tasks/<int:variant_task_id>/submit/",
         VariantTaskSubmitView.as_view(),
         name="variant-task-submit",
+    ),
+    path(
+        "api/variants/attempts/<int:attempt_id>/tasks/<int:variant_task_id>/save/",
+        VariantTaskSaveView.as_view(),
+        name="variant-task-save",
+    ),
+    path(
+        "api/variants/attempts/<int:attempt_id>/tasks/<int:variant_task_id>/clear/",
+        VariantTaskClearView.as_view(),
+        name="variant-task-clear",
+    ),
+    path(
+        "api/variants/attempts/<int:attempt_id>/tasks/<int:variant_task_id>/focus/",
+        VariantTaskFocusView.as_view(),
+        name="variant-task-focus",
     ),
     path(
         "api/variants/attempts/<int:attempt_id>/finalize/",
