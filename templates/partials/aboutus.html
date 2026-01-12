@@ -1,1 +1,70 @@
-{% load i18n %}<section id="grades" class="section">  <div class="container">    <div class="block block--futuristic">      <h3 class="section-title">{% trans "О нас" %}</h3>      <p class="muted">{% blocktrans trimmed %}Школа «Фрактал» — семейный проект репетиторов, сочетающий опыт преподавания и технологии 2025 года.{% endblocktrans %}</p>      <div class="subjects mt-12">        <div class="card">          <h4>{% trans "Ермаков Вадим Александрович" %}</h4>          <p class="muted">{% trans "МГТУ им. Баумана (1985), инженер. Учитель и репетитор с 40-летним стажем." %}</p>        </div>        <div class="card">          <h4>{% trans "Ермаков Виктор Вадимович" %}</h4>          <p class="muted">{% blocktrans trimmed %}МГТУ им. Баумана (2013), инженер; МГТУ СТАНКИН (2025), программист машинного обучения. Репетитор с 15-летним стажем.{% endblocktrans %}</p>        </div>        <div class="card">          <h4>{% trans "Ермакова Мария Вадимовна" %}</h4>          <p class="muted">{% blocktrans trimmed %}МГОУ (2018), физик; РУДН (2020), инженер. Школьный учитель и репетитор с 10-летним стажем.{% endblocktrans %}</p>        </div>      </div>      <div class="card mt-12">        <h4 class="mt-0 mb-8">{% trans "Наша система обучения" %}</h4>        <p class="muted mt-0 mb-8">{% blocktrans trimmed %}С 2024 года мы строим процесс обучения, который использует всю мощь современных технологий. С сентября 2025 представляем новую образовательную систему:{% endblocktrans %}</p>        <ul class="muted feature-list">          <li>{% blocktrans trimmed %}<strong>Уникальные задачи:</strong> задания генерируются автоматически по правилам. У каждого ученика — свои условия (их нет в интернете и у других учеников), при строгом соответствии кодификаторам ФИПИ.{% endblocktrans %}</li>          <li>{% blocktrans trimmed %}<strong>Умный уровень нагрузки:</strong> сложность и объём домашки подбираются алгоритмами в зависимости от прогресса.{% endblocktrans %}</li>          <li>{% blocktrans trimmed %}<strong>Геймификация прогресса:</strong> достижения оформлены как увлекательная игра, поддерживающая фокус и мотивацию.{% endblocktrans %}</li>          <li>{% blocktrans trimmed %}<strong>Нейропомощник:</strong> для быстрых вопросов — ассистент на базе нейросетей, настроенный на учебную программу РФ.{% endblocktrans %}</li>        </ul>        <p class="mt-12">{% blocktrans trimmed %}<strong>И главное:</strong> в основе остаются занятия с живым преподавателем — гарантия качества и уверенности на экзамене!{% endblocktrans %}</p>      </div>    </div>  </div></section>
+{% load i18n %}
+<section id="grades" class="section">
+  <div class="container">
+    <div class="block block--futuristic">
+      <h3 class="section-title">{% trans "О нас" %}</h3>
+      <p class="muted">
+        {% blocktrans trimmed %}
+        Школа «Фрактал» — семейный проект репетиторов, сочетающий опыт преподавания и технологии 2025 года.
+        {% endblocktrans %}
+      </p>
+      <div class="subjects mt-12">
+        <div class="card">
+          <h4>{% trans "Ермаков Вадим Александрович" %}</h4>
+          <p class="muted">{% trans "МГТУ им. Баумана (1985), инженер. Учитель и репетитор с 40-летним стажем." %}</p>
+        </div>
+        <div class="card">
+          <h4>{% trans "Ермаков Виктор Вадимович" %}</h4>
+          <p class="muted">
+            {% blocktrans trimmed %}
+            МГТУ им. Баумана (2013), инженер; МГТУ СТАНКИН (2025), программист машинного обучения.
+            Репетитор с 15-летним стажем.
+            {% endblocktrans %}
+          </p>
+        </div>
+        <div class="card">
+          <h4>{% trans "Ермакова Мария Вадимовна" %}</h4>
+          <p class="muted">
+            {% blocktrans trimmed %}
+            МГОУ (2018), физик; РУДН (2020), инженер. Школьный учитель и репетитор с 10-летним стажем.
+            {% endblocktrans %}
+          </p>
+        </div>
+      </div>
+      <div class="card mt-12">
+        <h4 class="mt-0 mb-8">{% trans "Наша система обучения" %}</h4>
+        <p class="muted mt-0 mb-8">
+          {% blocktrans trimmed %}
+          С 2024 года мы строим процесс обучения, который использует всю мощь современных технологий.
+          С сентября 2025 представляем новую образовательную систему:
+          {% endblocktrans %}
+        </p>
+        <ul class="muted feature-list">
+          <li>
+            {% blocktrans trimmed %}
+            <strong>Уникальные задачи:</strong> задания генерируются автоматически по правилам. У каждого ученика —
+            свои условия (их нет в интернете и у других учеников), при строгом соответствии кодификаторам ФИПИ.
+            {% endblocktrans %}
+          </li>
+          <li>
+            {% blocktrans trimmed %}
+            <strong>Умный уровень нагрузки:</strong> сложность и объём домашки подбираются алгоритмами
+            в зависимости от прогресса.
+            {% endblocktrans %}
+          </li>
+          <li>
+            {% blocktrans trimmed %}
+            <strong>Персонализация:</strong> задания подбираются индивидуально по результатам ваших прошлых успехов.
+            {% endblocktrans %}
+          </li>
+        </ul>
+        <p class="mt-12">
+          {% blocktrans trimmed %}
+          <strong>И главное:</strong> в основе остаются занятия с живым преподавателем — гарантия качества
+          и уверенности на экзамене!
+          {% endblocktrans %}
+        </p>
+      </div>
+    </div>
+  </div>
+</section>

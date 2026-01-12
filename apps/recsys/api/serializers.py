@@ -1,3 +1,6 @@
+from collections.abc import Mapping
+from copy import deepcopy
+
 from rest_framework import serializers
 
 from django.utils import timezone
@@ -306,6 +309,8 @@ class VariantTaskAttemptSerializer(serializers.ModelSerializer):
             "task",
             "attempt_number",
             "is_correct",
+            "score",
+            "max_score",
             "time_spent",
             "task_snapshot",
             "created_at",
@@ -321,6 +326,8 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
     time_left = serializers.SerializerMethodField()
     is_completed = serializers.SerializerMethodField()
     tasks_progress = serializers.SerializerMethodField()
+    primary_summary = serializers.SerializerMethodField()
+    secondary_summary = serializers.SerializerMethodField()
 
     class Meta:
         model = VariantAttempt
@@ -335,8 +342,17 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
             "time_left",
             "is_completed",
             "tasks_progress",
+            "primary_summary",
+            "secondary_summary",
         ]
         read_only_fields = fields
+
+    def _get_primary_summary(self, obj: VariantAttempt) -> dict:
+        cached = getattr(obj, "_primary_summary_cache", None)
+        if cached is None:
+            cached = variant_service.calculate_attempt_primary_summary(obj)
+            obj._primary_summary_cache = cached
+        return cached
 
     def get_time_left(self, obj: VariantAttempt):
         remaining = variant_service.get_time_left(obj)
@@ -349,6 +365,7 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
 
     def get_tasks_progress(self, obj: VariantAttempt):
         progress = []
+        is_completed = obj.completed_at is not None
         for item in variant_service.build_tasks_progress(obj):
             attempts_serializer = VariantTaskAttemptSerializer(
                 item["attempts"], many=True, context=self.context
@@ -356,22 +373,67 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
             saved_response_updated_at = item.get("saved_response_updated_at")
             if saved_response_updated_at is not None:
                 saved_response_updated_at = timezone.localtime(saved_response_updated_at).isoformat()
+            attempts_data = attempts_serializer.data
+            task_snapshot = item.get("task_snapshot")
+            if not is_completed:
+                for attempt_data in attempts_data:
+                    task_payload = attempt_data.get("task")
+                    if isinstance(task_payload, dict):
+                        task_payload.pop("correct_answer", None)
+                    attempt_snapshot = attempt_data.get("task_snapshot")
+                    if isinstance(attempt_snapshot, dict):
+                        attempt_snapshot.pop("correct_answer", None)
+                        nested_task = attempt_snapshot.get("task")
+                        if isinstance(nested_task, dict):
+                            nested_task.pop("correct_answer", None)
+                if isinstance(task_snapshot, Mapping):
+                    sanitized_snapshot = deepcopy(task_snapshot)
+                    sanitized_snapshot.pop("correct_answer", None)
+                    nested_task = sanitized_snapshot.get("task")
+                    if isinstance(nested_task, Mapping):
+                        nested_task = dict(nested_task)
+                        nested_task.pop("correct_answer", None)
+                        sanitized_snapshot["task"] = nested_task
+                    task_snapshot = sanitized_snapshot
             progress.append(
                 {
                     "variant_task_id": item["variant_task_id"],
                     "task_id": item["task_id"],
                     "order": item["order"],
+                    "task_type_name": item.get("task_type_name"),
+                    "answer_schema": item.get("answer_schema"),
+                    "task_rendering_strategy": item.get("task_rendering_strategy"),
+                    "task_body_html": item.get("task_body_html"),
+                    "max_score": item.get("max_score"),
                     "max_attempts": item["max_attempts"],
                     "attempts_used": item["attempts_used"],
                     "is_completed": item["is_completed"],
-                    "task_snapshot": item["task_snapshot"],
+                    "task_snapshot": task_snapshot,
                     "saved_response": item.get("saved_response"),
                     "saved_response_updated_at": saved_response_updated_at,
-                    "attempts": attempts_serializer.data,
+                    "attempts": attempts_data,
                     "time_spent": item.get("time_spent"),
                 }
             )
         return progress
+
+    def get_primary_summary(self, obj: VariantAttempt):
+        return self._get_primary_summary(obj)
+
+    def get_secondary_summary(self, obj: VariantAttempt):
+        exam_version = getattr(obj.assignment.template, "exam_version", None)
+        scale = variant_service.get_active_score_scale(exam_version)
+        if not scale:
+            return None
+        summary = self._get_primary_summary(obj)
+        primary_total = summary.get("primary_total", 0)
+        secondary_score, over_limit = scale.to_secondary(primary_total)
+        max_secondary = max(scale.mapping) if scale.mapping else None
+        return {
+            "score": secondary_score,
+            "over_limit": over_limit,
+            "max": max_secondary,
+        }
 
 
 class VariantAssignmentSerializer(serializers.ModelSerializer):

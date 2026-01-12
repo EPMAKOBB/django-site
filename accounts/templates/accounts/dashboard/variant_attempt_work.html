@@ -118,13 +118,23 @@
 
         <div class="module-detail__task-panel">
           <div class="module-detail__task-statement">
-            {% if item.display.description %}
+            {% if item.task_body_html %}
+              {% if item.task_rendering_strategy == item.task.RenderingStrategy.MARKDOWN %}
+                <div class="module-detail__task-description markdown-content" data-format="markdown">
+                  {{ item.task_body_html|safe }}
+                </div>
+              {% else %}
+                <div class="module-detail__task-description" data-format="html">
+                  {{ item.task_body_html|safe }}
+                </div>
+              {% endif %}
+            {% elif item.display.description %}
               {% if item.task and item.display.rendering_strategy == item.task.RenderingStrategy.HTML %}
                 <div class="module-detail__task-description" data-format="html">
                   {{ item.display.description|safe }}
                 </div>
               {% elif item.task and item.display.rendering_strategy == item.task.RenderingStrategy.MARKDOWN %}
-                <div class="module-detail__task-description" data-format="markdown">
+                <div class="module-detail__task-description markdown-content" data-format="markdown">
                   {{ item.display.description|render_markdown }}
                 </div>
               {% else %}

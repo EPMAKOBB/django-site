@@ -86,6 +86,20 @@ def _stringify_response(value):
         return str(value)
 
 
+def _format_duration(value: timedelta) -> str:
+    total_seconds = int(value.total_seconds())
+    if total_seconds < 0:
+        total_seconds = 0
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if days:
+        return f"{days}d {hours:02d}:{minutes:02d}:{seconds:02d}"
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes:02d}:{seconds:02d}"
+
+
 def _active_attempt(assignment):
     for attempt in assignment.attempts.all():
         if attempt.completed_at is None:
@@ -240,12 +254,58 @@ def assignment_result(request, assignment_id: int):
     except drf_exceptions.NotFound as exc:
         raise Http404(str(exc)) from exc
 
+    attempts = assignment.attempts.all()
+    exam_mismatch_notice = None
+    completed_attempts = [attempt for attempt in attempts if attempt.completed_at]
+    if completed_attempts:
+        latest_completed = max(
+            completed_attempts,
+            key=lambda attempt: attempt.completed_at or attempt.started_at,
+        )
+        matches_blueprint, _ = variant_services.template_matches_blueprint(
+            assignment.template
+        )
+        if not matches_blueprint:
+            summary = variant_services.calculate_attempt_primary_summary(latest_completed)
+            scale = variant_services.get_active_score_scale(
+                assignment.template.exam_version
+            )
+            primary_total = summary["primary_total"]
+            success_percent = summary["success_percent"]
+            success_percent_text = f"{success_percent:.1f}".rstrip("0").rstrip(".")
+            secondary_score = None
+            over_limit = False
+            if scale:
+                secondary_score, over_limit = scale.to_secondary(primary_total)
+
+            if over_limit:
+                exam_mismatch_notice = (
+                    "Вариант не соответствует экзамену, за эти задачи вы набрали "
+                    f"{primary_total} первичных баллов, что соответствует больше "
+                    "100 вторичных баллов, процент успеха "
+                    f"{success_percent_text}%."
+                )
+            elif secondary_score is not None:
+                exam_mismatch_notice = (
+                    "Вариант не соответствует экзамену, за эти задачи вы набрали "
+                    f"{primary_total} первичных баллов, что соответствует "
+                    f"{secondary_score} вторичных баллов, процент успеха "
+                    f"{success_percent_text}%."
+                )
+            else:
+                exam_mismatch_notice = (
+                    "Вариант не соответствует экзамену, за эти задачи вы набрали "
+                    f"{primary_total} первичных баллов, процент успеха "
+                    f"{success_percent_text}%."
+                )
+
     context = {
         "active_tab": "tasks",
         "role": role,
         "assignment": assignment,
         "assignment_info": _build_assignment_context(assignment),
-        "attempts": assignment.attempts.all(),
+        "attempts": attempts,
+        "exam_mismatch_notice": exam_mismatch_notice,
     }
     return render(
         request,
@@ -1162,8 +1222,16 @@ def variant_attempt_work(request, attempt_id: int):
         snapshot = item.get("task_snapshot") or {}
         task_payload = snapshot if isinstance(snapshot, dict) else {}
         display = {
-            "title": task_payload.get("title") or getattr(task, "title", ""),
-            "description": task_payload.get("description") or getattr(task, "description", ""),
+            "title": (
+                task_payload.get("title")
+                or task_payload.get("content", {}).get("title")
+                or getattr(task, "title", "")
+            ),
+            "description": (
+                task_payload.get("description")
+                or task_payload.get("content", {}).get("statement")
+                or ""
+            ),
             "rendering_strategy": task_payload.get("rendering_strategy") or getattr(task, "rendering_strategy", None),
             "image": task_payload.get("image") or (task.image.url if getattr(task, "image", None) else None),
         }
@@ -1222,6 +1290,8 @@ def variant_attempt_work(request, attempt_id: int):
                 "task": task,
                 "order": item.get("order"),
                 "display": display,
+                "task_body_html": item.get("task_body_html"),
+                "task_rendering_strategy": item.get("task_rendering_strategy"),
                 "skills": list(task.skills.all()) if task else [],
                 "is_completed": item.get("is_completed", False),
                 "remaining_attempts": remaining_attempts,
@@ -1276,6 +1346,8 @@ def variant_attempt_solver(request, attempt_id: int):
     assignment = attempt.assignment
     time_left_delta = variant_services.get_time_left(attempt)
     time_left = _format_duration(time_left_delta) if time_left_delta else None
+    exam_version = assignment.template.exam_version
+    start_info = exam_version.start_info if exam_version else ""
 
     context = {
         "active_tab": "tasks",
@@ -1284,6 +1356,7 @@ def variant_attempt_solver(request, attempt_id: int):
         "assignment": assignment,
         "attempt": attempt,
         "time_left": time_left,
+        "exam_start_info": start_info,
     }
     return render(request, "accounts/dashboard/variant_attempt_solver.html", context)
 

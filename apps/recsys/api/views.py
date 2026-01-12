@@ -169,6 +169,30 @@ class VariantAttemptDetailView(APIView):
         return Response(serializer.data)
 
 
+class VariantAttemptHeartbeatView(APIView):
+    """Lightweight heartbeat for keeping timed attempts in sync."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    class InputSerializer(serializers.Serializer):
+        client_id = serializers.UUIDField(required=False, allow_null=True)
+
+    def post(self, request, attempt_id: int, *args, **kwargs):
+        serializer = self.InputSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        attempt = variant_service.heartbeat_attempt(
+            request.user,
+            attempt_id,
+            client_id=serializer.validated_data.get("client_id"),
+        )
+        time_left = variant_service.get_time_left(attempt)
+        payload = {
+            "completed": attempt.completed_at is not None,
+            "time_left_seconds": int(time_left.total_seconds()) if time_left else None,
+        }
+        return Response(payload)
+
+
 class VariantTaskFocusView(APIView):
     """Mark a task as opened to start/stop per-task timers."""
 

@@ -33,6 +33,8 @@ urlpatterns = [
 
     path('', include('apps.recsys.api.urls')),
 
+    path('exams/<slug:exam_slug>/', recsys_views.exam_page, name='exam-page'),
+    path('variants/<slug:slug>/', recsys_views.variant_page, name='variant-page'),
 
     path('recsys/dashboard/', recsys_views.dashboard, name='recsys_dashboard'),
     path('recsys/user/<int:user_id>/', recsys_views.teacher_user, name='recsys_teacher_user'),

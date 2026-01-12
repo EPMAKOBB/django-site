@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load i18n markdown_extras %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<a id="top"></a>
+<section class="section">
+  <div class="container variant-page">
+    <header class="variant-page__header">
+      {% if template.exam_version %}
+        <p class="muted upper">{{ template.exam_version.subject.name }} — {{ template.exam_version.name }}</p>
+      {% endif %}
+      <h1 class="section-title">{{ page_title }}</h1>
+      {% if page_description %}
+        <p class="muted">{{ page_description }}</p>
+      {% endif %}
+      <div class="variant-page__actions">
+        {% if request.user.is_authenticated %}
+          <form id="variant-start-form" method="post" target="_blank">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="start">
+            <button type="submit" class="btn btn-primary btn-large">{% trans "Приступить к решению варианта" %}</button>
+          </form>
+        {% else %}
+          <a class="btn btn-primary btn-large" target="_blank" rel="noopener" href="{% url 'accounts:login' %}?next={{ request.path }}">{% trans "Войти и приступить" %}</a>
+        {% endif %}
+      </div>
+    </header>
+
+    <div class="variant-page__tasks">
+      {% if tasks %}
+        {% for item in tasks %}
+          <article class="card variant-page__task" id="variant-task-{{ item.variant_task.id }}">
+            <header class="variant-page__task-header variant-page__task-header--compact">
+              <span class="variant-page__task-line">
+                <span class="variant-page__task-index">#{{ item.order }}</span>
+                {% if item.task and item.task.type %}<span class="badge">{{ item.task.type.name }}</span>{% endif %}
+                {% if item.task and item.task.subject %}<span class="badge">{{ item.task.subject.name }}</span>{% endif %}
+                {% if template.exam_version %}<span class="badge">{{ template.exam_version.name }}</span>{% endif %}
+              </span>
+            </header>
+
+            <div class="variant-page__task-content">
+              {% if item.display.description %}
+                {% if item.task and item.display.rendering_strategy == item.task.RenderingStrategy.HTML %}
+                  <div class="variant-page__task-description" data-format="html">
+                    {{ item.display.description|safe }}
+                  </div>
+                {% elif item.task and item.display.rendering_strategy == item.task.RenderingStrategy.MARKDOWN %}
+                  <div class="variant-page__task-description markdown-content" data-format="markdown">
+                    {{ item.display.description|render_markdown }}
+                  </div>
+                {% else %}
+                  <div class="variant-page__task-description" data-format="text">
+                    {{ item.display.description|linebreaks }}
+                  </div>
+                {% endif %}
+              {% else %}
+                <p class="muted">{% trans "Условие задания недоступно." %}</p>
+              {% endif %}
+
+              {% if item.display.image %}
+                <div class="variant-page__task-image">
+                  <img src="{{ item.display.image }}" alt="{% trans 'Иллюстрация к заданию' %}">
+                </div>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      {% else %}
+        <p class="muted">{% trans "В этом варианте пока нет заданий." %}</p>
+      {% endif %}
+    </div>
+
+    <div class="variant-page__footer">
+      <button type="button" class="btn btn-link variant-page__to-top" data-scroll-top="true">{% trans "Наверх" %} ↑</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    var btn = document.querySelector("[data-scroll-top]");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  })();
+
+  (function () {
+    var form = document.getElementById("variant-start-form");
+    if (!form) return;
+    form.addEventListener("submit", function () {
+      var name = "variant_solver_" + Date.now();
+      var win = window.open("", name);
+      if (!win) return;
+      try {
+        win.document.write("<!doctype html><title>Загрузка варианта</title><p style='font-family: Arial, sans-serif;'>Загрузка варианта...</p>");
+        win.document.close();
+      } catch (e) {
+        return;
+      }
+      form.setAttribute("target", name);
+    });
+  })();
+</script>
+{% endblock %}

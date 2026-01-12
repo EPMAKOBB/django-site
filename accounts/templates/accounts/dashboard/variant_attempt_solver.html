@@ -1,24 +1,20 @@
-{% extends 'accounts/dashboard/base.html' %}
+{% extends 'base_solver.html' %}
 {% load i18n markdown_extras %}
 
-{% block dashboard_title %}{% trans "Решение варианта" %}{% endblock %}
+{% block title %}{% trans "Выполнение" %}: {{ assignment.template.name }}{% endblock %}
 
-{% block dashboard_content %}
+{% block content %}
 <section class="solver">
+  {{ exam_start_info|default:""|json_script:"solver-start-info" }}
   <header class="solver__header">
     <div>
       <p class="solver__eyebrow">{% trans "Вариант" %}</p>
       <h2 class="solver__title">{{ assignment.template.name }}</h2>
     </div>
     <div class="solver__meta">
-      <span class="solver__badge">{% blocktrans %}Попытка #{{ attempt.attempt_number }}{% endblocktrans %}</span>
-      {% if time_left %}
-        <span class="solver__badge solver__badge--muted">{% trans "Осталось времени" %}: {{ time_left }}</span>
-      {% endif %}
     </div>
     <div class="solver__actions">
-      <button id="solver-finalize" class="btn btn-primary">{% trans "Отправить на проверку" %}</button>
-      <a class="btn" href="{% url 'accounts:assignment-detail' assignment.id %}">{% trans "К списку" %}</a>
+      <button id="solver-finalize" class="btn btn-primary">{% trans "Завершить и отправить на проверку" %}</button>
     </div>
   </header>
 
@@ -28,26 +24,36 @@
     </aside>
 
     <main class="solver__main" aria-live="polite">
-      <div id="solver-status" class="solver__status" role="status"></div>
+      <div id="solver-status" class="solver__status">
+        {% if time_left %}
+          <div class="solver__status-left">
+            <span class="solver__badge solver__badge--muted">
+              {% trans "Осталось времени" %}: <span id="solver-time-left">{{ time_left }}</span>
+            </span>
+          </div>
+        {% endif %}
+        <div class="solver__status-right" role="status"></div>
+      </div>
       <article class="solver__task-card" id="solver-task-card">
         <header class="solver__task-header">
-          <div>
-            <p class="solver__eyebrow" id="solver-task-type"></p>
-            <h3 id="solver-task-title" class="solver__task-title"></h3>
-          </div>
-          <div class="solver__badges">
-            <span id="solver-task-difficulty" class="solver__badge solver__badge--muted"></span>
-            <span id="solver-task-state" class="solver__badge"></span>
-          </div>
+          <h3 id="solver-task-heading" class="solver__task-title"></h3>
         </header>
-        <div id="solver-task-body" class="solver__task-body"></div>
+        <div id="solver-task-body" class="solver__task-body">
+          <p class="muted">{% trans "Загрузка варианта..." %}</p>
+        </div>
         <footer class="solver__footer">
           <label class="solver__label" for="solver-answer">{% trans "Ответ" %}</label>
-          <textarea id="solver-answer" class="solver__answer" rows="4" placeholder="{% trans 'Введите ответ или JSON' %}"></textarea>
+          <div id="solver-answer-builder" class="solver__answer-builder" hidden>
+            <div id="solver-answer-fields"></div>
+          </div>
+          <textarea id="solver-answer" class="solver__answer" rows="1" placeholder="{% trans 'Введите ответ' %}"></textarea>
+          <div class="solver__correct-answer" hidden>
+            <p class="solver__label">{% trans "Верный ответ" %}</p>
+            <div id="solver-correct-answer-fields" class="solver__answer-builder is-locked" hidden></div>
+            <pre id="solver-correct-answer" class="solver__answer solver__answer--readonly"></pre>
+          </div>
           <div class="solver__controls">
             <button id="solver-save" class="btn btn--primary">{% trans "Сохранить ответ" %}</button>
-            <button id="solver-edit" class="btn" hidden>{% trans "Изменить ответ" %}</button>
-            <button id="solver-clear" class="btn btn--danger" hidden>{% trans "Удалить ответ" %}</button>
           </div>
         </footer>
       </article>
@@ -60,20 +66,70 @@
   const attemptId = {{ attempt_id }};
   const taskListEl = document.getElementById("solver-task-list");
   const statusEl = document.getElementById("solver-status");
-  const titleEl = document.getElementById("solver-task-title");
-  const typeEl = document.getElementById("solver-task-type");
+  const statusMessageEl = statusEl ? statusEl.querySelector(".solver__status-right") : null;
+  const headingEl = document.getElementById("solver-task-heading");
   const bodyEl = document.getElementById("solver-task-body");
-  const difficultyEl = document.getElementById("solver-task-difficulty");
-  const stateEl = document.getElementById("solver-task-state");
+  const timeLeftEl = document.getElementById("solver-time-left");
   const answerEl = document.getElementById("solver-answer");
+  const answerBuilderEl = document.getElementById("solver-answer-builder");
+  const answerFieldsEl = document.getElementById("solver-answer-fields");
+  const footerEl = document.querySelector(".solver__footer");
+  const correctAnswerFieldsEl = document.getElementById("solver-correct-answer-fields");
+  const correctAnswerEl = document.getElementById("solver-correct-answer");
   const saveBtn = document.getElementById("solver-save");
-  const editBtn = document.getElementById("solver-edit");
-  const clearBtn = document.getElementById("solver-clear");
   const finalizeBtn = document.getElementById("solver-finalize");
+  const minuteSyncMs = 60000;
+  const START_ITEM_ID = "start";
+  const FINISH_ITEM_ID = "finish";
+  const startInfo = (() => {
+    try {
+      const el = document.getElementById("solver-start-info");
+      return el ? JSON.parse(el.textContent) : "";
+    } catch (_) {
+      return "";
+    }
+  })();
 
   let attempt = null;
   let currentVariantTaskId = null;
+  let currentSchema = null;
   let isSaved = false;
+  let isEditing = false;
+  let heartbeatTimer = null;
+  let heartbeatTimeout = null;
+  let heartbeatInFlight = false;
+  let countdownTimer = null;
+  let localTimeLeftSeconds = null;
+  let saveInFlight = false;
+  let saveSeqCounter = 0;
+  const saveQueue = [];
+  const lastSaveIdByTask = new Map();
+  const pendingPayloadByTask = new Map();
+  const taskTimeMap = new Map();
+  let currentTaskStartAt = null;
+  const clientId = getClientId();
+
+  function getClientId() {
+    function fallbackUuid() {
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === "x" ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+    try {
+      const existing = sessionStorage.getItem("solver_client_id");
+      if (existing) return existing;
+      const cryptoObj = (typeof crypto !== "undefined") ? crypto : null;
+      const generated = (cryptoObj && cryptoObj.randomUUID)
+        ? cryptoObj.randomUUID()
+        : fallbackUuid();
+      sessionStorage.setItem("solver_client_id", generated);
+      return generated;
+    } catch (_) {
+      return fallbackUuid();
+    }
+  }
 
   function csrfToken() {
     const value = document.cookie.split(";").map(v => v.trim()).find(v => v.startsWith("csrftoken="));
@@ -89,14 +145,594 @@
   }
 
   function renderStatus(message, kind="info") {
-    if (!message) { statusEl.textContent = ""; statusEl.className = "solver__status"; return; }
-    statusEl.textContent = message;
+    if (!statusMessageEl || !statusEl) return;
+    if (!message) { statusMessageEl.textContent = ""; statusEl.className = "solver__status"; return; }
+    statusMessageEl.textContent = message;
     statusEl.className = "solver__status solver__status--" + kind;
+  }
+
+  function renderLoadingCard() {
+    if (headingEl) headingEl.textContent = "{% trans 'Загрузка варианта' %}";
+    if (bodyEl) {
+      bodyEl.innerHTML = "<p class='muted'>{% trans 'Загружаем задачи, пожалуйста подождите...' %}</p>";
+      bodyEl.removeAttribute("data-format");
+      bodyEl.classList.remove("markdown-content");
+    }
+    setFooterVisible(false);
+    if (correctAnswerEl) {
+      correctAnswerEl.textContent = "";
+      correctAnswerEl.parentElement.hidden = true;
+    }
+  }
+
+  function parseDurationToSeconds(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.floor(value));
+    if (typeof value !== "string") return null;
+    const raw = value.trim();
+    if (!raw) return null;
+    const parts = raw.split(" ");
+    let timePart = raw;
+    let days = 0;
+    if (parts.length === 2) {
+      const dayNum = Number(parts[0]);
+      if (Number.isFinite(dayNum)) {
+        days = dayNum;
+        timePart = parts[1];
+      }
+    }
+    const timeParts = timePart.split(":").map((part) => Number(part));
+    if (timeParts.some((num) => !Number.isFinite(num))) return null;
+    let seconds = 0;
+    if (timeParts.length === 3) {
+      seconds = timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2];
+    } else if (timeParts.length === 2) {
+      seconds = timeParts[0] * 60 + timeParts[1];
+    } else if (timeParts.length === 1) {
+      seconds = timeParts[0];
+    }
+    return Math.max(0, seconds + (days * 86400));
+  }
+
+  function setAnswerLocked(locked) {
+    if (answerEl) {
+      answerEl.disabled = locked;
+      answerEl.classList.toggle("is-locked", locked);
+    }
+    if (answerBuilderEl) {
+      answerBuilderEl.classList.toggle("is-locked", locked);
+      answerBuilderEl.querySelectorAll("input.answer-input").forEach((input) => {
+        input.disabled = locked;
+      });
+    }
+  }
+
+  function setFooterVisible(isVisible) {
+    if (footerEl) {
+      footerEl.hidden = !isVisible;
+    }
+  }
+
+  function renderStartCard() {
+    if (headingEl) headingEl.textContent = "{% trans 'Старт' %}";
+    if (startInfo) {
+      bodyEl.innerHTML = "<p>" + startInfo.replace(/\n/g, "<br>") + "</p>";
+    } else {
+      bodyEl.innerHTML = [
+        "<p>{% trans 'Здесь можно разместить справочные данные, которые выдаются всем в начале экзамена.' %}</p>",
+        "<p>{% trans 'Например: структура варианта, правила оформления, единицы измерения и т.п.' %}</p>",
+      ].join("");
+    }
+    bodyEl.removeAttribute("data-format");
+    bodyEl.classList.remove("markdown-content");
+    setFooterVisible(false);
+    if (correctAnswerEl) {
+      correctAnswerEl.textContent = "";
+      correctAnswerEl.parentElement.hidden = true;
+    }
+    renderStatus("");
+  }
+
+  function computePrimarySummary() {
+    if (!attempt || !attempt.tasks_progress) {
+      return {primaryTotal: 0, primaryMax: 0, successPercent: 0};
+    }
+    let primaryTotal = 0;
+    let primaryMax = 0;
+    let answeredCount = 0;
+    attempt.tasks_progress.forEach((task) => {
+      const maxScore = Number(task.task_snapshot?.max_score ?? task.max_score ?? 1);
+      if (Number.isFinite(maxScore)) {
+        primaryMax += maxScore;
+      }
+      if (task.saved_response !== null && task.saved_response !== undefined) {
+        answeredCount += 1;
+      }
+      const attempts = Array.isArray(task.attempts) ? task.attempts : [];
+      let latest = null;
+      attempts.forEach((entry) => {
+        if (!latest || entry.attempt_number > latest.attempt_number) {
+          latest = entry;
+        }
+      });
+      if (latest && latest.score !== null && latest.score !== undefined) {
+        const value = Number(latest.score);
+        if (Number.isFinite(value)) {
+          primaryTotal += value;
+        }
+      }
+    });
+    const successPercent = primaryMax > 0 ? Math.round((primaryTotal / primaryMax) * 1000) / 10 : 0;
+    return {primaryTotal, primaryMax, successPercent, answeredCount};
+  }
+
+  function formatAnswer(value) {
+    if (value === null || value === undefined || value === "") {
+      return "—";
+    }
+    return jsonOrText(value);
+  }
+
+  function buildFinishRows(tasks) {
+    const rows = tasks.map((task) => {
+      const attempts = Array.isArray(task.attempts) ? task.attempts : [];
+      let latest = null;
+      attempts.forEach((entry) => {
+        if (!latest || entry.attempt_number > latest.attempt_number) {
+          latest = entry;
+        }
+      });
+      const score = latest && latest.score !== null && latest.score !== undefined ? latest.score : 0;
+      const correctAnswer = task.task_snapshot?.correct_answer ?? null;
+      const userAnswer = task.saved_response ?? null;
+      return {
+        order: task.order,
+        score,
+        userAnswer,
+        correctAnswer,
+        variantTaskId: task.variant_task_id,
+      };
+    });
+    return rows;
+  }
+
+  function renderFinishTableRows(rows) {
+    return rows.map((row) => {
+      const order = row.order ?? "";
+      const scoreText = row.score ?? 0;
+      const userText = formatAnswer(row.userAnswer);
+      const correctText = formatAnswer(row.correctAnswer);
+      return (
+        "<tr>" +
+          "<td><button class='solver__result-link' data-variant-task-id='" + row.variantTaskId + "'>" +
+          order +
+          "</button></td>" +
+          "<td>" + scoreText + "</td>" +
+          "<td>" + userText + "</td>" +
+          "<td>" + correctText + "</td>" +
+        "</tr>"
+      );
+    }).join("");
+  }
+
+  function renderFinishCard() {
+    if (headingEl) headingEl.textContent = "{% trans 'Финиш' %}";
+    const summary = computePrimarySummary();
+    const secondary = attempt ? attempt.secondary_summary : null;
+    const secondaryMax = secondary && secondary.max !== null && secondary.max !== undefined ? secondary.max : 100;
+    const secondaryValue = secondary && secondary.over_limit
+      ? "&gt; " + secondaryMax
+      : (secondary && secondary.score !== null && secondary.score !== undefined ? secondary.score : "—");
+    const headline = attempt && attempt.completed_at
+      ? "{% trans 'Дано ответов' %} " + summary.answeredCount + "/" + (attempt.tasks_progress?.length || 0)
+      : "{% trans 'Здесь вы можете увидеть свои результаты после завершения варианта.' %}";
+    const metricsHtml = attempt && attempt.completed_at
+      ? (
+        "<div class='solver__results-summary'>" +
+          "<div class='solver__results-score'>" +
+            "<p class='solver__results-caption'>{% trans 'Результаты экзамена' %}</p>" +
+            "<p class='solver__results-value'>" + secondaryValue + "/" + secondaryMax + "</p>" +
+            "<p class='solver__results-sub'>{% trans 'Первичный балл' %}: " +
+            summary.primaryTotal + "/" + summary.primaryMax + "</p>" +
+          "</div>" +
+          "<div class='solver__results-meta'>" +
+            "<p class='solver__results-caption'>" + headline + "</p>" +
+          "</div>" +
+        "</div>"
+      )
+      : "<p>" + headline + "</p>";
+
+    let tableHtml = "";
+    if (attempt && attempt.completed_at) {
+      const tasks = [...(attempt.tasks_progress || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+      const rows = buildFinishRows(tasks);
+      const split = Math.ceil(rows.length / 2);
+      const leftRows = renderFinishTableRows(rows.slice(0, split));
+      const rightRows = renderFinishTableRows(rows.slice(split));
+      tableHtml =
+        "<div class='solver__results-tables'>" +
+          "<table class='solver__results-table'><thead><tr>" +
+            "<th>№</th><th>{% trans 'Бал' %}</th><th>{% trans 'Ваш ответ' %}</th><th>{% trans 'Правильный ответ' %}</th>" +
+          "</tr></thead><tbody>" + leftRows + "</tbody></table>" +
+          "<table class='solver__results-table'><thead><tr>" +
+            "<th>№</th><th>{% trans 'Бал' %}</th><th>{% trans 'Ваш ответ' %}</th><th>{% trans 'Правильный ответ' %}</th>" +
+          "</tr></thead><tbody>" + rightRows + "</tbody></table>" +
+        "</div>";
+    }
+
+    let buttonHtml = "";
+    if (attempt && !attempt.completed_at) {
+      buttonHtml = "<button id='solver-finish-finalize' class='btn btn-primary'>" +
+        "{% trans 'Завершить и отправить на проверку' %}</button>";
+    }
+    bodyEl.innerHTML = metricsHtml + tableHtml + buttonHtml;
+    bodyEl.removeAttribute("data-format");
+    bodyEl.classList.remove("markdown-content");
+    setFooterVisible(false);
+    const finishBtn = document.getElementById("solver-finish-finalize");
+    if (finishBtn) {
+      finishBtn.addEventListener("click", finalizeAttempt);
+    }
+    bodyEl.querySelectorAll(".solver__result-link").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.getAttribute("data-variant-task-id");
+        if (target) selectTask(Number(target));
+      });
+    });
+    renderStatus("");
+  }
+
+  function buildInputs(schema, savedValue) {
+    if (!answerFieldsEl || !schema) return;
+    answerFieldsEl.innerHTML = "";
+    const cfg = schema.config || {};
+    const rows = Number(cfg.rows || 1);
+    const cols = Number(cfg.cols || 1);
+    const inputType = cfg.input_type || "string";
+    const perCellMax = cfg.per_cell_max_length ? Number(cfg.per_cell_max_length) : null;
+
+    const container = document.createElement("div");
+    container.className = "answer-grid";
+
+    for (let r = 0; r < rows; r++) {
+      const rowEl = document.createElement("div");
+      rowEl.className = "answer-row";
+      for (let c = 0; c < cols; c++) {
+        const wrap = document.createElement("div");
+        wrap.className = "answer-cell";
+        const input = document.createElement("input");
+        input.name = `answer_r${r}_c${c}`;
+        input.dataset.row = String(r);
+        input.dataset.col = String(c);
+        input.className = "answer-input";
+        input.type = "text";
+        if (inputType === "uint" || inputType === "int") {
+          input.inputMode = "numeric";
+        } else if (inputType === "float") {
+          input.inputMode = "decimal";
+        }
+        if (perCellMax) input.maxLength = perCellMax;
+        wrap.appendChild(input);
+        rowEl.appendChild(wrap);
+      }
+      container.appendChild(rowEl);
+    }
+
+    answerFieldsEl.appendChild(container);
+    setupAutoAdvance(cfg);
+    setupPasteFill(rows, cols);
+    setInputsFromPayload(schema, savedValue);
+  }
+
+  function setupPasteFill(rows, cols) {
+    if (!answerFieldsEl) return;
+    const inputs = Array.from(answerFieldsEl.querySelectorAll("input.answer-input"));
+    if (!inputs.length) return;
+    const total = Math.max(1, rows * cols);
+
+    const tokenize = (text) => {
+      return text
+        .replace(/\r\n/g, "\n")
+        .replace(/\t/g, " ")
+        .split(/[\s,;]+/)
+        .map((v) => v.trim())
+        .filter((v) => v.length);
+    };
+
+    inputs.forEach((input, idx) => {
+      input.addEventListener("paste", (e) => {
+        const raw = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+        const tokens = tokenize(raw);
+        if (tokens.length <= 1) return;
+        e.preventDefault();
+        let cursor = idx;
+        tokens.forEach((token) => {
+          if (cursor >= total) return;
+          if (inputs[cursor]) inputs[cursor].value = token;
+          cursor += 1;
+        });
+      });
+    });
+  }
+
+  function setupAutoAdvance(cfg) {
+    if (!answerFieldsEl) return;
+    const rows = Number(cfg.rows || 1);
+    const cols = Number(cfg.cols || 1);
+    const perCellMax = cfg.per_cell_max_length ? Number(cfg.per_cell_max_length) : null;
+    if (!(rows === 1 && cols > 1 && perCellMax === 1)) return;
+    const inputs = Array.from(answerFieldsEl.querySelectorAll("input.answer-input"));
+    inputs.forEach((input, idx) => {
+      input.addEventListener("input", (e) => {
+        const val = e.target.value || "";
+        if (val.length >= 1 && idx < inputs.length - 1) {
+          inputs[idx + 1].focus();
+          inputs[idx + 1].select();
+        }
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !e.target.value && idx > 0) {
+          inputs[idx - 1].focus();
+        }
+      });
+    });
+  }
+
+  function setInputsFromPayload(schema, payload) {
+    if (!answerFieldsEl || payload === null || payload === undefined) return;
+    const cfg = schema.config || {};
+    const rows = Number(cfg.rows || 1);
+    const cols = Number(cfg.cols || 1);
+    const normalise = (value) => (value === null || value === undefined) ? "" : String(value);
+    const setCell = (r, c, value) => {
+      const input = answerFieldsEl.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
+      if (input) input.value = normalise(value);
+    };
+
+    if (rows === 1 && cols === 1) {
+      setCell(0, 0, payload);
+      return;
+    }
+
+    if (rows === 1) {
+      const rowVals = Array.isArray(payload) ? payload : [];
+      for (let c = 0; c < cols; c++) {
+        setCell(0, c, rowVals[c]);
+      }
+      return;
+    }
+
+    const matrix = Array.isArray(payload) ? payload : [];
+    for (let r = 0; r < rows; r++) {
+      const rowVals = Array.isArray(matrix[r]) ? matrix[r] : [];
+      for (let c = 0; c < cols; c++) {
+        setCell(r, c, rowVals[c]);
+      }
+    }
+  }
+
+  function setInputsFromPayloadIn(container, schema, payload) {
+    if (!container || payload === null || payload === undefined) return;
+    const cfg = schema.config || {};
+    const rows = Number(cfg.rows || 1);
+    const cols = Number(cfg.cols || 1);
+    const normalise = (value) => (value === null || value === undefined) ? "" : String(value);
+    const setCell = (r, c, value) => {
+      const input = container.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
+      if (input) input.value = normalise(value);
+    };
+
+    if (rows === 1 && cols === 1) {
+      setCell(0, 0, payload);
+      return;
+    }
+
+    if (rows === 1) {
+      const rowVals = Array.isArray(payload) ? payload : [];
+      for (let c = 0; c < cols; c++) {
+        setCell(0, c, rowVals[c]);
+      }
+      return;
+    }
+
+    const matrix = Array.isArray(payload) ? payload : [];
+    for (let r = 0; r < rows; r++) {
+      const rowVals = Array.isArray(matrix[r]) ? matrix[r] : [];
+      for (let c = 0; c < cols; c++) {
+        setCell(r, c, rowVals[c]);
+      }
+    }
+  }
+
+  function buildReadOnlyInputs(schema, payload) {
+    if (!correctAnswerFieldsEl || !schema) return;
+    correctAnswerFieldsEl.innerHTML = "";
+    const cfg = schema.config || {};
+    const rows = Number(cfg.rows || 1);
+    const cols = Number(cfg.cols || 1);
+
+    const container = document.createElement("div");
+    container.className = "answer-grid";
+
+    for (let r = 0; r < rows; r++) {
+      const rowEl = document.createElement("div");
+      rowEl.className = "answer-row";
+      for (let c = 0; c < cols; c++) {
+        const wrap = document.createElement("div");
+        wrap.className = "answer-cell";
+        const input = document.createElement("input");
+        input.dataset.row = String(r);
+        input.dataset.col = String(c);
+        input.className = "answer-input";
+        input.type = "text";
+        input.readOnly = true;
+        input.disabled = true;
+        wrap.appendChild(input);
+        rowEl.appendChild(wrap);
+      }
+      container.appendChild(rowEl);
+    }
+
+    correctAnswerFieldsEl.appendChild(container);
+    setInputsFromPayloadIn(correctAnswerFieldsEl, schema, payload);
+  }
+
+  function collectPayload(schema) {
+    if (!answerFieldsEl || !schema) return null;
+    const cfg = schema.config || {};
+    const rows = Number(cfg.rows || 1);
+    const cols = Number(cfg.cols || 1);
+    const allowBlankRows = !!cfg.allow_blank_rows;
+    const inputType = cfg.input_type || "string";
+
+    const normalizeValue = (rawValue) => {
+      const value = (rawValue ?? "").toString().trim();
+      if (!value) return "";
+      if (inputType === "int") {
+        if (!/^-?\d+$/.test(value)) return value;
+        return parseInt(value, 10);
+      }
+      if (inputType === "uint") {
+        if (!/^\d+$/.test(value)) return value;
+        return parseInt(value, 10);
+      }
+      if (inputType === "float") {
+        const normalized = value.replace(",", ".");
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : value;
+      }
+      return value;
+    };
+
+    const fetchCell = (r, c) => {
+      const input = answerFieldsEl.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
+      return input ? input.value : "";
+    };
+
+    if (rows === 1 && cols === 1) {
+      return normalizeValue(fetchCell(0, 0));
+    }
+
+    if (rows === 1) {
+      return Array.from({ length: cols }, (_, c) => normalizeValue(fetchCell(0, c)));
+    }
+
+    const matrix = [];
+    for (let r = 0; r < rows; r++) {
+      const rowVals = Array.from({ length: cols }, (_, c) => normalizeValue(fetchCell(r, c)));
+      if (allowBlankRows && rowVals.every((v) => v === "")) {
+        matrix.push([]);
+      } else {
+        matrix.push(rowVals);
+      }
+    }
+
+    if (allowBlankRows) {
+      while (matrix.length && (matrix[matrix.length - 1].length === 0 || matrix[matrix.length - 1].every((v) => v === ""))) {
+        matrix.pop();
+      }
+    }
+    return matrix;
+  }
+
+  function formatTimeLeft(totalSeconds) {
+    if (!Number.isFinite(totalSeconds)) return "";
+    const clamped = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(clamped / 3600);
+    const minutes = Math.floor((clamped % 3600) / 60);
+    const seconds = clamped % 60;
+    if (hours > 0) {
+      return String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+    }
+    return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+  }
+
+  function renderTimeLeft(seconds) {
+    if (!timeLeftEl) return;
+    const formatted = formatTimeLeft(seconds);
+    if (formatted) timeLeftEl.textContent = formatted;
+  }
+
+  function stopCountdown() {
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  }
+
+  function handleLocalTimeout() {
+    if (!attempt || attempt.completed_at) return;
+    attempt.completed_at = attempt.completed_at || new Date().toISOString();
+    renderStatus("Time limit reached.", "error");
+    if (currentVariantTaskId && currentVariantTaskId !== START_ITEM_ID && currentVariantTaskId !== FINISH_ITEM_ID) {
+      const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
+      if (task) renderTask(task);
+    }
+    setAnswerLocked(true);
+    saveBtn.disabled = true;
+    finalizeBtn.disabled = true;
+    stopCountdown();
+    stopMinuteSync();
+  }
+
+  function startCountdown() {
+    stopCountdown();
+    if (!Number.isFinite(localTimeLeftSeconds)) return;
+    renderTimeLeft(localTimeLeftSeconds);
+    countdownTimer = setInterval(() => {
+      if (!Number.isFinite(localTimeLeftSeconds)) return;
+      localTimeLeftSeconds = Math.max(0, localTimeLeftSeconds - 1);
+      renderTimeLeft(localTimeLeftSeconds);
+      if (localTimeLeftSeconds === 0) {
+        handleLocalTimeout();
+        stopCountdown();
+      }
+    }, 1000);
+  }
+
+  function updateLocalTimeLeft(seconds) {
+    if (!Number.isFinite(seconds)) return;
+    localTimeLeftSeconds = Math.max(0, Math.floor(seconds));
+    renderTimeLeft(localTimeLeftSeconds);
+  }
+
+  function switchTaskTimer(nextTaskId) {
+    const now = Date.now();
+    if (currentTaskStartAt && typeof currentVariantTaskId === "number") {
+      const elapsed = Math.floor((now - currentTaskStartAt) / 1000);
+      if (elapsed > 0) {
+        const prev = taskTimeMap.get(currentVariantTaskId) || 0;
+        taskTimeMap.set(currentVariantTaskId, prev + elapsed);
+      }
+    }
+    if (typeof nextTaskId === "number") {
+      currentTaskStartAt = now;
+    } else {
+      currentTaskStartAt = null;
+    }
   }
 
   function renderTaskList() {
     if (!attempt || !attempt.tasks_progress) return;
     taskListEl.innerHTML = "";
+    const renderSpecial = (label, targetId) => {
+      const li = document.createElement("li");
+      li.className = "solver__task-item solver__task-item--wide";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "solver__task-button solver__task-button--label solver__task-button--wide";
+      btn.textContent = label;
+      if (attempt && attempt.completed_at) {
+        btn.classList.add("is-completed");
+      }
+      if (targetId === currentVariantTaskId) {
+        btn.classList.add("is-active");
+      }
+      btn.addEventListener("click", () => selectTask(targetId));
+      li.appendChild(btn);
+      taskListEl.appendChild(li);
+    };
+    renderSpecial("{% trans 'Старт' %}", START_ITEM_ID);
     const tasks = [...attempt.tasks_progress].sort((a, b) => (a.order || 0) - (b.order || 0));
     tasks.forEach((task, idx) => {
       const li = document.createElement("li");
@@ -105,65 +741,163 @@
       btn.type = "button";
       btn.className = "solver__task-button";
       btn.textContent = task.order || (idx + 1);
+      if (task.saved_response !== null && task.saved_response !== undefined) {
+        btn.classList.add("is-saved");
+      }
       if (task.variant_task_id === currentVariantTaskId) {
         btn.classList.add("is-active");
+      }
+      if (attempt && attempt.completed_at) {
+        const attempts = Array.isArray(task.attempts) ? task.attempts : [];
+        let latest = null;
+        attempts.forEach((entry) => {
+          if (!latest || entry.attempt_number > latest.attempt_number) {
+            latest = entry;
+          }
+        });
+        const maxScore = Number(task.task_snapshot?.max_score ?? task.max_score ?? 1);
+        const score = latest && latest.score !== null && latest.score !== undefined
+          ? Number(latest.score)
+          : 0;
+        btn.classList.add("is-completed");
+        if (Number.isFinite(maxScore)) {
+          if (score >= maxScore && maxScore > 0) {
+            btn.classList.add("is-correct");
+          } else if (score > 0 && score < maxScore) {
+            btn.classList.add("is-partial");
+          } else {
+            btn.classList.add("is-wrong");
+          }
+        }
       }
       btn.addEventListener("click", () => selectTask(task.variant_task_id));
       li.appendChild(btn);
       taskListEl.appendChild(li);
     });
+    renderSpecial("{% trans 'Финиш' %}", FINISH_ITEM_ID);
   }
 
   function renderTask(task) {
-    titleEl.textContent = task.task_snapshot?.title || task.task_snapshot?.content?.title || "";
+    const order = task.order ?? "";
+    const typeName = task.task_type_name || "";
+    let heading = "{% trans 'Задание' %}";
+    if (order && typeName) {
+      heading = "{% trans 'Задание' %} " + order + " (" + typeName + ")";
+    } else if (order) {
+      heading = "{% trans 'Задание' %} " + order;
+    } else if (typeName) {
+      heading = "{% trans 'Задание' %} (" + typeName + ")";
+    }
+    if (headingEl) headingEl.textContent = heading;
     const desc = task.task_snapshot?.description || task.task_snapshot?.content?.statement || "";
-    bodyEl.innerHTML = desc ? desc : "<p class='muted'>{% trans 'Условие недоступно' %}</p>";
-    typeEl.textContent = task.task_id ? ("ID: " + task.task_id) : "";
-    difficultyEl.textContent = task.task_snapshot?.difficulty_level ? ("{% trans 'Сложность' %} " + task.task_snapshot.difficulty_level) : "";
+    if (task.task_body_html) {
+      bodyEl.innerHTML = task.task_body_html;
+      if (task.task_rendering_strategy === "markdown") {
+        bodyEl.setAttribute("data-format", "markdown");
+        bodyEl.classList.add("markdown-content");
+      } else {
+        bodyEl.removeAttribute("data-format");
+        bodyEl.classList.remove("markdown-content");
+      }
+    } else {
+      bodyEl.innerHTML = desc ? desc : "<p class='muted'>{% trans 'Описание не найдено' %}</p>";
+      bodyEl.removeAttribute("data-format");
+      bodyEl.classList.remove("markdown-content");
+    }
+
     const saved = task.saved_response !== null && task.saved_response !== undefined;
     isSaved = saved;
-    answerEl.disabled = attempt.completed_at !== null || saved;
+    isEditing = false;
+    currentSchema = task.answer_schema || null;
+
+    if (currentSchema && answerBuilderEl && answerFieldsEl) {
+      answerBuilderEl.hidden = false;
+      answerEl.style.display = "none";
+      buildInputs(currentSchema, task.saved_response);
+    } else {
+      if (answerBuilderEl) answerBuilderEl.hidden = true;
+      if (answerFieldsEl) answerFieldsEl.innerHTML = "";
+      answerEl.style.display = "";
+      answerEl.value = saved ? jsonOrText(task.saved_response) : "";
+    }
+
+    const correctAnswer = task.task_snapshot?.correct_answer;
+    if (correctAnswerEl) {
+      const wrapper = correctAnswerEl.parentElement;
+      if (correctAnswer !== undefined && correctAnswer !== null) {
+        if (currentSchema && correctAnswerFieldsEl) {
+          buildReadOnlyInputs(currentSchema, correctAnswer);
+          correctAnswerFieldsEl.hidden = false;
+          correctAnswerEl.textContent = "";
+          correctAnswerEl.hidden = true;
+        } else {
+          if (correctAnswerFieldsEl) {
+            correctAnswerFieldsEl.innerHTML = "";
+            correctAnswerFieldsEl.hidden = true;
+          }
+          correctAnswerEl.textContent = jsonOrText(correctAnswer);
+          correctAnswerEl.hidden = false;
+        }
+        if (wrapper) wrapper.hidden = false;
+      } else {
+        correctAnswerEl.textContent = "";
+        if (correctAnswerFieldsEl) {
+          correctAnswerFieldsEl.innerHTML = "";
+          correctAnswerFieldsEl.hidden = true;
+        }
+        if (wrapper) wrapper.hidden = true;
+      }
+    }
+
+    setFooterVisible(true);
+    setAnswerLocked(attempt.completed_at !== null || saved);
     saveBtn.hidden = attempt.completed_at !== null;
-    editBtn.hidden = attempt.completed_at !== null || !saved;
-    clearBtn.hidden = attempt.completed_at !== null || !saved;
-    stateEl.textContent = saved ? "{% trans 'Ответ сохранен' %}" : "{% trans 'Без ответа' %}";
-    stateEl.className = "solver__badge " + (saved ? "solver__badge--active" : "solver__badge--muted");
-    answerEl.value = saved ? jsonOrText(task.saved_response) : "";
-    saveBtn.textContent = saved ? "{% trans 'Сохранить ответ' %}" : "{% trans 'Сохранить ответ' %}";
-    editBtn.textContent = "{% trans 'Изменить ответ' %}";
+    saveBtn.textContent = saved ? "{% trans 'Изменить ответ' %}" : "{% trans 'Сохранить ответ' %}";
   }
 
   async function fetchAttempt() {
     const resp = await fetch(`/api/variants/attempts/${attemptId}/`, {credentials: "same-origin"});
-    if (!resp.ok) throw new Error("Не удалось загрузить попытку");
+    if (!resp.ok) throw new Error("Не удалось загрузить попытку решения.");
     attempt = await resp.json();
+    const timeLeft = parseDurationToSeconds(attempt.time_left);
+    if (Number.isFinite(timeLeft)) {
+      localTimeLeftSeconds = timeLeft;
+    }
     renderTaskList();
-    if (!currentVariantTaskId && attempt.tasks_progress?.length) {
-      selectTask(attempt.tasks_progress[0].variant_task_id);
+    scheduleMinuteSync();
+    startCountdown();
+    if (!currentVariantTaskId) {
+      selectTask(START_ITEM_ID);
+    } else if (currentVariantTaskId === START_ITEM_ID) {
+      renderStartCard();
+    } else if (currentVariantTaskId === FINISH_ITEM_ID) {
+      renderFinishCard();
     }
   }
 
-  async function focusTask(variantTaskId) {
-    await fetch(`/api/variants/attempts/${attemptId}/tasks/${variantTaskId}/focus/`, {
-      method: "POST",
-      headers: {"X-CSRFToken": csrfToken()},
-      credentials: "same-origin"
-    });
-  }
-
-  async function selectTask(variantTaskId) {
+  function selectTask(variantTaskId) {
+    switchTaskTimer(variantTaskId);
     currentVariantTaskId = variantTaskId;
-    await focusTask(variantTaskId);
-    await fetchAttempt();
-    const task = attempt.tasks_progress.find(t => t.variant_task_id === variantTaskId);
+    renderTaskList();
+    if (variantTaskId === START_ITEM_ID) {
+      renderStartCard();
+      return;
+    }
+    if (variantTaskId === FINISH_ITEM_ID) {
+      renderFinishCard();
+      return;
+    }
+    const task = attempt?.tasks_progress?.find(t => t.variant_task_id === variantTaskId);
     if (task) {
       renderTask(task);
-      renderTaskList();
       renderStatus("");
     }
   }
 
   function parseAnswer() {
+    if (currentSchema && answerFieldsEl && answerBuilderEl && !answerBuilderEl.hidden) {
+      return collectPayload(currentSchema);
+    }
     const raw = answerEl.value;
     if (!raw.trim()) return "";
     try {
@@ -173,49 +907,153 @@
     }
   }
 
-  async function saveAnswer() {
-    if (!currentVariantTaskId) return;
-    const payload = parseAnswer();
-    renderStatus("{% trans 'Сохраняем...' %}");
-    const resp = await fetch(`/api/variants/attempts/${attemptId}/tasks/${currentVariantTaskId}/save/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": csrfToken()
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({answer: payload})
-    });
-    if (!resp.ok) {
-        renderStatus("{% trans 'Не удалось сохранить ответ' %}", "error");
-        return;
+  function cloneValue(value) {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (_) {
+      return value;
     }
-    attempt = await resp.json();
-    const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
-    if (task) renderTask(task);
-    renderTaskList();
-    renderStatus("{% trans 'Ответ сохранен' %}", "success");
   }
 
-  async function clearAnswer() {
-    if (!currentVariantTaskId) return;
-    renderStatus("{% trans 'Удаляем ответ...' %}");
-    const resp = await fetch(`/api/variants/attempts/${attemptId}/tasks/${currentVariantTaskId}/clear/`, {
-      method: "POST",
-      headers: {"X-CSRFToken": csrfToken()},
-      credentials: "same-origin"
-    });
-    if (!resp.ok) {
-      renderStatus("{% trans 'Не удалось удалить ответ' %}", "error");
+  function applySavedResponse(task, payload, savedAt) {
+    if (!task) return;
+    task.saved_response = cloneValue(payload);
+    task.saved_response_updated_at = savedAt;
+  }
+
+  function rollbackSavedResponse(task, prevTask) {
+    if (!task || !prevTask) return;
+    task.saved_response = cloneValue(prevTask.saved_response);
+    task.saved_response_updated_at = prevTask.saved_response_updated_at || null;
+  }
+
+  async function sendSaveRequest(taskId, payload, prevTask, prevSaved, prevEditing, seq, retryCount) {
+    const maxRetries = 1;
+    const retryDelayMs = 3000;
+    for (let attemptIndex = retryCount; attemptIndex <= maxRetries; attemptIndex += 1) {
+      try {
+        const resp = await fetch(`/api/variants/attempts/${attemptId}/tasks/${taskId}/save/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken()
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({answer: payload})
+        });
+        if (resp.ok) {
+          attempt = await resp.json();
+          const timeLeft = parseDurationToSeconds(attempt.time_left);
+          if (Number.isFinite(timeLeft)) {
+            localTimeLeftSeconds = timeLeft;
+            startCountdown();
+          }
+          pendingPayloadByTask.forEach((pending, pendingTaskId) => {
+            const localTask = attempt.tasks_progress.find(t => t.variant_task_id === pendingTaskId);
+            if (localTask) {
+              applySavedResponse(localTask, pending, new Date().toISOString());
+            }
+          });
+          const currentTask = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
+          if (currentTask) renderTask(currentTask);
+          renderTaskList();
+          if (lastSaveIdByTask.get(taskId) === seq) {
+            pendingPayloadByTask.delete(taskId);
+            renderStatus("{% trans 'Ответ сохранен' %}", "success");
+          }
+          return;
+        }
+
+        if (resp.status < 500 || attemptIndex >= maxRetries) {
+          break;
+        }
+      } catch (_) {
+        if (attemptIndex >= maxRetries) {
+          break;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    }
+
+    if (lastSaveIdByTask.get(taskId) !== seq) {
       return;
     }
-    attempt = await resp.json();
-    const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
-    if (task) {
-      renderTask(task);
-      renderTaskList();
+    pendingPayloadByTask.delete(taskId);
+    const task = attempt?.tasks_progress?.find(t => t.variant_task_id === taskId);
+    rollbackSavedResponse(task, prevTask);
+    isSaved = prevSaved;
+    isEditing = prevEditing;
+    if (task) renderTask(task);
+    renderTaskList();
+    setAnswerLocked(attempt.completed_at !== null || isSaved);
+    renderStatus("{% trans 'Не удалось сохранить ответ' %}", "error");
+  }
+
+  async function processSaveQueue() {
+    if (saveInFlight) return;
+    const next = saveQueue.shift();
+    if (!next) return;
+    saveInFlight = true;
+    await sendSaveRequest(
+      next.taskId,
+      next.payload,
+      next.prevTask,
+      next.prevSaved,
+      next.prevEditing,
+      next.seq,
+      next.retryCount
+    );
+    saveInFlight = false;
+    if (saveQueue.length) {
+      processSaveQueue();
     }
-    renderStatus("{% trans 'Ответ удален, таймер запущен' %}", "success");
+  }
+
+  async function saveAnswer() {
+    if (!currentVariantTaskId || typeof currentVariantTaskId !== "number") return;
+    if (isSaved && !isEditing) {
+      isEditing = true;
+      setAnswerLocked(false);
+      saveBtn.textContent = "{% trans 'Сохранить ответ' %}";
+      renderStatus("");
+      return;
+    }
+    if (!attempt || !Array.isArray(attempt.tasks_progress)) {
+      renderStatus("{% trans 'Ответ сохраняется...' %}");
+      return;
+    }
+    const payload = parseAnswer();
+    const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
+    const prevTask = task ? {
+      saved_response: cloneValue(task.saved_response),
+      saved_response_updated_at: task.saved_response_updated_at || null
+    } : null;
+    const prevSaved = isSaved;
+    const prevEditing = isEditing;
+    const nowIso = new Date().toISOString();
+    const seq = ++saveSeqCounter;
+    const taskId = currentVariantTaskId;
+    lastSaveIdByTask.set(taskId, seq);
+    pendingPayloadByTask.set(taskId, payload);
+
+    applySavedResponse(task, payload, nowIso);
+    isSaved = true;
+    isEditing = false;
+    if (task) renderTask(task);
+    renderTaskList();
+    setAnswerLocked(true);
+    renderStatus("{% trans 'Ответ сохраняется...' %}");
+
+    saveQueue.push({
+      taskId,
+      payload,
+      prevTask,
+      prevSaved,
+      prevEditing,
+      seq,
+      retryCount: 0
+    });
+    processSaveQueue();
   }
 
   async function finalizeAttempt() {
@@ -230,64 +1068,95 @@
       return;
     }
     attempt = await resp.json();
+    const timeLeft = parseDurationToSeconds(attempt.time_left);
+    if (Number.isFinite(timeLeft)) {
+      localTimeLeftSeconds = timeLeft;
+    }
     renderStatus("{% trans 'Попытка отправлена' %}", "success");
     renderTaskList();
-    if (currentVariantTaskId) {
+    if (currentVariantTaskId === FINISH_ITEM_ID) {
+      renderFinishCard();
+    } else if (currentVariantTaskId && currentVariantTaskId !== START_ITEM_ID) {
       const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
       if (task) renderTask(task);
     }
-    answerEl.disabled = true;
+    setAnswerLocked(true);
     saveBtn.disabled = true;
-    editBtn.disabled = true;
-    clearBtn.disabled = true;
     finalizeBtn.disabled = true;
+    stopCountdown();
+    stopMinuteSync();
+  }
+
+  function shouldHeartbeat() {
+    return attempt && attempt.time_limit && !attempt.completed_at;
+  }
+
+  function stopMinuteSync() {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+    if (heartbeatTimeout) {
+      clearTimeout(heartbeatTimeout);
+      heartbeatTimeout = null;
+    }
+  }
+
+  function scheduleMinuteSync() {
+    stopMinuteSync();
+    if (!shouldHeartbeat()) return;
+    const remainder = Date.now() % minuteSyncMs;
+    const delay = remainder === 0 ? 0 : minuteSyncMs - remainder;
+    heartbeatTimeout = setTimeout(() => {
+      sendHeartbeat();
+      heartbeatTimer = setInterval(sendHeartbeat, minuteSyncMs);
+    }, delay);
+  }
+
+  async function sendHeartbeat() {
+    if (!shouldHeartbeat() || heartbeatInFlight) return;
+    heartbeatInFlight = true;
+    try {
+      const resp = await fetch(`/api/variants/attempts/${attemptId}/heartbeat/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken()
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({client_id: clientId})
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.time_left_seconds !== null && data.time_left_seconds !== undefined) {
+        updateLocalTimeLeft(data.time_left_seconds);
+      }
+      if (data.completed) {
+        attempt.completed_at = attempt.completed_at || new Date().toISOString();
+        renderStatus("Time limit reached.", "error");
+        if (currentVariantTaskId && currentVariantTaskId !== START_ITEM_ID && currentVariantTaskId !== FINISH_ITEM_ID) {
+          const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
+          if (task) renderTask(task);
+        }
+        stopMinuteSync();
+        stopCountdown();
+        setAnswerLocked(true);
+        saveBtn.disabled = true;
+        finalizeBtn.disabled = true;
+      }
+    } finally {
+      heartbeatInFlight = false;
+    }
   }
 
   saveBtn.addEventListener("click", saveAnswer);
-  editBtn.addEventListener("click", () => {
-    answerEl.disabled = false;
-    saveBtn.hidden = false;
-    editBtn.hidden = true;
-    clearBtn.hidden = false;
-    focusTask(currentVariantTaskId);
-  });
-  clearBtn.addEventListener("click", clearAnswer);
   finalizeBtn.addEventListener("click", finalizeAttempt);
 
+  setFooterVisible(false);
+  renderLoadingCard();
   fetchAttempt().catch(() => renderStatus("{% trans 'Не удалось загрузить данные' %}", "error"));
 })();
 </script>
 
-<style>
-.solver { display: grid; gap: 16px; }
-.solver__header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
-.solver__title { margin: 0; }
-.solver__eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; color: #666; }
-.solver__meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.solver__badge { background: #eef2ff; color: #1d1d2b; padding: 6px 10px; border-radius: 12px; font-size: 12px; }
-.solver__badge--muted { background: #f2f2f2; color: #555; }
-.solver__badge--active { background: #e0f7e9; color: #0f5132; }
-.solver__actions { display: flex; gap: 8px; }
-.solver__layout { display: grid; grid-template-columns: 180px 1fr; gap: 16px; }
-.solver__sidebar { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
-.solver__task-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; }
-.solver__task-button { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #d4d4d8; background: white; cursor: pointer; }
-.solver__task-button.is-active { background: #111827; color: white; border-color: #111827; }
-.solver__main { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 16px; min-height: 400px; }
-.solver__task-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-.solver__task-title { margin: 0; }
-.solver__task-body { margin: 12px 0; }
-.solver__footer { display: grid; gap: 8px; }
-.solver__answer { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #d1d5db; font-family: monospace; }
-.solver__controls { display: flex; gap: 8px; align-items: center; }
-.solver__label { font-weight: 600; }
-.solver__status { margin-bottom: 8px; min-height: 20px; }
-.solver__status--success { color: #0f5132; }
-.solver__status--error { color: #842029; }
-.muted { color: #6b7280; }
-@media (max-width: 960px) {
-  .solver__layout { grid-template-columns: 1fr; }
-  .solver__sidebar { order: 2; }
-}
-</style>
 {% endblock %}
+

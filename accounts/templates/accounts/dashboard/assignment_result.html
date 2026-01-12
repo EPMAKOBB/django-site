@@ -17,6 +17,9 @@
           Решено {{ solved }} из {{ total }} заданий
         {% endblocktrans %}
       </p>
+      {% if exam_mismatch_notice %}
+        <p class="assignment-results__notice">{{ exam_mismatch_notice }}</p>
+      {% endif %}
     </header>
 
     <section class="assignment-results__attempts" aria-label="{% trans 'История попыток' %}">

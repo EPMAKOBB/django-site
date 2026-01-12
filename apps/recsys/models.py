@@ -92,16 +92,6 @@ class SourceVariant(TimeStampedModel):
 
 
 class AnswerSchema(TimeStampedModel):
-    subject = models.ForeignKey(
-        Subject, on_delete=models.CASCADE, related_name="answer_schemas"
-    )
-    exam_version = models.ForeignKey(
-        "ExamVersion",
-        on_delete=models.CASCADE,
-        related_name="answer_schemas",
-        null=True,
-        blank=True,
-    )
     name = models.CharField(max_length=150)
     description = models.TextField(blank=True)
     config = models.JSONField(
@@ -115,21 +105,20 @@ class AnswerSchema(TimeStampedModel):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["subject", "exam_version", "name"]
-        unique_together = ("subject", "exam_version", "name")
+        ordering = ["name"]
+        unique_together = ("name",)
         indexes = [
-            models.Index(fields=["subject", "exam_version", "name", "is_active"])
+            models.Index(
+                fields=["name", "is_active"],
+                name="recsys_answ_name_active",
+            )
         ]
 
     def __str__(self) -> str:  # pragma: no cover - human readable
-        if self.exam_version:
-            return f"{self.name} ({self.exam_version.name})"
-        return f"{self.name} ({self.subject.name})"
+        return self.name
 
     def clean(self):
         super().clean()
-        if self.exam_version and self.exam_version.subject_id != self.subject_id:
-            raise ValidationError({"exam_version": "Exam version must match schema subject."})
         if self.config is None:
             self.config = {}
         if not isinstance(self.config, dict):
@@ -214,9 +203,9 @@ class TaskType(TimeStampedModel):
 
     def __str__(self) -> str:
         if self.exam_version:
-            prefix = self.exam_version.name
-            suffix = self.name
-            return f"{prefix} · {suffix}"
+            subject_name = self.exam_version.subject.name
+            exam_name = self.exam_version.name
+            return f"{subject_name} - {exam_name} - {self.name}"
 
         prefix = self.subject.name
         suffix = f"{self.name} (без версии экзамена)"
@@ -237,15 +226,6 @@ class TaskType(TimeStampedModel):
 
         if self.exam_version and self.exam_version.subject_id != self.subject_id:
             raise ValidationError({"exam_version": "Exam version must match task subject."})
-        if self.answer_schema and self.answer_schema.subject_id != self.subject_id:
-            raise ValidationError({"answer_schema": "Answer schema must match task subject."})
-        if (
-            self.answer_schema
-            and self.answer_schema.exam_version_id
-            and self.exam_version_id
-            and self.answer_schema.exam_version_id != self.exam_version_id
-        ):
-            raise ValidationError({"answer_schema": "Answer schema exam version must match task type exam version."})
 
     def save(self, *args, **kwargs):
         self._normalize_slug()
@@ -406,12 +386,6 @@ class Task(TimeStampedModel):
             raise ValidationError({"type": "Task type must match task subject."})
         if self.exam_version and self.exam_version.subject_id != self.subject_id:
             raise ValidationError({"exam_version": "Exam version must match task subject."})
-        if self.answer_schema and self.answer_schema.subject_id != self.subject_id:
-            raise ValidationError({"answer_schema": "Answer schema must match task subject."})
-        if self.answer_schema and self.answer_schema.exam_version_id:
-            effective_exam_id = self.exam_version_id or self.type.exam_version_id
-            if effective_exam_id and effective_exam_id != self.answer_schema.exam_version_id:
-                raise ValidationError({"answer_schema": "Answer schema exam version must match task exam version."})
         if self.source_variant and self.source and self.source_variant.source_id != self.source_id:
             raise ValidationError({"source_variant": "Вариант источника должен совпадать с источником."})
         if self.source_variant and not self.source:
@@ -607,18 +581,99 @@ class TaskSkill(TimeStampedModel):
 
 
 class ExamVersion(TimeStampedModel):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ACTIVE = "active", "Active"
+
     subject = models.ForeignKey(
         Subject, on_delete=models.CASCADE, related_name="exam_versions"
     )
     name = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=128, null=True, blank=True, db_index=True)
+    status = models.CharField(
+        max_length=32,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+    start_info = models.TextField(
+        blank=True,
+        help_text="Reference info shown at the start of the exam.",
+    )
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["subject__name", "name"]
         unique_together = ("subject", "name")
-        indexes = [models.Index(fields=["subject", "name"])]
+        indexes = [
+            models.Index(fields=["subject", "name"]),
+            models.Index(fields=["slug"]),
+            models.Index(fields=["status"]),
+        ]
 
     def __str__(self) -> str:
-        return self.name
+        return f"{self.subject.name} — {self.name}"
+
+    def _normalize_slug(self) -> None:
+        raw_slug = self.slug or self.name
+        normalized = slugify(raw_slug or "")
+        if normalized:
+            self.slug = normalized
+
+    def save(self, *args, **kwargs):
+        self._normalize_slug()
+        if not self.status:
+            self.status = self.Status.DRAFT
+        return super().save(*args, **kwargs)
+
+
+class ExamScoreScale(TimeStampedModel):
+    exam_version = models.OneToOneField(
+        ExamVersion,
+        on_delete=models.CASCADE,
+        related_name="score_scale",
+    )
+    max_primary = models.PositiveSmallIntegerField(
+        help_text="Maximum primary score supported by this scale.",
+    )
+    mapping = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List where index=primary score and value=secondary score.",
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["exam_version"]
+
+    def __str__(self) -> str:  # pragma: no cover - human readable
+        return f"{self.exam_version} scale"
+
+    def clean(self):
+        super().clean()
+        if self.mapping is None:
+            self.mapping = []
+        if not isinstance(self.mapping, list):
+            raise ValidationError({"mapping": "Scale mapping must be a list."})
+        if self.max_primary is None:
+            raise ValidationError({"max_primary": "Max primary score is required."})
+        if len(self.mapping) != int(self.max_primary) + 1:
+            raise ValidationError(
+                {"mapping": "Mapping length must be max_primary + 1."}
+            )
+        for idx, value in enumerate(self.mapping):
+            if not isinstance(value, int):
+                raise ValidationError({"mapping": f"Mapping value #{idx} must be integer."})
+            if value < 0:
+                raise ValidationError({"mapping": f"Mapping value #{idx} must be non-negative."})
+
+    def to_secondary(self, primary_score: int) -> tuple[int | None, bool]:
+        if primary_score < 0:
+            primary_score = 0
+        if primary_score > self.max_primary:
+            return None, True
+        return int(self.mapping[int(primary_score)]), False
 
 
 class SkillGroup(TimeStampedModel):
@@ -731,9 +786,140 @@ class RecommendationLog(TimeStampedModel):
         return f"{self.user} - {self.task}"
 
 
+class ExamBlueprint(TimeStampedModel):
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.CASCADE,
+        related_name="exam_blueprints",
+    )
+    exam_version = models.OneToOneField(
+        ExamVersion,
+        on_delete=models.CASCADE,
+        related_name="blueprint",
+    )
+    title = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    time_limit = models.DurationField(null=True, blank=True)
+    max_attempts = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["exam_version"]
+        indexes = [
+            models.Index(fields=["exam_version", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.title or f"Blueprint for {self.exam_version}"
+
+    def clean(self):
+        super().clean()
+        if self.exam_version and self.exam_version.subject_id != self.subject_id:
+            raise ValidationError({"exam_version": "Exam version must match blueprint subject."})
+
+
+class ExamBlueprintItem(TimeStampedModel):
+    blueprint = models.ForeignKey(
+        ExamBlueprint,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    task_type = models.ForeignKey(
+        TaskType,
+        on_delete=models.CASCADE,
+        related_name="blueprint_items",
+    )
+    count = models.PositiveIntegerField(default=1)
+    order = models.PositiveIntegerField(default=1)
+    section = models.CharField(max_length=64, blank=True)
+    score_override = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["blueprint", "task_type"],
+                name="blueprint_task_type_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["blueprint", "order"],
+                name="blueprint_order_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["blueprint", "order"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.blueprint} -> {self.task_type} x{self.count}"
+
+    def clean(self):
+        super().clean()
+        if self.task_type and self.blueprint:
+            if self.task_type.subject_id != self.blueprint.subject_id:
+                raise ValidationError({"task_type": "Task type must match blueprint subject."})
+            if (
+                self.task_type.exam_version_id
+                and self.blueprint.exam_version_id
+                and self.task_type.exam_version_id != self.blueprint.exam_version_id
+            ):
+                raise ValidationError({"task_type": "Task type must match blueprint exam version."})
+
+
+class VariantPage(TimeStampedModel):
+    template = models.OneToOneField(
+        "VariantTemplate",
+        on_delete=models.CASCADE,
+        related_name="page",
+    )
+    slug = models.SlugField(max_length=128, unique=True, db_index=True)
+    title = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    is_public = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["slug"]
+        indexes = [models.Index(fields=["slug"])]
+
+    def __str__(self) -> str:  # pragma: no cover - human readable
+        return self.title or self.template.name
+
+    def _normalize_slug(self) -> None:
+        normalized = slugify(self.slug or self.title or self.template.name or "")
+        if normalized:
+            self.slug = normalized
+
+    def save(self, *args, **kwargs):
+        self._normalize_slug()
+        return super().save(*args, **kwargs)
+
+
 class VariantTemplate(TimeStampedModel):
+    class Kind(models.TextChoices):
+        PERSONAL = "personal", "Personal"
+        DEMO = "demo", "Demo"
+        OFFICIAL = "official", "Official/EGKR"
+        BOOK = "book", "Book collection"
+        TEACHER = "teacher", "Teacher draft"
+        CUSTOM = "custom", "Custom"
+
     name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True)
+    exam_version = models.ForeignKey(
+        ExamVersion,
+        on_delete=models.CASCADE,
+        related_name="variant_templates",
+        null=True,
+        blank=True,
+    )
+    slug = models.SlugField(max_length=128, null=True, blank=True, db_index=True)
+    kind = models.CharField(
+        max_length=32,
+        choices=Kind.choices,
+        default=Kind.CUSTOM,
+    )
+    is_public = models.BooleanField(default=False)
+    display_order = models.PositiveIntegerField(default=0)
     time_limit = models.DurationField(null=True, blank=True)
     max_attempts = models.PositiveIntegerField(null=True, blank=True)
     tasks = models.ManyToManyField(
@@ -741,11 +927,24 @@ class VariantTemplate(TimeStampedModel):
     )
 
     class Meta:
-        ordering = ["name"]
-        indexes = [models.Index(fields=["name"])]
+        ordering = ["display_order", "name"]
+        indexes = [
+            models.Index(fields=["name"]),
+            models.Index(fields=["exam_version", "is_public", "display_order"]),
+        ]
 
     def __str__(self) -> str:
         return self.name
+
+    def _normalize_slug(self) -> None:
+        raw_slug = self.slug or self.name
+        normalized = slugify(raw_slug or "")
+        if normalized:
+            self.slug = normalized
+
+    def save(self, *args, **kwargs):
+        self._normalize_slug()
+        return super().save(*args, **kwargs)
 
 
 class VariantTask(TimeStampedModel):
@@ -820,6 +1019,16 @@ class VariantAttempt(TimeStampedModel):
         null=True,
         blank=True,
         help_text="Timestamp when the current task timer was started.",
+    )
+    last_seen_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last heartbeat time for the attempt.",
+    )
+    active_client_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="Client id of the active attempt tab.",
     )
 
     class Meta:
@@ -907,6 +1116,7 @@ class VariantTaskTimeLog(TimeStampedModel):
         SUBMIT = "submit", "Answer submitted"
         FINALIZE = "finalize", "Attempt finalized"
         CLEAR = "clear", "Answer cleared"
+        ATTEMPT_TIMEOUT = "attempt_timeout", "Attempt time limit reached"
         AUTO = "auto", "Auto stop"
 
     variant_attempt = models.ForeignKey(

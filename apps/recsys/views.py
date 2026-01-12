@@ -6,10 +6,16 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db.models import Case, Count, IntegerField, Value, When
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.text import slugify
+from django.utils.translation import gettext_lazy as _
+from rest_framework import exceptions as drf_exceptions
 
 from .models import (
     ExamVersion,
+    ExamBlueprint,
     Skill,
     SkillMastery,
     Source,
@@ -18,10 +24,15 @@ from .models import (
     TaskSkill,
     TaskTag,
     TaskType,
+    VariantAssignment,
+    VariantPage,
+    VariantTemplate,
 )
 from .recommendation import recommend_tasks
 from .forms import TaskUploadForm
 from accounts.models import StudentProfile
+from apps.recsys.service_utils import variants as variant_services
+from apps.recsys.service_utils.type_progress import build_type_progress_map
 
 
 @login_required
@@ -51,6 +62,175 @@ def teacher_user(request, user_id):
     )
     context = {"student": student, "skill_masteries": masteries}
     return render(request, "recsys/teacher_user.html", context)
+
+
+def exam_page(request, exam_slug: str):
+    """Public exam landing with personal variant builder."""
+
+    exam_qs = ExamVersion.objects.select_related("subject")
+    exam = exam_qs.filter(slug=exam_slug).first()
+    if exam is None:
+        fallback = None
+        for candidate in exam_qs:
+            if slugify(candidate.name) == exam_slug:
+                fallback = candidate
+                break
+        if fallback is None:
+            raise Http404("Exam not found")
+        exam = fallback
+    blueprint = (
+        ExamBlueprint.objects.filter(exam_version=exam, is_active=True)
+        .prefetch_related("items__task_type")
+        .order_by("-updated_at", "-id")
+        .first()
+    )
+
+    if request.method == "POST" and request.POST.get("action") == "build_personal":
+        if not request.user.is_authenticated:
+            return redirect(f"{reverse('accounts:login')}?next={request.path}")
+        try:
+            assignment = variant_services.build_personal_assignment_from_blueprint(
+                user=request.user,
+                exam_version=exam,
+            )
+        except drf_exceptions.ValidationError as exc:
+            detail = getattr(exc, "detail", None) or getattr(exc, "args", None)
+            messages.error(request, str(detail or exc))
+        else:
+            page = variant_services.ensure_variant_page(assignment.template, is_public=False)
+            return redirect("variant-page", slug=page.slug)
+
+    task_types = list(
+        TaskType.objects.filter(exam_version=exam).order_by("display_order", "name")
+    )
+    blueprint_items: dict[int, object] = {}
+    if blueprint:
+        blueprint_items = {item.task_type_id: item for item in blueprint.items.all()}
+
+    static_variants = (
+        VariantTemplate.objects.filter(
+            exam_version=exam,
+            is_public=True,
+            page__is_public=True,
+        )
+        .select_related("page")
+        .order_by("display_order", "name")
+    )
+
+    type_progress = {}
+    skill_masteries = []
+    if request.user.is_authenticated:
+        type_progress = build_type_progress_map(
+            user=request.user,
+            task_type_ids=[t.id for t in task_types],
+        )
+        skill_masteries = list(
+            SkillMastery.objects.filter(
+                user=request.user,
+                skill__subject=exam.subject,
+            )
+            .select_related("skill")
+            .order_by("-mastery", "skill__name")
+        )
+
+    task_rows = []
+    for task_type in task_types:
+        progress = type_progress.get(task_type.id) if type_progress else None
+        task_rows.append(
+            {
+                "type": task_type,
+                "item": blueprint_items.get(task_type.id),
+                "progress": progress,
+                "progress_pct": int(round((progress.effective_mastery or 0) * 100))
+                if progress
+                else 0,
+            }
+        )
+
+    context = {
+        "exam": exam,
+        "blueprint": blueprint,
+        "task_rows": task_rows,
+        "static_variants": static_variants,
+        "type_progress": type_progress,
+        "skill_masteries": skill_masteries,
+    }
+    return render(request, "exams/detail.html", context)
+
+
+def variant_page(request, slug: str):
+    """Public page that renders a variant by slug with start button."""
+
+    page_qs = VariantPage.objects.select_related(
+        "template",
+        "template__exam_version",
+        "template__exam_version__subject",
+    ).prefetch_related(
+        "template__template_tasks__task__subject",
+        "template__template_tasks__task__type",
+    )
+    page = get_object_or_404(page_qs, slug=slug)
+    if not page.is_public:
+        if not request.user.is_authenticated:
+            return redirect(f"{reverse('accounts:login')}?next={request.path}")
+        allowed = request.user.is_staff or VariantAssignment.objects.filter(
+            template=page.template, user=request.user
+        ).exists()
+        if not allowed:
+            raise Http404("Variant is not available.")
+
+    template = page.template
+    template_tasks = list(
+        template.template_tasks.select_related("task__subject", "task__type", "task").order_by("order")
+    )
+
+    if request.method == "POST" and request.POST.get("action") == "start":
+        if not request.user.is_authenticated:
+            return redirect(f"{reverse('accounts:login')}?next={request.path}")
+        assignment, _ = VariantAssignment.objects.get_or_create(
+            template=template,
+            user=request.user,
+        )
+        active_attempt = (
+            assignment.attempts.filter(completed_at__isnull=True).order_by("attempt_number").first()
+        )
+        try:
+            attempt = active_attempt or variant_services.start_new_attempt(request.user, assignment.id)
+        except drf_exceptions.ValidationError as exc:
+            messages.error(request, str(getattr(exc, "detail", exc)))
+        except drf_exceptions.APIException as exc:
+            messages.error(request, str(getattr(exc, "detail", exc)))
+        else:
+            return redirect("accounts:variant-attempt-solver", attempt_id=attempt.id)
+
+    tasks = []
+    for variant_task in template_tasks:
+        task = variant_task.task
+        display = {
+            "title": getattr(task, "title", "") if task else "",
+            "description": getattr(task, "description", "") if task else "",
+            "rendering_strategy": getattr(task, "rendering_strategy", None) if task else None,
+            "image": task.image.url if getattr(task, "image", None) else None,
+        }
+        tasks.append(
+            {
+                "variant_task": variant_task,
+                "task": task,
+                "order": variant_task.order,
+                "display": display,
+            }
+        )
+
+    tasks.sort(key=lambda entry: entry["order"] or 0)
+
+    context = {
+        "page": page,
+        "template": template,
+        "page_title": page.title or template.name,
+        "page_description": page.description or template.description,
+        "tasks": tasks,
+    }
+    return render(request, "variants/detail.html", context)
 
 
 def tasks_list(request):
@@ -161,7 +341,7 @@ def task_upload(request):
         form = TaskUploadForm()
 
     exam_versions = list(
-        ExamVersion.objects.values("id", "subject_id", "name").order_by(
+        ExamVersion.objects.values("id", "subject_id", "name", "slug", "status").order_by(
             "subject__name", "name"
         )
     )
