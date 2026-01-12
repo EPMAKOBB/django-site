@@ -12,6 +12,7 @@ from .views import (
     TaskTypeListView,
     VariantAssignmentHistoryView,
     VariantAttemptFinalizeView,
+    VariantAttemptHeartbeatView,
     VariantAttemptStartView,
     VariantAttemptDetailView,
     VariantTaskFocusView,
@@ -52,6 +53,11 @@ urlpatterns = [
         "api/variants/attempts/<int:attempt_id>/",
         VariantAttemptDetailView.as_view(),
         name="variant-attempt-detail",
+    ),
+    path(
+        "api/variants/attempts/<int:attempt_id>/heartbeat/",
+        VariantAttemptHeartbeatView.as_view(),
+        name="variant-attempt-heartbeat",
     ),
     path(
         "api/variants/attempts/<int:attempt_id>/tasks/<int:variant_task_id>/submit/",

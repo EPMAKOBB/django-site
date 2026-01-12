@@ -1,0 +1,23 @@
+{% load i18n %}
+<section class="section exams-intro">
+  <div class="container">
+    <div class="block block--futuristic">
+      <h3 class="section-title">{% trans "Персональный тест" %}</h3>
+      <p class="muted lead">
+        {% blocktrans trimmed %}
+        Фрактал — это система, которая идеально подбирает под вас задачи для самой эффективной подготовки.
+        Выберите предмет и начните:
+        {% endblocktrans %}
+      </p>
+      <div class="formats exam-options">
+        {% for exam in active_exams %}
+          {% with exam_slug=exam.slug|default:exam.name|slugify %}
+            <a class="btn" href="/exams/{{ exam_slug }}/">{{ exam.subject.name }} {{ exam.name }}</a>
+          {% endwith %}
+        {% empty %}
+          <p class="muted">{% trans "Скоро появятся экзамены." %}</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>

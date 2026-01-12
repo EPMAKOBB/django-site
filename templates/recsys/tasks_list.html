@@ -74,7 +74,7 @@
                     {{ preview|safe }}
                   </div>
                 {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
-                  <div class="mt-8 task-description" data-format="markdown">
+                  <div class="mt-8 task-description markdown-content" data-format="markdown">
                     {{ preview|render_markdown }}
                   </div>
                 {% else %}
@@ -88,7 +88,7 @@
                 {{ task.description|safe }}
               </div>
             {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
-              <div class="mt-8 task-description" data-format="markdown">
+              <div class="mt-8 task-description markdown-content" data-format="markdown">
                 {{ task.description|render_markdown }}
               </div>
             {% else %}

@@ -11,24 +11,32 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
+import html
 import hashlib
 from typing import Any, Iterable, List, Optional, Mapping
 
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Sum
 from django.utils import timezone
+from django.utils.text import slugify
+import markdown
 from rest_framework import exceptions
 
 from apps.recsys.forms import compare_answers
 from apps.recsys.models import (
+    ExamBlueprint,
+    ExamScoreScale,
     Task,
     TaskType,
     VariantAssignment,
     VariantAttempt,
+    VariantPage,
+    VariantTemplate,
     VariantTask,
     VariantTaskAttempt,
     VariantTaskTimeLog,
 )
+from apps.recsys.recommendation import recommend_tasks
 from . import task_generation
 
 
@@ -44,6 +52,26 @@ TASK_ATTEMPTS_PREFETCH = Prefetch(
     ),
 )
 
+_MARKDOWN_EXTENSIONS = [
+    "markdown.extensions.extra",
+    "markdown.extensions.sane_lists",
+]
+
+
+def _render_task_body(description: str, rendering_strategy: str | None) -> str:
+    if not description:
+        return ""
+    if rendering_strategy == Task.RenderingStrategy.MARKDOWN:
+        return markdown.markdown(
+            description,
+            extensions=_MARKDOWN_EXTENSIONS,
+            output_format="html5",
+        )
+    if rendering_strategy == Task.RenderingStrategy.HTML:
+        return description
+    escaped = html.escape(description)
+    return escaped.replace("\n", "<br>")
+
 ATTEMPTS_PREFETCH = Prefetch(
     "attempts",
     queryset=VariantAttempt.objects.order_by("attempt_number").prefetch_related(
@@ -51,10 +79,238 @@ ATTEMPTS_PREFETCH = Prefetch(
     ),
 )
 
+
+def ensure_variant_page(template: VariantTemplate, *, is_public: bool | None = None) -> VariantPage:
+    """Return existing VariantPage for template or create one with a unique slug."""
+
+    desired_public = template.is_public if is_public is None else is_public
+    base_slug = template.slug or slugify(template.name or "") or f"variant-{template.id}"
+    if not base_slug:
+        base_slug = f"variant-{template.id}"
+    slug_candidate = base_slug
+    suffix = 2
+    while VariantPage.objects.filter(slug=slug_candidate).exclude(template=template).exists():
+        slug_candidate = f"{base_slug}-{suffix}"
+        suffix += 1
+
+    defaults = {
+        "slug": slug_candidate,
+        "title": template.name or "",
+        "description": template.description or "",
+        "is_public": desired_public,
+    }
+    page, created = VariantPage.objects.get_or_create(template=template, defaults=defaults)
+    updates: dict[str, object] = {}
+    if not created:
+        if desired_public is not None and page.is_public != desired_public:
+            updates["is_public"] = desired_public
+        if not page.title and defaults["title"]:
+            updates["title"] = defaults["title"]
+        if not page.description and defaults["description"]:
+            updates["description"] = defaults["description"]
+    if updates:
+        for field, value in updates.items():
+            setattr(page, field, value)
+        page.save(update_fields=list(updates.keys()) + ["updated_at"])
+    return page
+
 ASSIGNMENT_TEMPLATE_PREFETCH = Prefetch(
     "assignment__template__template_tasks",
     queryset=VariantTask.objects.select_related("task").order_by("order"),
 )
+ 
+def _get_active_blueprint(exam_version):
+    return (
+        ExamBlueprint.objects.filter(exam_version=exam_version, is_active=True)
+        .select_related("exam_version", "subject")
+        .prefetch_related("items__task_type")
+        .order_by("-updated_at", "-id")
+        .first()
+    )
+
+
+def _count_task_types(template_tasks: Iterable[VariantTask]) -> dict[int, int]:
+    counts: dict[int, int] = {}
+    for variant_task in template_tasks:
+        task = variant_task.task
+        if not task or not task.type_id:
+            continue
+        counts[int(task.type_id)] = counts.get(int(task.type_id), 0) + 1
+    return counts
+
+
+def template_matches_blueprint(template: VariantTemplate) -> tuple[bool, ExamBlueprint | None]:
+    exam_version = template.exam_version
+    if not exam_version:
+        return False, None
+    blueprint = _get_active_blueprint(exam_version)
+    if blueprint is None:
+        return False, None
+
+    template_tasks = list(
+        template.template_tasks.select_related("task__type").all()
+    )
+    for variant_task in template_tasks:
+        task = variant_task.task
+        if not task or task.exam_version_id != exam_version.id:
+            return False, blueprint
+
+    blueprint_counts = {
+        int(item.task_type_id): int(item.count or 0)
+        for item in blueprint.items.all()
+    }
+    template_counts = _count_task_types(template_tasks)
+    return template_counts == blueprint_counts, blueprint
+
+
+def get_active_score_scale(exam_version) -> ExamScoreScale | None:
+    if not exam_version:
+        return None
+    return (
+        ExamScoreScale.objects.filter(exam_version=exam_version, is_active=True)
+        .order_by("-updated_at", "-id")
+        .first()
+    )
+
+
+def calculate_attempt_primary_summary(attempt: VariantAttempt) -> dict:
+    template_tasks = list(
+        attempt.assignment.template.template_tasks.select_related("task").all()
+    )
+    primary_max_total = 0
+    for variant_task in template_tasks:
+        task = variant_task.task
+        if task:
+            primary_max_total += task.get_max_score()
+
+    latest_attempts: dict[int, VariantTaskAttempt] = {}
+    for task_attempt in attempt.task_attempts.all():
+        if task_attempt.attempt_number <= 0:
+            continue
+        prev = latest_attempts.get(task_attempt.variant_task_id)
+        if prev is None or task_attempt.attempt_number > prev.attempt_number:
+            latest_attempts[task_attempt.variant_task_id] = task_attempt
+
+    primary_total = 0
+    for attempt_entry in latest_attempts.values():
+        if attempt_entry.score is None:
+            continue
+        try:
+            primary_total += int(attempt_entry.score)
+        except (TypeError, ValueError):
+            continue
+
+    success_percent = (
+        round((primary_total / primary_max_total) * 100, 1)
+        if primary_max_total
+        else 0.0
+    )
+
+    return {
+        "primary_total": primary_total,
+        "primary_max_total": primary_max_total,
+        "success_percent": success_percent,
+    }
+
+def build_personal_assignment_from_blueprint(*, user, exam_version):
+    """Create a personal assignment based on the active exam blueprint."""
+
+    blueprint = _get_active_blueprint(exam_version)
+    if blueprint is None:
+        raise exceptions.ValidationError("Нет активного чертежа экзамена.")
+
+    items = list(blueprint.items.select_related("task_type").order_by("order", "id"))
+    if not items:
+        raise exceptions.ValidationError("Чертёж не содержит типов заданий.")
+
+    recommended = recommend_tasks(user)
+    recommended_by_type: dict[int, list[int]] = {}
+    for task in recommended:
+        if task.exam_version_id != exam_version.id or task.type_id is None:
+            continue
+        recommended_by_type.setdefault(int(task.type_id), []).append(int(task.id))
+
+    selected_tasks: list[Task] = []
+    used_task_ids: set[int] = set()
+    for item in items:
+        needed = max(1, int(item.count or 0))
+        selected_ids: list[int] = []
+
+        for tid in recommended_by_type.get(int(item.task_type_id), []):
+            if tid in used_task_ids:
+                continue
+            selected_ids.append(tid)
+            used_task_ids.add(tid)
+            if len(selected_ids) >= needed:
+                break
+
+        if len(selected_ids) < needed:
+            fallback_qs = (
+                Task.objects.filter(type=item.task_type, exam_version=exam_version)
+                .exclude(id__in=used_task_ids)
+                .order_by("-difficulty_level", "id")
+            )
+            for tid in fallback_qs.values_list("id", flat=True)[: needed - len(selected_ids)]:
+                selected_ids.append(int(tid))
+                used_task_ids.add(int(tid))
+
+        task_map = {t.id: t for t in Task.objects.filter(id__in=selected_ids)}
+        for tid in selected_ids:
+            task = task_map.get(tid)
+            if task:
+                selected_tasks.append(task)
+
+    if not selected_tasks:
+        raise exceptions.ValidationError("Не удалось подобрать задания для варианта.")
+
+    now = timezone.now()
+    existing_assignments = (
+        VariantAssignment.objects.filter(
+            user=user,
+            template__exam_version=exam_version,
+            template__kind=VariantTemplate.Kind.PERSONAL,
+        )
+        .select_related("template")
+        .prefetch_related(ATTEMPTS_PREFETCH)
+        .order_by("-created_at")
+    )
+    for assignment in existing_assignments:
+        if assignment.deadline and assignment.deadline < now:
+            continue
+        if _active_attempts(assignment):
+            ensure_variant_page(assignment.template, is_public=False)
+            return assignment
+        attempts_left = _attempts_left(assignment)
+        if attempts_left is None or attempts_left > 0:
+            ensure_variant_page(assignment.template, is_public=False)
+            return assignment
+
+    timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
+    variant_name = f"Персональный вариант {exam_version.name} {user.id}-{timestamp}"
+    with transaction.atomic():
+        template = VariantTemplate.objects.create(
+            name=variant_name,
+            description=f"Сформирован из чертежа {blueprint.title or blueprint.pk}",
+            exam_version=exam_version,
+            time_limit=blueprint.time_limit,
+            max_attempts=blueprint.max_attempts,
+            kind=VariantTemplate.Kind.PERSONAL,
+            is_public=False,
+            display_order=0,
+        )
+        for order, task in enumerate(selected_tasks, start=1):
+            VariantTask.objects.create(
+                template=template,
+                task=task,
+                order=order,
+                max_attempts=None,
+            )
+        assignment = VariantAssignment.objects.create(
+            template=template,
+            user=user,
+        )
+        ensure_variant_page(template, is_public=False)
+    return assignment
 
 
 def _as_list(value):
@@ -233,9 +489,11 @@ def _ensure_time_limit_allows_submission(attempt: VariantAttempt) -> None:
     time_limit = attempt.assignment.template.time_limit
     if not time_limit:
         return
-    elapsed = timezone.now() - attempt.started_at
+    now = timezone.now()
+    elapsed = now - attempt.started_at
     if elapsed > time_limit:
-        raise exceptions.ValidationError("Время на выполнение попытки истекло")
+        _apply_attempt_timeout(attempt, now=now)
+        raise exceptions.ValidationError("Attempt time limit exceeded.")
 
 
 @transaction.atomic
@@ -288,12 +546,16 @@ def set_active_task(user, attempt_id: int, variant_task_id: int) -> VariantAttem
     except VariantAttempt.DoesNotExist as exc:
         raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
 
+    now = timezone.now()
+    if _apply_attempt_timeout(attempt, now=now):
+        return attempt
     _ensure_active_attempt(attempt)
     _ensure_time_limit_allows_submission(attempt)
+    if not _should_track_time(attempt):
+        return attempt
 
     assignment = attempt.assignment
     variant_task = _validate_variant_task(assignment, variant_task_id)
-    now = timezone.now()
 
     # If the same task is already active but timer is missing, restart it.
     if attempt.active_variant_task_id == variant_task.id:
@@ -450,6 +712,40 @@ def _sum_logged_duration(attempt: VariantAttempt, variant_task: VariantTask) -> 
     return total if total != timedelta(0) else None
 
 
+def _get_time_spent_map(attempt: VariantAttempt) -> dict[int, timedelta]:
+    totals = (
+        VariantTaskTimeLog.objects.filter(
+            variant_attempt=attempt,
+            duration__isnull=False,
+        )
+        .values("variant_task_id")
+        .annotate(total=Sum("duration"))
+    )
+    return {row["variant_task_id"]: row["total"] for row in totals if row["total"]}
+
+
+def _should_track_time(attempt: VariantAttempt) -> bool:
+    return bool(attempt.assignment.template.time_limit)
+
+
+def _apply_attempt_timeout(attempt: VariantAttempt, *, now=None) -> bool:
+    time_limit = attempt.assignment.template.time_limit
+    if not time_limit or attempt.completed_at is not None:
+        return False
+    now = now or timezone.now()
+    if now - attempt.started_at <= time_limit:
+        return False
+    _stop_active_task_timer(
+        attempt,
+        reason=VariantTaskTimeLog.StopReason.ATTEMPT_TIMEOUT,
+        now=now,
+        auto=True,
+    )
+    attempt.time_spent = time_limit
+    attempt.mark_completed()
+    return True
+
+
 def _stop_active_task_timer(
     attempt: VariantAttempt,
     *,
@@ -458,6 +754,8 @@ def _stop_active_task_timer(
     only_if_task: VariantTask | None = None,
     auto: bool = False,
 ) -> None:
+    if not _should_track_time(attempt):
+        return
     if attempt.active_variant_task_id is None or attempt.active_started_at is None:
         return
     if only_if_task and attempt.active_variant_task_id != only_if_task.id:
@@ -481,6 +779,8 @@ def _stop_active_task_timer(
 
 
 def _start_task_timer(attempt: VariantAttempt, variant_task: VariantTask, *, now=None) -> None:
+    if not _should_track_time(attempt):
+        return
     now = now or timezone.now()
     attempt.active_variant_task = variant_task
     attempt.active_started_at = now
@@ -893,13 +1193,42 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
 
 def get_attempt_with_prefetch(user, attempt_id: int) -> VariantAttempt:
     try:
-        return (
+        attempt = (
             VariantAttempt.objects.select_related("assignment__template")
             .prefetch_related(TASK_ATTEMPTS_PREFETCH, ASSIGNMENT_TEMPLATE_PREFETCH)
             .get(pk=attempt_id, assignment__user=user)
         )
     except VariantAttempt.DoesNotExist as exc:
-        raise exceptions.NotFound("Попытка не найдена") from exc
+        raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
+    _apply_attempt_timeout(attempt)
+    return attempt
+
+
+@transaction.atomic
+def heartbeat_attempt(
+    user,
+    attempt_id: int,
+    *,
+    client_id=None,
+) -> VariantAttempt:
+    try:
+        attempt = (
+            VariantAttempt.objects.select_for_update()
+            .select_related("assignment__template")
+            .get(pk=attempt_id, assignment__user=user)
+        )
+    except VariantAttempt.DoesNotExist as exc:
+        raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
+
+    now = timezone.now()
+    update_fields = ["last_seen_at", "updated_at"]
+    attempt.last_seen_at = now
+    if client_id and attempt.active_client_id != client_id:
+        attempt.active_client_id = client_id
+        update_fields.append("active_client_id")
+    attempt.save(update_fields=update_fields)
+    _apply_attempt_timeout(attempt, now=now)
+    return attempt
 
 
 def get_assignment_history(user, assignment_id: int) -> VariantAssignment:
@@ -939,13 +1268,34 @@ def calculate_assignment_progress(assignment: VariantAssignment) -> dict:
 
 
 def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
-    template_tasks = list(attempt.assignment.template.template_tasks.all())
+    template_tasks = list(
+        attempt.assignment.template.template_tasks.select_related("task__type").all()
+    )
     attempts_map: dict[int, list[VariantTaskAttempt]] = {}
     for task_attempt in attempt.task_attempts.all():
         attempts_map.setdefault(task_attempt.variant_task_id, []).append(task_attempt)
+    time_spent_map = _get_time_spent_map(attempt)
 
     progress = []
     for variant_task in template_tasks:
+        task_type_name = None
+        answer_schema = None
+        rendering_strategy = None
+        task_body_html = ""
+        max_score = None
+        if variant_task.task and variant_task.task.type:
+            task_type_name = variant_task.task.type.name
+        if variant_task.task:
+            rendering_strategy = variant_task.task.rendering_strategy
+            max_score = variant_task.task.get_max_score()
+        if variant_task.task:
+            schema = variant_task.task.get_answer_schema()
+            if schema:
+                answer_schema = {
+                    "id": schema.id,
+                    "name": schema.name,
+                    "config": schema.config or {},
+                }
         task_attempts = attempts_map.get(variant_task.id, [])
         generated_snapshot = None
         saved_response = None
@@ -968,12 +1318,30 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
             for attempt in task_attempts
             if attempt.attempt_number > 0
         ]
-        aggregated_time = _sum_logged_duration(attempt, variant_task)
+        aggregated_time = time_spent_map.get(variant_task.id)
+        if generated_snapshot:
+            rendering_strategy = (
+                generated_snapshot.get("rendering_strategy")
+                or rendering_strategy
+            )
+            desc = (
+                generated_snapshot.get("description")
+                or generated_snapshot.get("content", {}).get("statement")
+                or ""
+            )
+            if desc:
+                task_body_html = _render_task_body(desc, rendering_strategy)
+
         progress.append(
             {
                 "variant_task_id": variant_task.id,
                 "task_id": variant_task.task_id,
                 "order": variant_task.order,
+                "task_type_name": task_type_name,
+                "answer_schema": answer_schema,
+                "task_rendering_strategy": rendering_strategy,
+                "task_body_html": task_body_html,
+                "max_score": max_score,
                 "max_attempts": variant_task.max_attempts,
                 "attempts": actual_attempts,
                 "attempts_used": len(actual_attempts),

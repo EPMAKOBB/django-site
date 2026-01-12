@@ -984,9 +984,42 @@
       }
 
       setupAutoAdvance(cfg);
+      setupPasteFill(rows, cols);
       syncAnswerPayload();
       Array.from(fields.querySelectorAll("input")).forEach((input) => {
         input.addEventListener("input", syncAnswerPayload);
+      });
+    }
+
+    function setupPasteFill(rows, cols) {
+      if (!fields) return;
+      const inputs = Array.from(fields.querySelectorAll("input.answer-input"));
+      if (!inputs.length) return;
+      const total = Math.max(1, rows * cols);
+
+      const tokenize = (text) => {
+        return text
+          .replace(/\r\n/g, "\n")
+          .replace(/\t/g, " ")
+          .split(/[\s,;]+/)
+          .map((v) => v.trim())
+          .filter((v) => v.length);
+      };
+
+      inputs.forEach((input, idx) => {
+        input.addEventListener("paste", (e) => {
+          const raw = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+          const tokens = tokenize(raw);
+          if (tokens.length <= 1) return;
+          e.preventDefault();
+          let cursor = idx;
+          tokens.forEach((token) => {
+            if (cursor >= total) return;
+            if (inputs[cursor]) inputs[cursor].value = token;
+            cursor += 1;
+          });
+          syncAnswerPayload();
+        });
       });
     }
 

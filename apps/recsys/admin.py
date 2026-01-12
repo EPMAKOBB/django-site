@@ -8,28 +8,34 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.html import format_html
 from django.utils.text import slugify
 
+from subjects.models import Subject
+
 from .models import (
-    Skill,
-    TaskTag,
-    TaskType,
-    Task,
-    TaskAttachment,
-    Source,
-    SourceVariant,
-    TaskSkill,
+    Attempt,
+    ExamBlueprint,
+    ExamBlueprintItem,
+    ExamScoreScale,
     ExamVersion,
+    RecommendationLog,
+    Skill,
     SkillGroup,
     SkillGroupItem,
-    Attempt,
     SkillMastery,
+    Source,
+    SourceVariant,
+    Task,
+    TaskAttachment,
+    TaskPreGeneratedDataset,
+    TaskSkill,
+    TaskTag,
+    TaskType,
     TypeMastery,
-    RecommendationLog,
-    VariantTemplate,
-    VariantTask,
     VariantAssignment,
     VariantAttempt,
+    VariantTask,
     VariantTaskAttempt,
-    TaskPreGeneratedDataset,
+    VariantTemplate,
+    VariantPage,
 )
 from .service_utils import pregenerated_import, task_generation
 
@@ -395,11 +401,89 @@ class SkillGroupInline(admin.TabularInline):
 @admin.register(ExamVersion)
 class ExamVersionAdmin(admin.ModelAdmin):
     inlines = [SkillGroupInline]
-    list_display = ("name", "subject")
-    list_filter = ("subject",)
+    list_display = ("name", "slug", "status", "subject")
+    list_filter = ("subject", "status")
+    search_fields = ("name", "slug", "subject__name")
+
+
+@admin.register(ExamScoreScale)
+class ExamScoreScaleAdmin(admin.ModelAdmin):
+    list_display = ("exam_version", "max_primary", "is_active", "updated_at")
+    list_filter = ("is_active", "exam_version__subject")
+    search_fields = ("exam_version__name", "exam_version__subject__name")
+    formfield_overrides = {
+        django_models.JSONField: {
+            "widget": forms.Textarea(attrs={"rows": 6, "cols": 80}),
+        }
+    }
 
 
 admin.site.register(TaskSkill)
+
+
+class ExamBlueprintItemInline(admin.TabularInline):
+    model = ExamBlueprintItem
+    extra = 1
+    ordering = ("order",)
+    autocomplete_fields = ("task_type",)
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related(
+                "blueprint",
+                "blueprint__subject",
+                "blueprint__exam_version",
+                "blueprint__exam_version__subject",
+                "task_type",
+                "task_type__subject",
+                "task_type__exam_version",
+                "task_type__exam_version__subject",
+            )
+        )
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "task_type":
+            kwargs["queryset"] = TaskType.objects.select_related(
+                "exam_version",
+                "exam_version__subject",
+                "subject",
+            ).order_by("subject__name", "exam_version__name", "display_order", "name")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(ExamBlueprint)
+class ExamBlueprintAdmin(admin.ModelAdmin):
+    inlines = [ExamBlueprintItemInline]
+    list_display = ("exam_version", "subject", "is_active", "time_limit", "max_attempts")
+    list_filter = ("is_active", "subject")
+    search_fields = ("exam_version__name", "subject__name")
+    list_select_related = ("exam_version", "subject")
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("exam_version", "exam_version__subject", "subject")
+        )
+
+    def get_object(self, request, object_id, from_field=None):
+        cache_key = "_cached_exam_blueprint_obj"
+        if object_id and hasattr(request, cache_key):
+            return getattr(request, cache_key)
+        obj = super().get_object(request, object_id, from_field=from_field)
+        setattr(request, cache_key, obj)
+        return obj
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "exam_version":
+            kwargs["queryset"] = ExamVersion.objects.select_related("subject").order_by(
+                "subject__name", "name"
+            )
+        elif db_field.name == "subject":
+            kwargs["queryset"] = Subject.objects.order_by("name")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 @admin.register(Attempt)
@@ -423,6 +507,13 @@ admin.site.register(TypeMastery)
 admin.site.register(RecommendationLog)
 
 
+@admin.register(VariantPage)
+class VariantPageAdmin(admin.ModelAdmin):
+    list_display = ("slug", "template", "is_public", "updated_at")
+    list_filter = ("is_public",)
+    search_fields = ("slug", "template__name")
+
+
 class VariantTaskInline(admin.TabularInline):
     model = VariantTask
     extra = 1
@@ -432,9 +523,19 @@ class VariantTaskInline(admin.TabularInline):
 @admin.register(VariantTemplate)
 class VariantTemplateAdmin(admin.ModelAdmin):
     inlines = [VariantTaskInline]
-    list_display = ("name", "time_limit", "max_attempts", "created_at")
-    search_fields = ("name",)
-    ordering = ("name",)
+    list_display = (
+        "name",
+        "exam_version",
+        "kind",
+        "is_public",
+        "display_order",
+        "time_limit",
+        "max_attempts",
+        "created_at",
+    )
+    search_fields = ("name", "exam_version__name", "slug")
+    list_filter = ("exam_version", "kind", "is_public")
+    ordering = ("display_order", "name")
 
 
 @admin.register(VariantTask)

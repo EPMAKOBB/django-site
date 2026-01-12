@@ -145,7 +145,7 @@
                     {{ current_item.theory_card.content|safe }}
                   </div>
                 {% elif current_item.theory_card.content_format == current_item.theory_card.ContentFormat.MARKDOWN %}
-                  <div class="module-detail__theory" data-format="markdown">
+                  <div class="module-detail__theory markdown-content" data-format="markdown">
                     {{ current_item.theory_card.content|render_markdown }}
                   </div>
                 {% else %}
@@ -178,7 +178,7 @@
                               {{ display.description|safe }}
                             </div>
                           {% elif display.rendering_strategy == current_item.task.RenderingStrategy.MARKDOWN %}
-                            <div class="module-detail__task-description" data-format="markdown">
+                            <div class="module-detail__task-description markdown-content" data-format="markdown">
                               {{ display.description|render_markdown }}
                             </div>
                           {% else %}
@@ -192,7 +192,7 @@
                               {{ current_item.task.description|safe }}
                             </div>
                           {% elif current_item.task.rendering_strategy == current_item.task.RenderingStrategy.MARKDOWN %}
-                            <div class="module-detail__task-description" data-format="markdown">
+                            <div class="module-detail__task-description markdown-content" data-format="markdown">
                               {{ current_item.task.description|render_markdown }}
                             </div>
                           {% else %}

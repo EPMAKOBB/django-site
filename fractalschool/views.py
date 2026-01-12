@@ -2,6 +2,7 @@ from django.views.generic import TemplateView
 
 from applications.forms import ApplicationForm
 from applications.utils import get_application_price
+from apps.recsys.models import ExamVersion
 
 
 class HomeView(TemplateView):
@@ -22,5 +23,9 @@ class HomeView(TemplateView):
 
         context["subjects_count"] = subjects_count
         context["application_price"] = get_application_price(subjects_count)
+        context["active_exams"] = (
+            ExamVersion.objects.filter(status=ExamVersion.Status.ACTIVE)
+            .select_related("subject")
+            .order_by("subject__name", "name")
+        )
         return context
-
