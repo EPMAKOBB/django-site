@@ -337,6 +337,22 @@ class Task(TimeStampedModel):
     )
     is_dynamic = models.BooleanField(default=False)
 
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        REVIEW = "review", "Review"
+        CHANGES_REQUESTED = "changes_requested", "Changes requested"
+        APPROVED = "approved", "Approved"
+        SCHEDULED = "scheduled", "Scheduled"
+        PUBLISHED = "published", "Published"
+        ARCHIVED = "archived", "Archived"
+        REJECTED = "rejected", "Rejected"
+
+    status = models.CharField(
+        max_length=32,
+        choices=Status.choices,
+        default=Status.DRAFT,
+    )
+
     class DynamicMode(models.TextChoices):
         GENERATOR = "generator", "Generator"
         PRE_GENERATED = "pre_generated", "Pre-generated pool"
@@ -368,7 +384,8 @@ class Task(TimeStampedModel):
     class Meta:
         unique_together = ("subject", "exam_version", "type", "title")
         indexes = [
-            models.Index(fields=["subject", "exam_version", "type", "title"])
+            models.Index(fields=["subject", "exam_version", "type", "title"]),
+            models.Index(fields=["status"]),
         ]
 
     def __str__(self) -> str:

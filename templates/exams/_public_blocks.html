@@ -1,0 +1,88 @@
+{% load i18n %}
+
+<div class="exam-card__section">
+  <div class="exam-panel">
+    <h3>{% trans "Составить персональный вариант" %}</h3>
+    <p class="muted">
+      {% trans "Соберем вариант на основе вашей текущей статистики." %}
+    </p>
+    {% if blueprint %}
+      <div id="exam-auth-alert" class="alert alert-warning" style="display:none;">
+        {% trans "Чтобы составить персональный вариант, войдите или зарегистрируйтесь." %}
+        <a href="{% url 'accounts:login' %}">{% trans "Войти" %}</a>
+        {% trans "или" %}
+        <a href="{% url 'accounts:signup' %}">{% trans "создать аккаунт" %}</a>.
+      </div>
+      <form method="post" class="mb-16" data-exam-personal-form data-auth="{{ is_authenticated|yesno:'1,0' }}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="build_personal">
+        <button type="submit" class="btn btn-large btn-primary" style="display:block;margin:0 auto;">
+          {% trans "Составить персональный вариант" %}
+        </button>
+      </form>
+    {% else %}
+      <div class="alert alert-warning">
+        {% trans "Пока нет активной спецификации экзамена." %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<section class="section">
+  <div class="container">
+    <h3 class="section-title">{% trans "Готовые варианты" %}</h3>
+    {% if static_variants %}
+      <div class="variant-buttons">
+        {% for variant in static_variants %}
+          {% if variant.page %}
+            <a class="btn btn-secondary btn-large" href="{% url 'variant-page' variant.page.slug %}">{{ variant.name }}</a>
+          {% else %}
+            <button class="btn btn-secondary btn-large" disabled>{{ variant.name }}</button>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">{% trans "Готовых вариантов пока нет." %}</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <h3 class="section-title">{% trans "Типы заданий" %}</h3>
+    {% if blueprint and type_rows %}
+      <div class="types-grid">
+        {% for row in type_rows %}
+          <div class="type-card" data-type-id="{{ row.type.id }}">
+            <div class="type-card__header">
+              <div class="type-card__title">
+                <span class="type-card__name">{{ row.type.name }}</span>{% if row.type.description %}: <span class="type-card__desc">{{ row.type.description }}</span>{% endif %}
+              </div>
+              <div class="type-card__pct">
+                {% if is_authenticated %}
+                  <span class="type-card__pct-value">0%</span>
+                {% else %}
+                  <span class="type-card__pct-muted">—</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="progress-bar">
+              <div class="fill" style="width:0%;"></div>
+            </div>
+            {% if row.required_tags %}
+              <div class="type-tags">
+                {% for tag in row.required_tags %}
+                  <span class="type-tag" data-tag-id="{{ tag.id }}" style="--tag-progress:0%;">
+                    <span class="type-tag__label">{{ tag.name }}</span>
+                  </span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">{% trans "Пока нет типов заданий для этого экзамена." %}</p>
+    {% endif %}
+  </div>
+</section>

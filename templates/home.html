@@ -1,9 +1,14 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
-{% block title %}{% trans "Fractal School — главная" %}{% endblock %}
+{% block title %}[Ф] Фрактал — подготовка к ЕГЭ и ОГЭ{% endblock %}
 
 {% block content %}
+<section class="section">
+  <div class="container">
+    <h1 class="section-title">Подготовка к ЕГЭ и ОГЭ по информатике, математике и физике</h1>
+  </div>
+</section>
   {% include 'partials/exams_intro.html' %}
   {% include 'partials/enroll.html' %}
   {% include 'partials/aboutus.html' %}

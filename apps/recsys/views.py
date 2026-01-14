@@ -6,9 +6,10 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db.models import Case, Count, IntegerField, Value, When
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.template.loader import render_to_string
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as drf_exceptions
@@ -64,9 +65,7 @@ def teacher_user(request, user_id):
     return render(request, "recsys/teacher_user.html", context)
 
 
-def exam_page(request, exam_slug: str):
-    """Public exam landing with personal variant builder."""
-
+def _get_exam_by_slug(exam_slug: str) -> ExamVersion:
     exam_qs = ExamVersion.objects.select_related("subject")
     exam = exam_qs.filter(slug=exam_slug).first()
     if exam is None:
@@ -78,12 +77,13 @@ def exam_page(request, exam_slug: str):
         if fallback is None:
             raise Http404("Exam not found")
         exam = fallback
-    blueprint = (
-        ExamBlueprint.objects.filter(exam_version=exam, is_active=True)
-        .prefetch_related("items__task_type")
-        .order_by("-updated_at", "-id")
-        .first()
-    )
+    return exam
+
+
+def exam_page(request, exam_slug: str):
+    """Public exam landing with personal variant builder."""
+
+    exam = _get_exam_by_slug(exam_slug)
 
     if request.method == "POST" and request.POST.get("action") == "build_personal":
         if not request.user.is_authenticated:
@@ -100,13 +100,22 @@ def exam_page(request, exam_slug: str):
             page = variant_services.ensure_variant_page(assignment.template, is_public=False)
             return redirect("variant-page", slug=page.slug)
 
-    task_types = list(
-        TaskType.objects.filter(exam_version=exam).order_by("display_order", "name")
-    )
-    blueprint_items: dict[int, object] = {}
-    if blueprint:
-        blueprint_items = {item.task_type_id: item for item in blueprint.items.all()}
+    context = {
+        "exam": exam,
+        "exam_slug": exam.slug or exam_slug,
+        "is_authenticated": request.user.is_authenticated,
+    }
+    return render(request, "exams/detail.html", context)
 
+
+def exam_public_blocks(request, exam_slug: str):
+    """Return non-personal exam blocks (builder, static variants, types/tags)."""
+    exam = _get_exam_by_slug(exam_slug)
+    blueprint = (
+        ExamBlueprint.objects.filter(exam_version=exam, is_active=True)
+        .order_by("-updated_at", "-id")
+        .first()
+    )
     static_variants = (
         VariantTemplate.objects.filter(
             exam_version=exam,
@@ -116,46 +125,79 @@ def exam_page(request, exam_slug: str):
         .select_related("page")
         .order_by("display_order", "name")
     )
-
-    type_progress = {}
-    skill_masteries = []
-    if request.user.is_authenticated:
-        type_progress = build_type_progress_map(
-            user=request.user,
-            task_type_ids=[t.id for t in task_types],
+    type_rows = []
+    if blueprint:
+        items = (
+            blueprint.items.select_related("task_type")
+            .prefetch_related("task_type__required_tags")
+            .order_by("order", "id")
         )
-        skill_masteries = list(
-            SkillMastery.objects.filter(
-                user=request.user,
-                skill__subject=exam.subject,
+        for item in items:
+            task_type = item.task_type
+            if not task_type:
+                continue
+            type_rows.append(
+                {
+                    "item": item,
+                    "type": task_type,
+                    "required_tags": tuple(task_type.required_tags.all()),
+                }
             )
-            .select_related("skill")
-            .order_by("-mastery", "skill__name")
-        )
 
-    task_rows = []
-    for task_type in task_types:
-        progress = type_progress.get(task_type.id) if type_progress else None
-        task_rows.append(
-            {
-                "type": task_type,
-                "item": blueprint_items.get(task_type.id),
-                "progress": progress,
-                "progress_pct": int(round((progress.effective_mastery or 0) * 100))
-                if progress
-                else 0,
-            }
-        )
+    html = render_to_string(
+        "exams/_public_blocks.html",
+        {
+            "exam": exam,
+            "blueprint": blueprint,
+            "static_variants": static_variants,
+            "type_rows": type_rows,
+            "is_authenticated": request.user.is_authenticated,
+        },
+        request=request,
+    )
+    return JsonResponse({"html": html})
 
-    context = {
-        "exam": exam,
-        "blueprint": blueprint,
-        "task_rows": task_rows,
-        "static_variants": static_variants,
-        "type_progress": type_progress,
-        "skill_masteries": skill_masteries,
-    }
-    return render(request, "exams/detail.html", context)
+
+def exam_progress_data(request, exam_slug: str):
+    """Return progress data per task type/tag for authenticated users."""
+    if not request.user.is_authenticated:
+        return JsonResponse({"type_progress": {}, "tag_progress": {}})
+
+    exam = _get_exam_by_slug(exam_slug)
+    blueprint = (
+        ExamBlueprint.objects.filter(exam_version=exam, is_active=True)
+        .prefetch_related("items__task_type")
+        .order_by("-updated_at", "-id")
+        .first()
+    )
+    if not blueprint:
+        return JsonResponse({"type_progress": {}, "tag_progress": {}})
+
+    type_ids = list(
+        blueprint.items.values_list("task_type_id", flat=True)
+    )
+    type_progress_map = build_type_progress_map(
+        user=request.user,
+        task_type_ids=type_ids,
+    )
+    type_progress = {}
+    tag_progress = {}
+    for type_id, info in type_progress_map.items():
+        percent = int(round((info.effective_mastery or 0) * 100))
+        type_progress[str(type_id)] = {
+            "percent": percent,
+        }
+        tag_progress[str(type_id)] = {
+            str(entry.tag.id): int(round(entry.ratio * 100))
+            for entry in info.tag_progress
+        }
+
+    return JsonResponse(
+        {
+            "type_progress": type_progress,
+            "tag_progress": tag_progress,
+        }
+    )
 
 
 def variant_page(request, slug: str):

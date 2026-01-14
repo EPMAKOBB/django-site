@@ -17,14 +17,23 @@ Including another URLconf
 import os
 from django.contrib import admin
 from django.urls import include, path
+from django.contrib.sitemaps.views import sitemap
 from django.conf import settings
 from django.conf.urls.static import static
 
 from apps.recsys import views as recsys_views
-from .views import HomeView
+from .views import HomeView, robots_txt
+from .sitemaps import ExamVersionSitemap, StaticViewSitemap
+
+sitemaps = {
+    "static": StaticViewSitemap,
+    "exams": ExamVersionSitemap,
+}
 
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
+    path("robots.txt", robots_txt, name="robots-txt"),
+    path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap"),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path('courses/', include(('courses.urls', 'courses'), namespace='courses')),
@@ -34,6 +43,8 @@ urlpatterns = [
     path('', include('apps.recsys.api.urls')),
 
     path('exams/<slug:exam_slug>/', recsys_views.exam_page, name='exam-page'),
+    path('exams/<slug:exam_slug>/public/', recsys_views.exam_public_blocks, name='exam-public-blocks'),
+    path('exams/<slug:exam_slug>/progress/', recsys_views.exam_progress_data, name='exam-progress-data'),
     path('variants/<slug:slug>/', recsys_views.variant_page, name='variant-page'),
 
     path('recsys/dashboard/', recsys_views.dashboard, name='recsys_dashboard'),
