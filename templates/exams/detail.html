@@ -1,90 +1,101 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{{ exam.subject.name }} — {{ exam.name }}{% endblock %}
+{% block title %}{{ exam.subject.name }} - {{ exam.name }}{% endblock %}
+{% block meta_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к ЕГЭ и ОГЭ.{% endblock %}
+{% block og_title %}{{ exam.subject.name }} — {{ exam.name }} | Фрактал{% endblock %}
+{% block og_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к ЕГЭ и ОГЭ.{% endblock %}
+{% block canonical_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}
+{% block og_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}
+{% block twitter_title %}{{ exam.subject.name }} — {{ exam.name }} | Фрактал{% endblock %}
+{% block twitter_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к ЕГЭ и ОГЭ.{% endblock %}
 
 {% block content %}
 <section class="section">
   <div class="container">
-    <h1 class="section-title">{{ exam.subject.name }} — {{ exam.name }}</h1>
-    {% if blueprint %}
-      <p class="muted">{% trans "Чертёж экзамена найден, можно собрать персональный вариант." %}</p>
-      <form method="post" class="mb-16">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="build_personal">
-        <button type="submit" class="btn btn-large btn-primary" style="display:block;margin:0 auto;">
-          {% trans "Составить персональный вариант" %}
-        </button>
-      </form>
-    {% else %}
-      <div class="alert alert-warning">
-        {% trans "Для этой версии экзамена пока нет активного чертежа." %}
-      </div>
-    {% endif %}
+    <h1 class="section-title">{{ exam.subject.name }} - {{ exam.name }}</h1>
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="exam-page"
+  data-public-url="{% url 'exam-public-blocks' exam_slug %}"
+  data-progress-url="{% url 'exam-progress-data' exam_slug %}"
+  data-auth="{{ is_authenticated|yesno:'1,0' }}">
   <div class="container">
-    <h3 class="section-title">{% trans "Статические варианты" %}</h3>
-    {% if static_variants %}
-      <div class="variant-buttons">
-        {% for variant in static_variants %}
-          {% if variant.page %}
-            <a class="btn btn-secondary btn-large" href="{% url 'variant-page' variant.page.slug %}">{{ variant.name }}</a>
-          {% else %}
-            <button class="btn btn-secondary btn-large" disabled>{{ variant.name }}</button>
-          {% endif %}
-        {% endfor %}
+    <div id="exam-public-blocks">
+      <div class="exam-skeleton exam-card__section">
+        <div class="skeleton skeleton-panel"></div>
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-row"></div>
+        <div class="skeleton skeleton-row"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
       </div>
-    {% else %}
-      <p class="muted">{% trans "Пока нет опубликованных готовых вариантов." %}</p>
-    {% endif %}
-  </div>
-</section>
-
-<section class="section">
-  <div class="container">
-    <h3 class="section-title">{% trans "Типы заданий" %}</h3>
-    {% if task_rows %}
-      <div class="cards-grid">
-        {% for row in task_rows %}
-          <div class="card">
-            <div class="muted">№ {{ row.type.display_order }}</div>
-            <h4>{{ row.type.name }}</h4>
-            {% if row.item %}
-              <p class="hint">{% trans "Вариант" %}: {{ row.item.count }} ×</p>
-              {% if row.item.section %}<p class="hint">{% trans "Часть" %}: {{ row.item.section }}</p>{% endif %}
-            {% endif %}
-            {% if row.progress %}
-              <div class="progress" style="height:6px;">
-                <div class="progress-bar" style="width:{{ row.progress_pct }}%;"></div>
-              </div>
-              <p class="hint">{% trans "Уровень" %}: {{ row.progress.effective_mastery|floatformat:2 }}</p>
-            {% endif %}
-          </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="muted">{% trans "Список типов задач пока пуст." %}</p>
-    {% endif %}
-  </div>
-</section>
-
-{% if skill_masteries %}
-<section class="section">
-  <div class="container">
-    <h3 class="section-title">{% trans "Ваши скиллы" %}</h3>
-    <div class="cards-grid">
-      {% for mastery in skill_masteries %}
-        <div class="card">
-          <h4>{{ mastery.skill.name }}</h4>
-          <p class="hint">{% trans "Уровень" %}: {{ mastery.mastery|floatformat:2 }}</p>
-          <p class="muted">{% trans "Уверенность" %}: {{ mastery.confidence|floatformat:2 }}</p>
-        </div>
-      {% endfor %}
     </div>
   </div>
 </section>
-{% endif %}
+
+<script>
+  (function () {
+    const pageEl = document.getElementById("exam-page");
+    if (!pageEl) return;
+    const publicUrl = pageEl.dataset.publicUrl;
+    const progressUrl = pageEl.dataset.progressUrl;
+    const isAuth = pageEl.dataset.auth === "1";
+    const blocksEl = document.getElementById("exam-public-blocks");
+
+    const bindPersonalForm = () => {
+      const form = blocksEl.querySelector("[data-exam-personal-form]");
+      if (!form) return;
+      const auth = form.dataset.auth === "1";
+      if (auth) return;
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const alertEl = blocksEl.querySelector("#exam-auth-alert");
+        if (alertEl) {
+          alertEl.style.display = "block";
+          alertEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      });
+    };
+
+    const applyProgress = (payload) => {
+      if (!payload) return;
+      const typeProgress = payload.type_progress || {};
+      const tagProgress = payload.tag_progress || {};
+      Object.keys(typeProgress).forEach((typeId) => {
+        const card = blocksEl.querySelector(`[data-type-id="${typeId}"]`);
+        if (!card) return;
+        const pct = typeProgress[typeId].percent || 0;
+        const pctEl = card.querySelector(".type-card__pct-value");
+        if (pctEl) pctEl.textContent = `${pct}%`;
+        const fillEl = card.querySelector(".progress-bar .fill");
+        if (fillEl) fillEl.style.width = `${pct}%`;
+        const tags = tagProgress[typeId] || {};
+        Object.keys(tags).forEach((tagId) => {
+          const chip = card.querySelector(`[data-tag-id="${tagId}"]`);
+          if (chip) {
+            chip.style.setProperty("--tag-progress", `${tags[tagId]}%`);
+          }
+        });
+      });
+    };
+
+    fetch(publicUrl, { credentials: "same-origin" })
+      .then((resp) => (resp.ok ? resp.json() : null))
+      .then((payload) => {
+        if (!payload || !payload.html) return;
+        blocksEl.innerHTML = payload.html;
+        bindPersonalForm();
+        if (!isAuth) return;
+        return fetch(progressUrl, { credentials: "same-origin" })
+          .then((resp) => (resp.ok ? resp.json() : null))
+          .then((progressPayload) => applyProgress(progressPayload));
+      })
+      .catch(() => {
+        blocksEl.innerHTML = '<div class="alert alert-warning">{% trans "Не удалось загрузить данные экзамена." %}</div>';
+      });
+  })();
+</script>
 {% endblock %}

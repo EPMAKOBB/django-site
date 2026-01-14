@@ -182,6 +182,7 @@ class TaskAdmin(admin.ModelAdmin):
     list_display = (
         "slug",
         "title",
+        "status",
         "type",
         "subject",
         "source",
@@ -200,6 +201,7 @@ class TaskAdmin(admin.ModelAdmin):
         "source",
         "source_variant",
         "exam_version",
+        "status",
         "is_dynamic",
         "dynamic_mode",
         "rendering_strategy",
@@ -218,6 +220,7 @@ class TaskAdmin(admin.ModelAdmin):
                 "fields": (
                     "slug",
                     "title",
+                    "status",
                     "subject",
                     "exam_version",
                     "type",

@@ -1,3 +1,4 @@
+from django.http import HttpResponse
 from django.views.generic import TemplateView
 
 from applications.forms import ApplicationForm
@@ -29,3 +30,19 @@ class HomeView(TemplateView):
             .order_by("subject__name", "name")
         )
         return context
+
+
+def robots_txt(request):
+    sitemap_url = f"{request.scheme}://{request.get_host()}/sitemap.xml"
+    lines = [
+        "User-agent: *",
+        "Disallow: /admin/",
+        "Disallow: /accounts/",
+        "Disallow: /tasks/",
+        "Disallow: /recsys/",
+        "Disallow: /parser/",
+        "Disallow: /api/",
+        "Allow: /",
+        f"Sitemap: {sitemap_url}",
+    ]
+    return HttpResponse("\n".join(lines), content_type="text/plain")
