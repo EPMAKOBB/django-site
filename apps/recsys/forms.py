@@ -42,6 +42,8 @@ class AnswerFieldMetadata:
     input_type: str | None = None
     step: str | None = None
     choices: tuple[tuple[str, str], ...] = ()
+    required: bool = True
+    blank_value: Any = None
 
 
 def _detect_value_type(sample: Any) -> str:
@@ -90,6 +92,8 @@ def build_answer_fields(correct_answer: Any) -> list[AnswerFieldMetadata]:
         input_type: str | None = "text"
         step: str | None = None
         choices: tuple[tuple[str, str], ...] = ()
+        required = not (sample_value is None or (isinstance(sample_value, str) and sample_value == ""))
+        blank_value: Any = "" if isinstance(sample_value, str) and sample_value == "" else None
 
         if value_type == "boolean":
             widget = "select"
@@ -110,6 +114,8 @@ def build_answer_fields(correct_answer: Any) -> list[AnswerFieldMetadata]:
             input_type=input_type,
             step=step,
             choices=choices,
+            required=required,
+            blank_value=blank_value,
         )
 
     def _walk(node: Any, segments: tuple[AnswerSegment, ...]) -> None:
@@ -138,6 +144,8 @@ def build_answer_fields(correct_answer: Any) -> list[AnswerFieldMetadata]:
 def convert_answer_value(field: AnswerFieldMetadata, raw_value: str) -> Any:
     value = (raw_value or "").strip()
     if not value:
+        if not field.required:
+            return field.blank_value
         raise ValueError(_("Заполните поле «%(label)s».") % {"label": field.label})
 
     if field.value_type == "integer":
@@ -283,7 +291,7 @@ class TaskAnswerForm(forms.Form):
             return forms.ChoiceField(
                 label=meta.label,
                 choices=choices,
-                required=True,
+                required=meta.required,
                 widget=forms.Select(attrs={"id": field_id, "class": "module-detail__answer-input"}),
             )
 
@@ -295,7 +303,7 @@ class TaskAnswerForm(forms.Form):
             widget: forms.Widget = forms.NumberInput(attrs=attrs)
         else:
             widget = forms.TextInput(attrs=attrs)
-        return forms.CharField(label=meta.label, required=True, widget=widget)
+        return forms.CharField(label=meta.label, required=meta.required, widget=widget)
 
     def _build_initial_values(self, answer: Any | None) -> dict[str, Any]:
         if answer is None or not self.answer_fields:
@@ -441,6 +449,27 @@ class TaskUploadForm(forms.ModelForm):
         if type_id:
             self._task_type = TaskType.objects.select_related("answer_schema").filter(id=type_id).first()
 
+        source_id = None
+        try:
+            source_id = int(data.get("source")) if data else None
+        except (TypeError, ValueError):
+            source_id = None
+        if not source_id:
+            initial_source = self.initial.get("source")
+            if initial_source:
+                try:
+                    source_id = int(initial_source)
+                except (TypeError, ValueError):
+                    source_id = None
+        if not source_id and self.instance and self.instance.source_id:
+            source_id = self.instance.source_id
+
+        if "source_variant" in self.fields:
+            variants_qs = SourceVariant.objects.select_related("source").order_by("source__name", "label")
+            if source_id:
+                variants_qs = variants_qs.filter(source_id=source_id)
+            self.fields["source_variant"].queryset = variants_qs
+
         if "tags" in self.fields:
             self.fields["tags"].queryset = TaskTag.objects.select_related("subject").order_by(
                 "subject__name", "name"
@@ -509,6 +538,7 @@ class TaskUploadForm(forms.ModelForm):
         cols = int(cfg.get("cols") or 1)
         input_type = cfg.get("input_type") or "string"
         allow_blank_rows = bool(cfg.get("allow_blank_rows"))
+        allow_blank_cells = bool(cfg.get("allow_blank_cells"))
         per_cell_max_length = cfg.get("per_cell_max_length")
         if per_cell_max_length:
             input_type = "char"
@@ -518,6 +548,10 @@ class TaskUploadForm(forms.ModelForm):
                 per_cell_max_length = 1
 
         def coerce_cell(val: Any, *, row: int, col: int) -> Any:
+            if allow_blank_cells and val in ("", None):
+                if input_type in ("uint", "int", "float"):
+                    return None
+                return ""
             label = f"({row + 1}, {col + 1})"
             return self._coerce_cell(input_type, val, label=label, max_length=per_cell_max_length)
 
