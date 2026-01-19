@@ -45,6 +45,13 @@ a[data-format="markdown"],
 .markdown-content {
   display: block;
 }
+[data-format="markdown"] ol,
+[data-format="markdown"] ul,
+.markdown-content ol,
+.markdown-content ul {
+  list-style-position: outside;
+  padding-left: 2em;
+}
 [data-format="markdown"] table,
 .markdown-content table {
   border-collapse: collapse;
