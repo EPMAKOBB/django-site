@@ -108,6 +108,42 @@ def exam_page(request, exam_slug: str):
     return render(request, "exams/detail.html", context)
 
 
+def _get_exam_type_by_slug(exam: ExamVersion, type_slug: str) -> TaskType:
+    task_type = (
+        TaskType.objects.select_related("subject", "exam_version")
+        .filter(exam_version=exam, slug=type_slug)
+        .first()
+    )
+    if task_type is None:
+        fallback = None
+        for candidate in TaskType.objects.filter(exam_version=exam):
+            if slugify(candidate.name) == type_slug:
+                fallback = candidate
+                break
+        if fallback is None:
+            raise Http404("Task type not found")
+        task_type = fallback
+    return task_type
+
+
+def exam_type_page(request, exam_slug: str, type_slug: str):
+    """Public page that lists tasks for a specific exam task type."""
+    exam = _get_exam_by_slug(exam_slug)
+    task_type = _get_exam_type_by_slug(exam, type_slug)
+    tasks = (
+        Task.objects.filter(type=task_type)
+        .select_related("subject", "exam_version", "type")
+        .prefetch_related("skills")
+        .order_by("id")
+    )
+    context = {
+        "exam": exam,
+        "task_type": task_type,
+        "tasks": tasks,
+    }
+    return render(request, "exams/type_detail.html", context)
+
+
 def exam_public_blocks(request, exam_slug: str):
     """Return non-personal exam blocks (builder, static variants, types/tags)."""
     exam = _get_exam_by_slug(exam_slug)

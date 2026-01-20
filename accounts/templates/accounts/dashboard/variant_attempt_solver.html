@@ -38,9 +38,10 @@
         <header class="solver__task-header">
           <h3 id="solver-task-heading" class="solver__task-title"></h3>
         </header>
-        <div id="solver-task-body" class="solver__task-body">
+        <div id="solver-task-body" class="solver__task-body task-content">
           <p class="muted">{% trans "Загрузка варианта..." %}</p>
         </div>
+        <div id="solver-attachments" class="solver__attachments" hidden></div>
         <footer class="solver__footer">
           <label class="solver__label" for="solver-answer">{% trans "Ответ" %}</label>
           <div id="solver-answer-builder" class="solver__answer-builder" hidden>
@@ -74,6 +75,7 @@
   const answerBuilderEl = document.getElementById("solver-answer-builder");
   const answerFieldsEl = document.getElementById("solver-answer-fields");
   const footerEl = document.querySelector(".solver__footer");
+  const attachmentsEl = document.getElementById("solver-attachments");
   const correctAnswerFieldsEl = document.getElementById("solver-correct-answer-fields");
   const correctAnswerEl = document.getElementById("solver-correct-answer");
   const saveBtn = document.getElementById("solver-save");
@@ -158,6 +160,7 @@
       bodyEl.removeAttribute("data-format");
       bodyEl.classList.remove("markdown-content");
     }
+    renderAttachments(null);
     setFooterVisible(false);
     if (correctAnswerEl) {
       correctAnswerEl.textContent = "";
@@ -225,6 +228,7 @@
     }
     bodyEl.removeAttribute("data-format");
     bodyEl.classList.remove("markdown-content");
+    renderAttachments(null);
     setFooterVisible(false);
     if (correctAnswerEl) {
       correctAnswerEl.textContent = "";
@@ -368,6 +372,7 @@
     bodyEl.innerHTML = metricsHtml + tableHtml + buttonHtml;
     bodyEl.removeAttribute("data-format");
     bodyEl.classList.remove("markdown-content");
+    renderAttachments(null);
     setFooterVisible(false);
     const finishBtn = document.getElementById("solver-finish-finalize");
     if (finishBtn) {
@@ -805,6 +810,7 @@
       bodyEl.classList.remove("markdown-content");
     }
 
+    renderAttachments(task);
     const saved = task.saved_response !== null && task.saved_response !== undefined;
     isSaved = saved;
     isEditing = false;
@@ -824,7 +830,15 @@
     const correctAnswer = task.task_snapshot?.correct_answer;
     if (correctAnswerEl) {
       const wrapper = correctAnswerEl.parentElement;
-      if (correctAnswer !== undefined && correctAnswer !== null) {
+      const showCorrectAnswer = attempt && attempt.completed_at;
+      if (!showCorrectAnswer) {
+        correctAnswerEl.textContent = "";
+        if (correctAnswerFieldsEl) {
+          correctAnswerFieldsEl.innerHTML = "";
+          correctAnswerFieldsEl.hidden = true;
+        }
+        if (wrapper) wrapper.hidden = true;
+      } else if (correctAnswer !== undefined && correctAnswer !== null) {
         if (currentSchema && correctAnswerFieldsEl) {
           buildReadOnlyInputs(currentSchema, correctAnswer);
           correctAnswerFieldsEl.hidden = false;
@@ -905,6 +919,45 @@
     } catch (_) {
       return raw;
     }
+  }
+
+  function renderAttachments(task) {
+    if (!attachmentsEl) return;
+    const attachments = task?.task_snapshot?.attachments;
+    if (!Array.isArray(attachments) || attachments.length === 0) {
+      attachmentsEl.innerHTML = "";
+      attachmentsEl.hidden = true;
+      return;
+    }
+    attachmentsEl.innerHTML = "";
+    const list = document.createElement("ul");
+    list.className = "solver__attachments-list";
+    attachments.forEach((attachment) => {
+      if (!attachment || !attachment.url) return;
+      const li = document.createElement("li");
+      li.className = "solver__attachments-item";
+      const link = document.createElement("a");
+      link.className = "solver__attachments-link";
+      link.href = attachment.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      const icon = document.createElement("span");
+      icon.className = "solver__attachments-icon";
+      icon.innerHTML = "&darr;";
+      const name = document.createElement("span");
+      name.className = "solver__attachments-name";
+      name.textContent = attachment.name || attachment.label || "download";
+      link.appendChild(icon);
+      link.appendChild(name);
+      li.appendChild(link);
+      list.appendChild(li);
+    });
+    if (!list.childElementCount) {
+      attachmentsEl.hidden = true;
+      return;
+    }
+    attachmentsEl.appendChild(list);
+    attachmentsEl.hidden = false;
   }
 
   function cloneValue(value) {
@@ -1073,13 +1126,9 @@
       localTimeLeftSeconds = timeLeft;
     }
     renderStatus("{% trans 'Попытка отправлена' %}", "success");
+    currentVariantTaskId = FINISH_ITEM_ID;
     renderTaskList();
-    if (currentVariantTaskId === FINISH_ITEM_ID) {
-      renderFinishCard();
-    } else if (currentVariantTaskId && currentVariantTaskId !== START_ITEM_ID) {
-      const task = attempt.tasks_progress.find(t => t.variant_task_id === currentVariantTaskId);
-      if (task) renderTask(task);
-    }
+    renderFinishCard();
     setAnswerLocked(true);
     saveBtn.disabled = true;
     finalizeBtn.disabled = true;

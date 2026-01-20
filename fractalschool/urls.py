@@ -45,6 +45,11 @@ urlpatterns = [
     path('exams/<slug:exam_slug>/', recsys_views.exam_page, name='exam-page'),
     path('exams/<slug:exam_slug>/public/', recsys_views.exam_public_blocks, name='exam-public-blocks'),
     path('exams/<slug:exam_slug>/progress/', recsys_views.exam_progress_data, name='exam-progress-data'),
+    path(
+        'exams/<slug:exam_slug>/<slug:type_slug>/',
+        recsys_views.exam_type_page,
+        name='exam-type-page',
+    ),
     path('variants/<slug:slug>/', recsys_views.variant_page, name='variant-page'),
 
     path('recsys/dashboard/', recsys_views.dashboard, name='recsys_dashboard'),

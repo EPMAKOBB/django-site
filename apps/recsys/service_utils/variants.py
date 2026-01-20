@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 import html
 import hashlib
+from pathlib import Path
 from typing import Any, Iterable, List, Optional, Mapping
 
 from django.db import transaction
@@ -27,6 +28,7 @@ from apps.recsys.models import (
     ExamBlueprint,
     ExamScoreScale,
     Task,
+    TaskAttachment,
     TaskType,
     VariantAssignment,
     VariantAttempt,
@@ -54,6 +56,7 @@ TASK_ATTEMPTS_PREFETCH = Prefetch(
 
 _MARKDOWN_EXTENSIONS = [
     "markdown.extensions.extra",
+    "markdown.extensions.md_in_html",
     "markdown.extensions.sane_lists",
 ]
 
@@ -71,6 +74,27 @@ def _render_task_body(description: str, rendering_strategy: str | None) -> str:
         return description
     escaped = html.escape(description)
     return escaped.replace("\n", "<br>")
+
+
+def _build_task_attachments_payload(task: Task) -> list[dict]:
+    attachments_payload: list[dict] = []
+    for attachment in task.attachments.all():
+        if attachment.kind != TaskAttachment.Kind.FILE:
+            continue
+        try:
+            url = attachment.file.url
+        except Exception:
+            continue
+        name = attachment.download_name_override or Path(attachment.file.name).name
+        attachments_payload.append(
+            {
+                "id": attachment.id,
+                "name": name or "download",
+                "label": attachment.label or "",
+                "url": url,
+            }
+        )
+    return attachments_payload
 
 ATTEMPTS_PREFETCH = Prefetch(
     "attempts",
@@ -574,7 +598,9 @@ def set_active_task(user, attempt_id: int, variant_task_id: int) -> VariantAttem
 
 def _materialize_tasks_for_attempt(attempt: VariantAttempt) -> None:
     template_tasks = list(
-        attempt.assignment.template.template_tasks.select_related("task").all()
+        attempt.assignment.template.template_tasks.select_related("task").prefetch_related(
+            "task__attachments"
+        ).all()
     )
     for variant_task in template_tasks:
         snapshot = _generate_task_snapshot(attempt, variant_task)
@@ -603,6 +629,7 @@ def _generate_task_snapshot(
     correct_answer = deepcopy(task.correct_answer or {})
     scoring_scheme = task.get_scoring_scheme()
     max_score = task.get_max_score()
+    attachments = _build_task_attachments_payload(task)
 
     if task.is_dynamic:
         seed = _compute_task_seed(attempt, variant_task)
@@ -645,6 +672,8 @@ def _generate_task_snapshot(
 
             if dataset.meta:
                 snapshot["meta"] = deepcopy(dataset.meta)
+            if attachments:
+                snapshot["attachments"] = attachments
 
             return snapshot
 
@@ -675,6 +704,8 @@ def _generate_task_snapshot(
             snapshot["answers"] = _normalise_answers(generation.answers)
         if generation.meta is not None:
             snapshot["meta"] = dict(generation.meta)
+        if attachments:
+            snapshot["attachments"] = attachments
         return snapshot
 
     snapshot = {
@@ -691,6 +722,8 @@ def _generate_task_snapshot(
     }
     if task.default_payload:
         snapshot["payload"] = deepcopy(task.default_payload)
+    if attachments:
+        snapshot["attachments"] = attachments
     return snapshot
 
 
@@ -1269,7 +1302,9 @@ def calculate_assignment_progress(assignment: VariantAssignment) -> dict:
 
 def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
     template_tasks = list(
-        attempt.assignment.template.template_tasks.select_related("task__type").all()
+        attempt.assignment.template.template_tasks.select_related("task__type").prefetch_related(
+            "task__attachments"
+        ).all()
     )
     attempts_map: dict[int, list[VariantTaskAttempt]] = {}
     for task_attempt in attempt.task_attempts.all():
@@ -1283,11 +1318,13 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
         rendering_strategy = None
         task_body_html = ""
         max_score = None
+        attachments = []
         if variant_task.task and variant_task.task.type:
             task_type_name = variant_task.task.type.name
         if variant_task.task:
             rendering_strategy = variant_task.task.rendering_strategy
             max_score = variant_task.task.get_max_score()
+            attachments = _build_task_attachments_payload(variant_task.task)
         if variant_task.task:
             schema = variant_task.task.get_answer_schema()
             if schema:
@@ -1324,6 +1361,8 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
                 generated_snapshot.get("rendering_strategy")
                 or rendering_strategy
             )
+            if attachments and "attachments" not in generated_snapshot:
+                generated_snapshot["attachments"] = deepcopy(attachments)
             desc = (
                 generated_snapshot.get("description")
                 or generated_snapshot.get("content", {}).get("statement")

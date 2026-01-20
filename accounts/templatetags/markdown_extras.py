@@ -9,6 +9,7 @@ register = template.Library()
 
 _MARKDOWN_EXTENSIONS = [
     "markdown.extensions.extra",
+    "markdown.extensions.md_in_html",
     "markdown.extensions.sane_lists",
 ]
 
