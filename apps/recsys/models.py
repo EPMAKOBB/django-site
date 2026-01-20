@@ -253,13 +253,20 @@ def task_attachment_upload_to(instance: "TaskAttachment", filename: str) -> str:
     exam_slug = _exam_version_slug(task)
     kind_folder = "images" if getattr(instance, "kind", "") == "image" else "files"
 
+    # Allow explicit override for the stored filename (keeps prefix path only).
+    if instance.download_name_override:
+        override_name = os.path.basename(instance.download_name_override.strip())
+        if override_name:
+            override_root, override_ext = os.path.splitext(override_name)
+            if not override_ext:
+                _, original_ext = os.path.splitext(filename)
+                override_name = f"{override_root}{original_ext.lower()}"
+            return f"tasks/{exam_slug}/{kind_folder}/{override_name}"
+
     # Build base name
     base_slug = task.slug or slugify(task.title) or f"task-{task.pk or 'new'}"
     label_part = ""
-    if instance.download_name_override:
-        stem_override = os.path.splitext(instance.download_name_override)[0]
-        label_part = slugify(stem_override)
-    elif instance.label:
+    if instance.label:
         label_part = slugify(instance.label)
     elif instance.order and instance.order > 1:
         label_part = f"{instance.order:02d}"

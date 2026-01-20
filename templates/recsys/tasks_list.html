@@ -71,29 +71,29 @@
             {% with preview=task.render_template_preview %}
               {% if preview %}
                 {% if task.rendering_strategy == task.RenderingStrategy.HTML %}
-                  <div class="mt-8 task-description" data-format="html">
+                  <div class="mt-8 task-description task-content" data-format="html">
                     {{ preview|safe }}
                   </div>
                 {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
-                  <div class="mt-8 task-description markdown-content" data-format="markdown">
+                  <div class="mt-8 task-description markdown-content task-content" data-format="markdown">
                     {{ preview|render_markdown }}
                   </div>
                 {% else %}
-                  <p class="mt-8 task-description" data-format="text">{{ preview|safe }}</p>
+                  <p class="mt-8 task-description task-content" data-format="text">{{ preview|safe }}</p>
                 {% endif %}
               {% endif %}
             {% endwith %}
           {% elif task.description %}
             {% if task.rendering_strategy == task.RenderingStrategy.HTML %}
-              <div class="mt-8 task-description" data-format="html">
+              <div class="mt-8 task-description task-content" data-format="html">
                 {{ task.description|safe }}
               </div>
             {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
-              <div class="mt-8 task-description markdown-content" data-format="markdown">
+              <div class="mt-8 task-description markdown-content task-content" data-format="markdown">
                 {{ task.description|render_markdown }}
               </div>
             {% else %}
-              <p class="mt-8 task-description" data-format="text">{{ task.description|linebreaksbr }}</p>
+              <p class="mt-8 task-description task-content" data-format="text">{{ task.description|linebreaksbr }}</p>
             {% endif %}
           {% endif %}
         </article>

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load i18n markdown_extras %}
+
+{% block title %}{{ exam.subject.name }} - {{ exam.name }} - {% trans "Тип" %} {{ task_type.name }}{% endblock %}
+{% block meta_description %}{{ exam.subject.name }} - {{ exam.name }}. {% trans "Задания типа" %} {{ task_type.name }}.{% endblock %}
+{% block og_title %}{{ exam.subject.name }} - {{ exam.name }} - {% trans "Тип" %} {{ task_type.name }} | Фрактал{% endblock %}
+{% block og_description %}{{ exam.subject.name }} - {{ exam.name }}. {% trans "Задания типа" %} {{ task_type.name }}.{% endblock %}
+{% block canonical_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}
+{% block og_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}
+{% block twitter_title %}{{ exam.subject.name }} - {{ exam.name }} - {% trans "Тип" %} {{ task_type.name }} | Фрактал{% endblock %}
+{% block twitter_description %}{{ exam.subject.name }} - {{ exam.name }}. {% trans "Задания типа" %} {{ task_type.name }}.{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <h1 class="section-title">{{ exam.subject.name }} - {{ exam.name }}</h1>
+    <p class="muted">{% trans "Тип" %} {{ task_type.name }} — {% trans "все задания этого типа" %}.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="grid tasks-grid">
+      {% for task in tasks %}
+        <article class="card task-card">
+          {% if request.user.is_authenticated and request.user.teacherprofile %}
+            <div class="task-card__add">
+              {% include 'accounts/includes/add_to_variant_button.html' with task_id=task.id %}
+            </div>
+          {% endif %}
+          <div class="section-title">{{ task.title }}</div>
+          {% if task.exam_version %}
+            <div class="hint">{{ task.subject.name }} — {{ task.exam_version.name }}</div>
+          {% else %}
+            <div class="hint">{{ task.subject.name }}</div>
+          {% endif %}
+          <div class="mt-8">
+            <span class="chip">{% if task.is_dynamic %}{% trans "Динамическое" %}{% else %}{% trans "Статическое" %}{% endif %}</span>
+            <span class="chip">{% trans "Сложность" %}: {{ task.difficulty_level }}</span>
+          </div>
+          {% if task.uses_pre_generated_data %}
+            {% with preview=task.render_template_preview %}
+              {% if preview %}
+                {% if task.rendering_strategy == task.RenderingStrategy.HTML %}
+                  <div class="mt-8 task-description task-content" data-format="html">
+                    {{ preview|safe }}
+                  </div>
+                {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
+                  <div class="mt-8 task-description markdown-content task-content" data-format="markdown">
+                    {{ preview|render_markdown }}
+                  </div>
+                {% else %}
+                  <p class="mt-8 task-description task-content" data-format="text">{{ preview|safe }}</p>
+                {% endif %}
+              {% endif %}
+            {% endwith %}
+          {% elif task.description %}
+            {% if task.rendering_strategy == task.RenderingStrategy.HTML %}
+              <div class="mt-8 task-description task-content" data-format="html">
+                {{ task.description|safe }}
+              </div>
+            {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
+              <div class="mt-8 task-description markdown-content task-content" data-format="markdown">
+                {{ task.description|render_markdown }}
+              </div>
+            {% else %}
+              <p class="mt-8 task-description task-content" data-format="text">{{ task.description|linebreaksbr }}</p>
+            {% endif %}
+          {% endif %}
+        </article>
+      {% empty %}
+        <p class="hint">{% trans "Задания этого типа пока не добавлены." %}</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
