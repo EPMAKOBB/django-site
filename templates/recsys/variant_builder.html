@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Сборка варианта{% endblock %}
+{% block meta_robots %}noindex,nofollow{% endblock %}
+
+{% block content %}
+<style>
+  .builder-wrapper {
+    max-width: 1200px;
+    margin: 2rem auto 3rem;
+    padding: 0 1rem;
+  }
+  .builder-card {
+    padding: 20px;
+  }
+  .builder-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  .builder-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .builder-field select {
+    width: 100%;
+  }
+  .tasks-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .tasks-table th,
+  .tasks-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    vertical-align: top;
+  }
+  .tasks-table th {
+    text-align: left;
+    opacity: 0.8;
+    font-weight: 600;
+  }
+  .muted-line {
+    opacity: 0.75;
+    font-size: 0.95rem;
+  }
+</style>
+
+<section class="section">
+  <div class="container builder-wrapper">
+    <h1 class="mb-16">Сборка варианта</h1>
+
+    <form method="get" class="card builder-card mb-16">
+      <div class="builder-grid">
+        <div class="builder-field">
+          <label for="subject">Предмет</label>
+          <select id="subject" name="subject">
+            <option value="">Все предметы</option>
+            {% for subject in subjects %}
+              <option value="{{ subject.id }}" {% if subject.id == selected_subject_id %}selected{% endif %}>
+                {{ subject.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="builder-field">
+          <label for="exam_version">Версия экзамена</label>
+          <select id="exam_version" name="exam_version" data-selected="{{ selected_exam_version_id|default:'' }}">
+            <option value="">Все версии</option>
+          </select>
+        </div>
+
+        <div class="builder-field">
+          <label for="source">Источник</label>
+          <select id="source" name="source">
+            <option value="">Все источники</option>
+          </select>
+        </div>
+
+        <div class="builder-field">
+          <label for="source_variant">Вариант в источнике</label>
+          <select id="source_variant" name="source_variant" data-selected="{{ selected_source_variant_id|default:'' }}">
+            <option value="">Все варианты</option>
+          </select>
+        </div>
+
+        <div>
+          <button type="submit" class="btn btn-primary">Применить</button>
+        </div>
+      </div>
+    </form>
+
+    <div class="card builder-card">
+      {% if tasks %}
+        <div class="muted-line mb-8">Найдено задач: {{ tasks|length }}</div>
+        <div class="table-responsive">
+          <table class="tasks-table">
+            <thead>
+              <tr>
+                <th style="width: 90px;">Тип</th>
+                <th>Задача</th>
+                <th style="width: 220px;">Экзамен</th>
+                <th style="width: 260px;">Источник</th>
+                <th style="width: 140px;">Действие</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for task in tasks %}
+                <tr>
+                  <td>
+                    {% if task.type %}
+                      {{ task.type.name }}
+                      <div class="muted-line">order: {{ task.type.display_order }}</div>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div><strong>{{ task.title }}</strong></div>
+                    <div class="muted-line">
+                      {{ task.subject.name }}
+                      {% if task.exam_version %}— {{ task.exam_version.name }}{% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    {% if task.exam_version %}
+                      {{ task.exam_version.name }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if task.source %}
+                      {{ task.source.name }}
+                      {% if task.source_variant %}— {{ task.source_variant.label }}{% endif %}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% include "accounts/includes/add_to_variant_button.html" with task_id=task.id %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted-line">Задачи не найдены. Попробуйте изменить фильтры.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    var examVersions = JSON.parse("{{ exam_versions_json|escapejs }}");
+    var sources = JSON.parse("{{ sources_json|escapejs }}");
+    var sourceVariants = JSON.parse("{{ source_variants_json|escapejs }}");
+
+    var subjectSelect = document.getElementById("subject");
+    var examSelect = document.getElementById("exam_version");
+    var sourceSelect = document.getElementById("source");
+    var sourceVariantSelect = document.getElementById("source_variant");
+
+    if (!subjectSelect || !examSelect || !sourceSelect || !sourceVariantSelect) {
+      return;
+    }
+
+    var selectedExamId = examSelect.getAttribute("data-selected");
+    var selectedSourceVariantId = sourceVariantSelect.getAttribute("data-selected");
+    var selectedSubjectId = subjectSelect.value;
+    var selectedSourceId = "{{ selected_source_id|default:'' }}";
+
+    function renderExamOptions(subjectId, preferredId) {
+      var previous = preferredId || examSelect.value;
+      examSelect.innerHTML = '<option value="">Все версии</option>';
+      var filtered = examVersions.filter(function (item) {
+        return !subjectId || String(item.subject_id) === String(subjectId);
+      });
+      filtered.forEach(function (item) {
+        var option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = item.name;
+        if (previous && String(previous) === String(item.id)) {
+          option.selected = true;
+        }
+        examSelect.appendChild(option);
+      });
+      if (previous && !filtered.some(function (item) { return String(item.id) === String(previous); })) {
+        examSelect.value = "";
+      }
+    }
+
+    function renderSourceOptions(preferredId) {
+      var previous = preferredId || sourceSelect.value;
+      sourceSelect.innerHTML = '<option value="">Все источники</option>';
+      sources.forEach(function (item) {
+        var option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = item.name;
+        if (previous && String(previous) === String(item.id)) {
+          option.selected = true;
+        }
+        sourceSelect.appendChild(option);
+      });
+      if (previous && !sources.some(function (item) { return String(item.id) === String(previous); })) {
+        sourceSelect.value = "";
+      }
+    }
+
+    function renderSourceVariantOptions(sourceId, preferredId) {
+      var previous = preferredId || sourceVariantSelect.value;
+      sourceVariantSelect.innerHTML = '<option value="">Все варианты</option>';
+      var filtered = sourceVariants.filter(function (item) {
+        return !sourceId || String(item.source_id) === String(sourceId);
+      });
+      filtered.forEach(function (item) {
+        var option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = item.label;
+        if (previous && String(previous) === String(item.id)) {
+          option.selected = true;
+        }
+        sourceVariantSelect.appendChild(option);
+      });
+      if (previous && !filtered.some(function (item) { return String(item.id) === String(previous); })) {
+        sourceVariantSelect.value = "";
+      }
+    }
+
+    renderExamOptions(selectedSubjectId, selectedExamId);
+    renderSourceOptions(selectedSourceId);
+    renderSourceVariantOptions(selectedSourceId, selectedSourceVariantId);
+
+    subjectSelect.addEventListener("change", function () {
+      renderExamOptions(subjectSelect.value, "");
+    });
+
+    sourceSelect.addEventListener("change", function () {
+      renderSourceVariantOptions(sourceSelect.value, "");
+    });
+  })();
+</script>
+{% endblock %}
+
