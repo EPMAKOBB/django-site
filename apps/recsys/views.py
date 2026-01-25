@@ -34,6 +34,7 @@ from .forms import TaskUploadForm
 from accounts.models import StudentProfile
 from apps.recsys.service_utils import variants as variant_services
 from apps.recsys.service_utils.type_progress import build_type_progress_map
+from subjects.models import Subject
 
 
 @login_required
@@ -402,6 +403,84 @@ def tasks_list(request):
         "order": order,
     }
     return render(request, "recsys/tasks_list.html", context)
+
+
+@staff_member_required
+def variant_builder(request):
+    """Staff-only page to assemble a variant with task filters."""
+
+    def _parse_int(value: str | None) -> int | None:
+        if not value:
+            return None
+        return int(value) if value.isdigit() else None
+
+    subjects = list(Subject.objects.values("id", "name").order_by("name"))
+    exam_versions = list(
+        ExamVersion.objects.values("id", "subject_id", "name", "slug", "status").order_by(
+            "subject__name", "name"
+        )
+    )
+    sources = list(Source.objects.values("id", "slug", "name").order_by("name"))
+    source_variants = list(
+        SourceVariant.objects.values("id", "source_id", "slug", "label").order_by(
+            "source__name", "label"
+        )
+    )
+
+    selected_subject_id = _parse_int(request.GET.get("subject"))
+    selected_exam_version_id = _parse_int(request.GET.get("exam_version"))
+    selected_source_id = _parse_int(request.GET.get("source"))
+    selected_source_variant_id = _parse_int(request.GET.get("source_variant"))
+
+    if selected_exam_version_id:
+        exam = (
+            ExamVersion.objects.select_related("subject")
+            .filter(id=selected_exam_version_id)
+            .first()
+        )
+        if exam:
+            selected_subject_id = exam.subject_id
+
+    if selected_source_variant_id:
+        variant = (
+            SourceVariant.objects.select_related("source")
+            .filter(id=selected_source_variant_id)
+            .first()
+        )
+        if variant:
+            selected_source_id = variant.source_id
+
+    tasks_qs = Task.objects.select_related(
+        "subject",
+        "exam_version",
+        "type",
+        "source",
+        "source_variant",
+    )
+
+    if selected_subject_id:
+        tasks_qs = tasks_qs.filter(subject_id=selected_subject_id)
+    if selected_exam_version_id:
+        tasks_qs = tasks_qs.filter(exam_version_id=selected_exam_version_id)
+    if selected_source_id:
+        tasks_qs = tasks_qs.filter(source_id=selected_source_id)
+    if selected_source_variant_id:
+        tasks_qs = tasks_qs.filter(source_variant_id=selected_source_variant_id)
+
+    tasks_qs = tasks_qs.order_by("type__display_order", "type__name", "id")
+
+    context = {
+        "subjects": subjects,
+        "tasks": tasks_qs,
+        "selected_subject_id": selected_subject_id,
+        "selected_exam_version_id": selected_exam_version_id,
+        "selected_source_id": selected_source_id,
+        "selected_source_variant_id": selected_source_variant_id,
+        "exam_versions_json": json.dumps(exam_versions, ensure_ascii=False),
+        "sources_json": json.dumps(sources, ensure_ascii=False),
+        "source_variants_json": json.dumps(source_variants, ensure_ascii=False),
+    }
+    return render(request, "recsys/variant_builder.html", context)
 
 
 @staff_member_required
