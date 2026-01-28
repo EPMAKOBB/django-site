@@ -1,0 +1,90 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Крылов — загрузки{% endblock %}
+{% block meta_description %}Техническая страница для скачивания материалов к задачнику Крылова 2026 по информатике.{% endblock %}
+{% block og_title %}Крылов — загрузки{% endblock %}
+{% block og_description %}Ссылки на файлы и сборник, а также переход к эмулятору ЕГЭ по информатике.{% endblock %}
+
+{% block content %}
+<section class="krylov-page">
+  <div class="container">
+    <div class="krylov-card">
+      <h1 class="krylov-title">
+        <a href="{% url 'krylov-download' 'rar' %}">
+          Скачать файлы к задачнику Крылов С. С. 20 вариантов ЕГЭ информатика 2026 (Krylov_files.rar)
+        </a>
+      </h1>
+      <p class="krylov-link">
+        <a href="{% url 'krylov-download' 'pdf' %}">
+          Скачать сам сборник (Krylov_2026.pdf)
+        </a>
+      </p>
+      <p class="krylov-link">
+        Так же вы можете пройти тестирование в эмуляторе по вариантам, узнать свою статистику и рекомендации:
+        <a href="https://www.fractalschool.ru/exams/inf-ege-2026/">перейти на страницу информатики</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .krylov-page {
+    padding: 48px 0 72px;
+  }
+
+  .krylov-card {
+    margin: 0 auto;
+    max-width: 980px;
+    border-radius: 20px;
+    padding: 32px 36px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+
+  .krylov-title {
+    margin: 0 0 20px;
+    font-size: 32px;
+    line-height: 1.25;
+    letter-spacing: 0.2px;
+    color: #f8fafc;
+  }
+
+  .krylov-link {
+    margin: 0 0 14px;
+    font-size: 18px;
+    line-height: 1.5;
+    color: rgba(226, 232, 240, 0.92);
+  }
+
+  .krylov-link:last-child {
+    margin-bottom: 0;
+  }
+
+  .krylov-card a {
+    color: #7dd3fc;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(125, 211, 252, 0.45);
+  }
+
+  .krylov-card a:hover {
+    color: #bae6fd;
+    border-bottom-color: rgba(186, 230, 253, 0.75);
+  }
+
+  @media (max-width: 720px) {
+    .krylov-card {
+      padding: 24px;
+      border-radius: 16px;
+    }
+
+    .krylov-title {
+      font-size: 24px;
+    }
+
+    .krylov-link {
+      font-size: 16px;
+    }
+  }
+</style>
+{% endblock %}
