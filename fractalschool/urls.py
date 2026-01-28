@@ -22,7 +22,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from apps.recsys import views as recsys_views
-from .views import HomeView, robots_txt
+from .views import HomeView, KrylovView, krylov_download, robots_txt
 from .sitemaps import ExamVersionSitemap, StaticViewSitemap
 
 sitemaps = {
@@ -32,6 +32,8 @@ sitemaps = {
 
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
+    path("krylov/", KrylovView.as_view(), name="krylov"),
+    path("krylov/download/<slug:kind>/", krylov_download, name="krylov-download"),
     path("robots.txt", robots_txt, name="robots-txt"),
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap"),
     path('admin/', admin.site.urls),
