@@ -5,6 +5,8 @@ from django.utils.safestring import mark_safe
 
 import markdown
 
+from apps.recsys.utils.rendering import render_task_body as _render_task_body
+
 register = template.Library()
 
 _MARKDOWN_EXTENSIONS = [
@@ -25,3 +27,8 @@ def render_markdown(value: str | None) -> str:
         output_format="html5",
     )
     return mark_safe(html)
+
+
+@register.filter(name="render_task_body")
+def render_task_body(value: str | None, rendering_strategy: str | None) -> str:
+    return _render_task_body(value, rendering_strategy)

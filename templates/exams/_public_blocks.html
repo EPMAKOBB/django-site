@@ -56,7 +56,12 @@
           <div class="type-card" data-type-id="{{ row.type.id }}">
             <div class="type-card__header">
               <div class="type-card__title">
-                <span class="type-card__name">{{ row.type.name }}</span>{% if row.type.description %}: <span class="type-card__desc">{{ row.type.description }}</span>{% endif %}
+                {% if row.type.slug %}
+                  <a class="type-card__name" href="{% url 'exam-type-page' exam.slug row.type.slug %}">{{ row.type.name }}</a>
+                {% else %}
+                  <a class="type-card__name" href="{% url 'exam-type-page' exam.slug row.type.name|slugify %}">{{ row.type.name }}</a>
+                {% endif %}
+                {% if row.type.description %}: <span class="type-card__desc">{{ row.type.description }}</span>{% endif %}
               </div>
               <div class="type-card__pct">
                 {% if is_authenticated %}

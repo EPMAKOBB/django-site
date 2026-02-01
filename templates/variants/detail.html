@@ -53,15 +53,15 @@
               {% if item.display.description %}
                 {% if item.task and item.display.rendering_strategy == item.task.RenderingStrategy.HTML %}
                   <div class="variant-page__task-description task-content" data-format="html">
-                    {{ item.display.description|safe }}
+                    {{ item.display.description|render_task_body:item.display.rendering_strategy }}
                   </div>
                 {% elif item.task and item.display.rendering_strategy == item.task.RenderingStrategy.MARKDOWN %}
                   <div class="variant-page__task-description markdown-content task-content" data-format="markdown">
-                    {{ item.display.description|render_markdown }}
+                    {{ item.display.description|render_task_body:item.display.rendering_strategy }}
                   </div>
                 {% else %}
                   <div class="variant-page__task-description task-content" data-format="text">
-                    {{ item.display.description|linebreaks }}
+                    {{ item.display.description|render_task_body:item.display.rendering_strategy }}
                   </div>
                 {% endif %}
               {% else %}

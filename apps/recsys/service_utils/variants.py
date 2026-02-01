@@ -11,7 +11,6 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
-import html
 import hashlib
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Mapping
@@ -20,10 +19,10 @@ from django.db import transaction
 from django.db.models import Prefetch, Sum
 from django.utils import timezone
 from django.utils.text import slugify
-import markdown
 from rest_framework import exceptions
 
 from apps.recsys.forms import compare_answers
+from apps.recsys.utils.rendering import render_task_body
 from apps.recsys.models import (
     ExamBlueprint,
     ExamScoreScale,
@@ -54,26 +53,8 @@ TASK_ATTEMPTS_PREFETCH = Prefetch(
     ),
 )
 
-_MARKDOWN_EXTENSIONS = [
-    "markdown.extensions.extra",
-    "markdown.extensions.md_in_html",
-    "markdown.extensions.sane_lists",
-]
-
-
 def _render_task_body(description: str, rendering_strategy: str | None) -> str:
-    if not description:
-        return ""
-    if rendering_strategy == Task.RenderingStrategy.MARKDOWN:
-        return markdown.markdown(
-            description,
-            extensions=_MARKDOWN_EXTENSIONS,
-            output_format="html5",
-        )
-    if rendering_strategy == Task.RenderingStrategy.HTML:
-        return description
-    escaped = html.escape(description)
-    return escaped.replace("\n", "<br>")
+    return render_task_body(description, rendering_strategy)
 
 
 def _build_task_attachments_payload(task: Task) -> list[dict]:

@@ -175,29 +175,29 @@
                         {% if display and display.description %}
                           {% if display.rendering_strategy == current_item.task.RenderingStrategy.HTML %}
                             <div class="module-detail__task-description" data-format="html">
-                              {{ display.description|safe }}
+                              {{ display.description|render_task_body:display.rendering_strategy }}
                             </div>
                           {% elif display.rendering_strategy == current_item.task.RenderingStrategy.MARKDOWN %}
                             <div class="module-detail__task-description markdown-content" data-format="markdown">
-                              {{ display.description|render_markdown }}
+                              {{ display.description|render_task_body:display.rendering_strategy }}
                             </div>
                           {% else %}
                             <div class="module-detail__task-description" data-format="text">
-                              {{ display.description|linebreaks }}
+                              {{ display.description|render_task_body:display.rendering_strategy }}
                             </div>
                           {% endif %}
                         {% elif current_item.task.description %}
                           {% if current_item.task.rendering_strategy == current_item.task.RenderingStrategy.HTML %}
                             <div class="module-detail__task-description" data-format="html">
-                              {{ current_item.task.description|safe }}
+                              {{ current_item.task.description|render_task_body:current_item.task.rendering_strategy }}
                             </div>
                           {% elif current_item.task.rendering_strategy == current_item.task.RenderingStrategy.MARKDOWN %}
                             <div class="module-detail__task-description markdown-content" data-format="markdown">
-                              {{ current_item.task.description|render_markdown }}
+                              {{ current_item.task.description|render_task_body:current_item.task.rendering_strategy }}
                             </div>
                           {% else %}
                             <div class="module-detail__task-description" data-format="text">
-                              {{ current_item.task.description|linebreaks }}
+                              {{ current_item.task.description|render_task_body:current_item.task.rendering_strategy }}
                             </div>
                           {% endif %}
                         {% else %}
