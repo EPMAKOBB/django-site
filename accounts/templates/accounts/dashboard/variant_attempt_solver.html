@@ -173,7 +173,7 @@
 
   function renderStatus(message, kind="info") {
     if (!statusMessageEl || !statusEl) return;
-    const text = message && String(message).trim() ? message : "{% trans 'Статус: ок' %}";
+    const text = message && String(message).trim() ? message : "{% trans 'Вариант готов' %}";
     statusMessageEl.textContent = text;
     statusEl.className = kind === "info" ? "solver__status" : "solver__status solver__status--" + kind;
   }
@@ -203,11 +203,11 @@
 
   async function startNewAttempt() {
     if (restartInFlight || !assignmentId) {
-      renderStatus("{% trans 'Статус: не удалось начать новую попытку' %}", "error");
+      renderStatus("{% trans 'Не удалось начать новую попытку' %}", "error");
       return;
     }
     restartInFlight = true;
-    renderStatus("{% trans 'Статус: начинаем новую попытку...' %}");
+    renderStatus("{% trans 'Начинаем новую попытку...' %}");
     const resp = await fetch(`/api/variants/assignments/${assignmentId}/attempts/start/`, {
       method: "POST",
       headers: {"X-CSRFToken": csrfToken()},
@@ -217,14 +217,14 @@
       const errorText = await resp.text().catch(() => "");
       restartInFlight = false;
       const detail = errorText ? ` ${errorText}` : "";
-      renderStatus("{% trans 'Статус: не удалось начать новую попытку' %}" + detail, "error");
+      renderStatus("{% trans 'Не удалось начать новую попытку' %}" + detail, "error");
       return;
     }
     const data = await resp.json().catch(() => null);
     const newAttemptId = data && data.id ? data.id : null;
     if (!newAttemptId) {
       restartInFlight = false;
-      renderStatus("{% trans 'Статус: не удалось начать новую попытку' %}", "error");
+      renderStatus("{% trans 'Не удалось начать новую попытку' %}", "error");
       return;
     }
     window.location.href = buildSolverUrl(newAttemptId);
@@ -785,7 +785,7 @@
 
   function handleLocalTimeout() {
     if (!attempt || attempt.completed_at) return;
-    renderStatus("{% trans 'Статус: время вышло' %}", "error");
+    renderStatus("{% trans 'Время вышло' %}", "error");
     timeoutTriggered = true;
     finalizeAttempt();
   }
@@ -1005,7 +1005,7 @@
     updateNavButtons();
   }
 
-    async function fetchAttempt() {
+  async function fetchAttempt() {
     try {
       const resp = await fetch(`/api/variants/attempts/${attemptId}/`, {credentials: "same-origin"});
       if (!resp.ok) {
@@ -1016,7 +1016,8 @@
     } catch (err) {
       console.error("solver fetchAttempt failed", err);
       const message = "{% trans 'Не удалось загрузить данные' %}";
-      renderStatus("{% trans 'Статус: не удалось загрузить данные' %}", "error");
+      const detail = err && err.message ? ` ${err.message}` : "";
+      renderStatus("{% trans 'Не удалось загрузить данные' %}" + detail, "error");
       if (bodyEl) {
         bodyEl.innerHTML = `<p class='muted'>${message}</p>`;
         bodyEl.removeAttribute("data-format");
@@ -1185,6 +1186,7 @@
   async function sendSaveRequest(taskId, payload, prevTask, prevSaved, prevEditing, seq, retryCount) {
     const maxRetries = 1;
     const retryDelayMs = 3000;
+    let lastErrorText = "";
     for (let attemptIndex = retryCount; attemptIndex <= maxRetries; attemptIndex += 1) {
       try {
         const resp = await fetch(`/api/variants/attempts/${attemptId}/tasks/${taskId}/save/`, {
@@ -1214,15 +1216,19 @@
           renderTaskList();
           if (lastSaveIdByTask.get(taskId) === seq) {
             pendingPayloadByTask.delete(taskId);
-            renderStatus("{% trans 'Статус: ответ сохранен' %}", "success");
+            renderStatus("{% trans 'Ответ сохранен' %}", "success");
           }
           return;
         }
 
+        lastErrorText = await resp.text().catch(() => "");
         if (resp.status < 500 || attemptIndex >= maxRetries) {
           break;
         }
-      } catch (_) {
+      } catch (err) {
+        if (!lastErrorText && err && err.message) {
+          lastErrorText = err.message;
+        }
         if (attemptIndex >= maxRetries) {
           break;
         }
@@ -1241,7 +1247,8 @@
     if (task) renderTask(task);
     renderTaskList();
     setAnswerLocked(attempt.completed_at !== null || isSaved);
-    renderStatus("{% trans 'Статус: не удалось сохранить ответ' %}", "error");
+    const detail = lastErrorText ? ` ${lastErrorText}` : "";
+    renderStatus("{% trans 'Не удалось сохранить ответ' %}" + detail, "error");
   }
 
   async function processSaveQueue() {
@@ -1274,7 +1281,7 @@
       return;
     }
     if (!attempt || !Array.isArray(attempt.tasks_progress)) {
-      renderStatus("{% trans 'Статус: сохраняем ответ...' %}");
+      renderStatus("{% trans 'Сохраняем ответ...' %}");
       return;
     }
     const payload = parseAnswer();
@@ -1297,7 +1304,7 @@
     if (task) renderTask(task);
     renderTaskList();
     setAnswerLocked(true);
-    renderStatus("{% trans 'Статус: сохраняем ответ...' %}");
+    renderStatus("{% trans 'Сохраняем ответ...' %}");
 
     saveQueue.push({
       taskId,
@@ -1314,15 +1321,25 @@
   async function finalizeAttempt() {
     if (finalizeInFlight || !attempt || attempt.completed_at) return;
     finalizeInFlight = true;
-    renderStatus("{% trans 'Статус: отправляем на проверку...' %}");
-    const resp = await fetch(`/api/variants/attempts/${attemptId}/finalize/`, {
-      method: "POST",
-      headers: {"X-CSRFToken": csrfToken()},
-      credentials: "same-origin"
-    });
-    if (!resp.ok) {
+    renderStatus("{% trans 'Отправляем на проверку...' %}");
+    let resp;
+    try {
+      resp = await fetch(`/api/variants/attempts/${attemptId}/finalize/`, {
+        method: "POST",
+        headers: {"X-CSRFToken": csrfToken()},
+        credentials: "same-origin"
+      });
+    } catch (err) {
       finalizeInFlight = false;
-      renderStatus("{% trans 'Статус: не удалось завершить попытку' %}", "error");
+      const detail = err && err.message ? ` ${err.message}` : "";
+      renderStatus("{% trans 'Не удалось завершить попытку' %}" + detail, "error");
+      return;
+    }
+    if (!resp.ok) {
+      const errorText = await resp.text().catch(() => "");
+      finalizeInFlight = false;
+      const detail = errorText ? ` ${errorText}` : "";
+      renderStatus("{% trans 'Не удалось завершить попытку' %}" + detail, "error");
       return;
     }
     attempt = await resp.json();
@@ -1330,7 +1347,7 @@
     if (Number.isFinite(timeLeft)) {
       localTimeLeftSeconds = timeLeft;
     }
-    renderStatus("{% trans 'Статус: попытка отправлена' %}", "success");
+    renderStatus("{% trans 'Попытка отправлена' %}", "success");
     updateTimerBadge();
     currentVariantTaskId = FINISH_ITEM_ID;
     renderTaskList();
@@ -1389,7 +1406,7 @@
         updateTimerBadge();
       }
       if (data.completed) {
-        renderStatus("{% trans 'Статус: время вышло' %}", "error");
+        renderStatus("{% trans 'Время вышло' %}", "error");
         timeoutTriggered = true;
         finalizeAttempt();
       }

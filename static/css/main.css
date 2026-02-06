@@ -848,8 +848,10 @@ header a:hover {
 }
 
 .solver__header-link {
+  align-self: center;
   color: var(--muted);
   font-size: var(--font-sm);
+  margin-right: 8px;
   text-decoration: none;
 }
 
