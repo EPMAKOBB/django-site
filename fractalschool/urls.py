@@ -20,6 +20,7 @@ from django.urls import include, path
 from django.contrib.sitemaps.views import sitemap
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve as static_serve
 
 from apps.recsys import views as recsys_views
 from .views import HomeView, KrylovView, krylov_download, robots_txt
@@ -62,7 +63,17 @@ urlpatterns = [
 
 ]
 
-# Serve uploaded media locally during development when S3 is not configured
-# Локальная подача media, когда не используем S3 (напр. Railway volume /app/media)
+# Serve uploaded media when S3 is not configured.
+# Railway: volume is mounted at /app/media, so we need an explicit route even with DEBUG=False.
 if not getattr(settings, "USE_S3_MEDIA", False):
+    # Keep dev convenience.
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Add explicit route for production (DEBUG=False) to allow downloads from the volume.
+    # Note: this is not ideal for high-traffic setups; consider S3 or a reverse proxy later.
+    urlpatterns += [
+        path(
+            f"{settings.MEDIA_URL.lstrip('/')}" + "<path:path>",
+            static_serve,
+            {"document_root": settings.MEDIA_ROOT},
+        ),
+    ]

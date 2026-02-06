@@ -6,6 +6,7 @@
 {% block content %}
 <section class="solver">
   {{ exam_start_info|default:""|json_script:"solver-start-info" }}
+  {{ solver_meta|default:""|json_script:"solver-meta" }}
   <div class="solver__header" role="banner" aria-label="{% trans 'Заголовок варианта' %}">
     <div class="solver__header-col solver__header-col--left">
       <p class="solver__eyebrow">{% trans "Вариант" %}: <span class="solver__eyebrow-value">{{ assignment.template.name }}</span></p>
@@ -23,6 +24,7 @@
       </div>
     </div>
     <div class="solver__header-col solver__header-col--right">
+      <a class="solver__header-link" href="{% url 'home' %}">{% trans "На главную" %}</a>
       <button id="solver-finalize" class="btn btn-primary">{% trans "ЗАВЕРШИТЬ" %}</button>
     </div>
   </div>
@@ -100,6 +102,17 @@
       return "";
     }
   })();
+  const solverMeta = (() => {
+    try {
+      const el = document.getElementById("solver-meta");
+      return el ? JSON.parse(el.textContent) : {};
+    } catch (_) {
+      return {};
+    }
+  })();
+  const assignmentId = solverMeta ? solverMeta.assignment_id : null;
+  const canRestart = solverMeta ? !!solverMeta.can_restart : false;
+  const solverUrlTemplate = solverMeta ? solverMeta.solver_url_template : "";
 
   let attempt = null;
   let currentVariantTaskId = null;
@@ -112,6 +125,7 @@
   let countdownTimer = null;
   let localTimeLeftSeconds = null;
   let saveInFlight = false;
+  let restartInFlight = false;
   let saveSeqCounter = 0;
   const saveQueue = [];
   const lastSaveIdByTask = new Map();
@@ -162,6 +176,66 @@
     const text = message && String(message).trim() ? message : "{% trans 'Статус: ок' %}";
     statusMessageEl.textContent = text;
     statusEl.className = kind === "info" ? "solver__status" : "solver__status solver__status--" + kind;
+  }
+
+  function updateFinalizeButtonState() {
+    if (!finalizeBtn) return;
+    if (attempt && attempt.completed_at) {
+      if (canRestart) {
+        finalizeBtn.disabled = false;
+        finalizeBtn.textContent = "{% trans 'ПРОЙТИ ВАРИАНТ ЗАНОВО' %}";
+      } else {
+        finalizeBtn.disabled = true;
+        finalizeBtn.textContent = "{% trans 'ЗАВЕРШИТЬ' %}";
+      }
+    } else {
+      finalizeBtn.disabled = false;
+      finalizeBtn.textContent = "{% trans 'ЗАВЕРШИТЬ' %}";
+    }
+  }
+
+  function buildSolverUrl(newAttemptId) {
+    if (!solverUrlTemplate) {
+      return `/accounts/dashboard/attempts/${newAttemptId}/solver/`;
+    }
+    return solverUrlTemplate.replace("/0/solver/", `/${newAttemptId}/solver/`);
+  }
+
+  async function startNewAttempt() {
+    if (restartInFlight || !assignmentId) {
+      renderStatus("{% trans 'Статус: не удалось начать новую попытку' %}", "error");
+      return;
+    }
+    restartInFlight = true;
+    renderStatus("{% trans 'Статус: начинаем новую попытку...' %}");
+    const resp = await fetch(`/api/variants/assignments/${assignmentId}/attempts/start/`, {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken()},
+      credentials: "same-origin"
+    });
+    if (!resp.ok) {
+      const errorText = await resp.text().catch(() => "");
+      restartInFlight = false;
+      const detail = errorText ? ` ${errorText}` : "";
+      renderStatus("{% trans 'Статус: не удалось начать новую попытку' %}" + detail, "error");
+      return;
+    }
+    const data = await resp.json().catch(() => null);
+    const newAttemptId = data && data.id ? data.id : null;
+    if (!newAttemptId) {
+      restartInFlight = false;
+      renderStatus("{% trans 'Статус: не удалось начать новую попытку' %}", "error");
+      return;
+    }
+    window.location.href = buildSolverUrl(newAttemptId);
+  }
+
+  function handleFinalizeClick() {
+    if (attempt && attempt.completed_at) {
+      if (canRestart) startNewAttempt();
+      return;
+    }
+    finalizeAttempt();
   }
 
   function renderLoadingCard() {
@@ -459,6 +533,7 @@
     const inputs = Array.from(answerFieldsEl.querySelectorAll("input.answer-input"));
     if (!inputs.length) return;
     const total = Math.max(1, rows * cols);
+    if (total <= 1) return;
 
     const tokenize = (text) => {
       return text
@@ -959,6 +1034,7 @@
     renderTaskList();
     scheduleMinuteSync();
     startCountdown();
+    updateFinalizeButtonState();
     if (!currentVariantTaskId) {
       selectTask(START_ITEM_ID);
     } else if (currentVariantTaskId === START_ITEM_ID) {
@@ -1261,9 +1337,9 @@
     renderFinishCard();
     setAnswerLocked(true);
     saveBtn.disabled = true;
-    finalizeBtn.disabled = true;
     stopCountdown();
     stopMinuteSync();
+    updateFinalizeButtonState();
     finalizeInFlight = false;
   }
 
@@ -1329,7 +1405,7 @@
   if (saveBtn) saveBtn.addEventListener("click", saveAnswer);
   if (prevBtn) prevBtn.addEventListener("click", () => moveBy(-1));
   if (nextBtn) nextBtn.addEventListener("click", () => moveBy(1));
-  if (finalizeBtn) finalizeBtn.addEventListener("click", finalizeAttempt);
+  if (finalizeBtn) finalizeBtn.addEventListener("click", handleFinalizeClick);
 })();
 </script>
 

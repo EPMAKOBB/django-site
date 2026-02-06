@@ -13,6 +13,7 @@ from django.db import connection, transaction
 from django.db.models import Prefetch
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as drf_exceptions
@@ -1349,6 +1350,10 @@ def variant_attempt_solver(request, attempt_id: int):
     exam_version = assignment.template.exam_version
     start_info = exam_version.start_info if exam_version else ""
 
+    attempts_left = variant_services.get_attempts_left(assignment)
+    deadline_passed = bool(assignment.deadline and assignment.deadline < timezone.now())
+    can_restart = (not deadline_passed) and (attempts_left is None or attempts_left > 0)
+
     context = {
         "active_tab": "tasks",
         "role": role,
@@ -1357,6 +1362,15 @@ def variant_attempt_solver(request, attempt_id: int):
         "attempt": attempt,
         "time_left": time_left,
         "exam_start_info": start_info,
+        "solver_meta": {
+            "assignment_id": assignment.id,
+            "can_restart": can_restart,
+            "attempts_left": attempts_left,
+            "solver_url_template": reverse(
+                "accounts:variant-attempt-solver",
+                kwargs={"attempt_id": 0},
+            ),
+        },
     }
     return render(request, "accounts/dashboard/variant_attempt_solver.html", context)
 

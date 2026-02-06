@@ -2,6 +2,7 @@ Django==5.2.5
 gunicorn
 whitenoise
 dj-database-url
+python-dotenv
 psycopg2-binary
 djangorestframework
 Pillow==10.2.0

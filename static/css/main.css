@@ -847,6 +847,17 @@ header a:hover {
   text-align: right;
 }
 
+.solver__header-link {
+  color: var(--muted);
+  font-size: var(--font-sm);
+  text-decoration: none;
+}
+
+.solver__header-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 .solver__eyebrow-value {
   color: var(--text);
   font-weight: 600;
@@ -935,7 +946,7 @@ header a:hover {
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   background: rgba(10, 16, 24, 0.9);
-  max-height: calc(100vh - 120px);
+  max-height: 3200px;
   overflow: auto;
 }
 
@@ -1292,6 +1303,28 @@ header a:hover {
 
 .solver__result-link:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 1500px) {
+  .solver__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .solver__sidebar {
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
+    position: static;
+    max-height: none;
+  }
+
+  .solver__main {
+    grid-column: 1;
+  }
+
+  .solver__task-list {
+    grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  }
 }
 
 @media (max-width: 960px) {
