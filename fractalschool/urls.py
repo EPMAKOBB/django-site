@@ -14,16 +14,13 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-import os
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.sitemaps.views import sitemap
 from django.conf import settings
-from django.conf.urls.static import static
-from django.views.static import serve as static_serve
 
 from apps.recsys import views as recsys_views
-from .views import HomeView, KrylovView, krylov_download, robots_txt
+from .views import HomeView, KrylovView, krylov_download, robots_txt, media_download
 from .sitemaps import ExamVersionSitemap, StaticViewSitemap
 
 sitemaps = {
@@ -66,14 +63,11 @@ urlpatterns = [
 # Serve uploaded media when S3 is not configured.
 # Railway: volume is mounted at /app/media, so we need an explicit route even with DEBUG=False.
 if not getattr(settings, "USE_S3_MEDIA", False):
-    # Keep dev convenience.
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    # Add explicit route for production (DEBUG=False) to allow downloads from the volume.
-    # Note: this is not ideal for high-traffic setups; consider S3 or a reverse proxy later.
+    # Force download for all media files in both dev and production.
     urlpatterns += [
         path(
             f"{settings.MEDIA_URL.lstrip('/')}" + "<path:path>",
-            static_serve,
-            {"document_root": settings.MEDIA_ROOT},
+            media_download,
+            name="media-download",
         ),
     ]

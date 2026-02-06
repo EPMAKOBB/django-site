@@ -1,4 +1,8 @@
 from django.http import FileResponse, Http404, HttpResponse, StreamingHttpResponse
+from django.conf import settings
+from django.views.static import serve as static_serve
+from pathlib import Path
+from urllib.parse import quote
 from django.views.generic import TemplateView
 from django.core.files.storage import default_storage
 from urllib.request import Request, urlopen
@@ -112,3 +116,17 @@ def robots_txt(request):
         f"Sitemap: {sitemap_url}",
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain")
+
+
+def media_download(request, path):
+    """
+    Serve media files and force download in the browser.
+    """
+    response = static_serve(request, path, document_root=settings.MEDIA_ROOT)
+    if response.status_code == 200:
+        filename = Path(path).name
+        quoted = quote(filename)
+        response["Content-Disposition"] = (
+            f'attachment; filename="{filename}"; filename*=UTF-8\'\'{quoted}'
+        )
+    return response
