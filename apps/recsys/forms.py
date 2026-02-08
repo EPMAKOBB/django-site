@@ -6,6 +6,7 @@ from typing import Any, Sequence
 from pathlib import Path
 
 from django import forms
+from django.db.models import Q
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 import re
@@ -464,6 +465,29 @@ class TaskUploadForm(forms.ModelForm):
         if not source_id and self.instance and self.instance.source_id:
             source_id = self.instance.source_id
 
+        exam_version_id = None
+        try:
+            exam_version_id = int(data.get("exam_version")) if data else None
+        except (TypeError, ValueError):
+            exam_version_id = None
+        if not exam_version_id:
+            initial_exam = self.initial.get("exam_version")
+            if initial_exam:
+                try:
+                    exam_version_id = int(initial_exam)
+                except (TypeError, ValueError):
+                    exam_version_id = None
+        if not exam_version_id and self.instance and self.instance.exam_version_id:
+            exam_version_id = self.instance.exam_version_id
+
+        if "source" in self.fields:
+            source_qs = Source.objects.order_by("name")
+            if exam_version_id:
+                source_qs = source_qs.filter(
+                    Q(exam_version_id=exam_version_id) | Q(exam_version__isnull=True)
+                )
+            self.fields["source"].queryset = source_qs
+
         if "source_variant" in self.fields:
             variants_qs = SourceVariant.objects.select_related("source").order_by("source__name", "label")
             if source_id:
@@ -654,6 +678,14 @@ class TaskUploadForm(forms.ModelForm):
         task.save()
         self.save_m2m()
 
+        # Delete existing attachments requested by the redact form.
+        remove_attachment_ids: set[int] = set()
+        for raw_id in self.data.getlist("delete_attachment_ids") if hasattr(self.data, "getlist") else []:
+            if str(raw_id).isdigit():
+                remove_attachment_ids.add(int(raw_id))
+        if remove_attachment_ids:
+            TaskAttachment.objects.filter(task=task, id__in=remove_attachment_ids).delete()
+
         files_to_create: list[TaskAttachment] = []
         uploaded_files = list(self.files.getlist("attachments")) if hasattr(self.files, "getlist") else []
         provided_names = list(self.data.getlist("attachment_names")) if hasattr(self, "data") else []
@@ -681,6 +713,8 @@ class TaskUploadForm(forms.ModelForm):
         # Image as attachment (allows SVG and other formats)
         image_file = self.files.get("image")
         if image_file:
+            # Keep one canonical image attachment (label=img) per task.
+            TaskAttachment.objects.filter(task=task, kind=TaskAttachment.Kind.IMAGE).delete()
             files_to_create.append(
                 TaskAttachment(
                     task=task,
@@ -694,10 +728,24 @@ class TaskUploadForm(forms.ModelForm):
         for att in files_to_create:
             att.save()
 
-        # Attach selected skills with default weight
-        skills = list(self.cleaned_data.get("skills") or [])
-        for skill in skills:
-            TaskSkill.objects.get_or_create(task=task, skill=skill, defaults={"weight": 1.0})
+        # Sync selected skills (add newly selected, remove unselected)
+        selected_skill_ids = {skill.id for skill in (self.cleaned_data.get("skills") or [])}
+        existing_skill_ids = set(
+            TaskSkill.objects.filter(task=task).values_list("skill_id", flat=True)
+        )
+
+        if existing_skill_ids - selected_skill_ids:
+            TaskSkill.objects.filter(
+                task=task,
+                skill_id__in=(existing_skill_ids - selected_skill_ids),
+            ).delete()
+
+        for skill_id in selected_skill_ids - existing_skill_ids:
+            TaskSkill.objects.get_or_create(
+                task=task,
+                skill_id=skill_id,
+                defaults={"weight": 1.0},
+            )
 
         # Replace tokens ![[att:<id_or_label>]] in description with real URLs
         if task.description:

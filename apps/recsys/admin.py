@@ -163,15 +163,23 @@ class TaskTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Source)
 class SourceAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug")
-    search_fields = ("name", "slug")
+    list_display = ("name", "exam_version", "slug")
+    list_filter = ("exam_version__subject", "exam_version")
+    search_fields = ("name", "slug", "exam_version__name", "exam_version__subject__name")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("exam_version", "exam_version__subject")
 
 
 @admin.register(SourceVariant)
 class SourceVariantAdmin(admin.ModelAdmin):
-    list_display = ("label", "source", "slug")
-    list_filter = ("source",)
-    search_fields = ("label", "slug", "source__name")
+    list_display = ("label", "source", "source_exam_version", "slug")
+    list_filter = ("source__exam_version__subject", "source__exam_version", "source")
+    search_fields = ("label", "slug", "source__name", "source__exam_version__name")
+
+    @admin.display(description="Exam version")
+    def source_exam_version(self, obj):
+        return obj.source.exam_version
 
 
 @admin.register(Task)

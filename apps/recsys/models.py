@@ -59,6 +59,14 @@ class TaskTag(TimeStampedModel):
 class Source(TimeStampedModel):
     name = models.CharField(max_length=150, unique=True)
     slug = models.SlugField(max_length=150, unique=True, blank=True)
+    exam_version = models.ForeignKey(
+        "ExamVersion",
+        on_delete=models.SET_NULL,
+        related_name="sources",
+        null=True,
+        blank=True,
+        help_text="Optional exam binding for this source.",
+    )
     description = models.TextField(blank=True)
 
     class Meta:
@@ -66,9 +74,12 @@ class Source(TimeStampedModel):
         indexes = [
             models.Index(fields=["name"]),
             models.Index(fields=["slug"]),
+            models.Index(fields=["exam_version", "name"]),
         ]
 
     def __str__(self) -> str:  # pragma: no cover - human readable
+        if self.exam_version_id:
+            return f"{self.name} ({self.exam_version})"
         return self.name
 
 

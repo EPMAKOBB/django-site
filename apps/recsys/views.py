@@ -1,16 +1,18 @@
 
 import json
 import logging
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db.models import Case, Count, IntegerField, Value, When
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.template.loader import render_to_string
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as drf_exceptions
@@ -501,20 +503,260 @@ def variant_builder(request):
     return render(request, "recsys/variant_builder.html", context)
 
 
+def _parse_int_query(value: str | None) -> int | None:
+    if not value:
+        return None
+    return int(value) if value.isdigit() else None
+
+
+def _get_safe_next(request) -> str:
+    next_url = (request.POST.get("next") or request.GET.get("next") or "").strip()
+    if not next_url:
+        return ""
+    if not url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return ""
+    return next_url
+
+
+@staff_member_required
+def task_variant_map(request):
+    subjects = list(Subject.objects.values("id", "name").order_by("name"))
+    exam_versions = list(
+        ExamVersion.objects.select_related("subject")
+        .values("id", "subject_id", "name", "subject__name")
+        .order_by("subject__name", "name")
+    )
+
+    selected_subject_id = _parse_int_query(request.GET.get("subject"))
+    selected_exam_version_id = _parse_int_query(request.GET.get("exam_version"))
+    selected_exam = None
+
+    if selected_exam_version_id:
+        selected_exam = (
+            ExamVersion.objects.select_related("subject")
+            .filter(id=selected_exam_version_id)
+            .first()
+        )
+        if selected_exam:
+            selected_subject_id = selected_exam.subject_id
+
+    task_types: list[TaskType] = []
+    source_sections: list[dict] = []
+    no_source_row: dict | None = None
+
+    if selected_subject_id and selected_exam_version_id and selected_exam:
+        task_types = list(
+            TaskType.objects.filter(
+                subject_id=selected_subject_id,
+                exam_version_id=selected_exam_version_id,
+            )
+            .order_by("display_order", "name", "id")
+        )
+        tasks = list(
+            Task.objects.select_related("type", "source", "source_variant")
+            .filter(
+                subject_id=selected_subject_id,
+                exam_version_id=selected_exam_version_id,
+            )
+            .order_by("-id")
+        )
+
+        by_source_variant_type: dict[tuple[int, int, int], list[Task]] = {}
+        by_source_without_variant_type: dict[tuple[int, int], list[Task]] = {}
+        by_no_source_type: dict[int, list[Task]] = {}
+
+        for task in tasks:
+            if task.source_id and task.source_variant_id:
+                by_source_variant_type.setdefault(
+                    (task.source_id, task.source_variant_id, task.type_id), []
+                ).append(task)
+            elif task.source_id:
+                by_source_without_variant_type.setdefault(
+                    (task.source_id, task.type_id), []
+                ).append(task)
+            else:
+                by_no_source_type.setdefault(task.type_id, []).append(task)
+
+        variants_by_source: dict[int, list[SourceVariant]] = {}
+        for variant in SourceVariant.objects.select_related("source").order_by("source__name", "label", "id"):
+            variants_by_source.setdefault(variant.source_id, []).append(variant)
+
+        map_next = request.get_full_path()
+
+        def _build_filled_cell(task_items: list[Task], task_type: TaskType) -> dict:
+            task = task_items[0]
+            redact_url = f"{reverse('tasks_redact')}?{urlencode({'task': task.id, 'next': map_next})}"
+            return {
+                "is_filled": True,
+                "task": task,
+                "task_type": task_type,
+                "url": redact_url,
+                "extra_count": max(len(task_items) - 1, 0),
+            }
+
+        def _build_empty_cell(
+            task_type: TaskType,
+            *,
+            source_id: int | None,
+            source_variant_id: int | None,
+        ) -> dict:
+            query = {
+                "subject": selected_subject_id,
+                "exam_version": selected_exam_version_id,
+                "type": task_type.id,
+                "next": map_next,
+            }
+            if source_id:
+                query["source"] = source_id
+            if source_variant_id:
+                query["source_variant"] = source_variant_id
+            upload_url = f"{reverse('tasks_upload')}?{urlencode(query)}"
+            return {
+                "is_filled": False,
+                "task": None,
+                "task_type": task_type,
+                "url": upload_url,
+                "extra_count": 0,
+            }
+
+        source_ids_in_tasks = {task.source_id for task in tasks if task.source_id}
+        source_qs = (
+            Source.objects.filter(
+                Q(exam_version_id=selected_exam_version_id)
+                | Q(id__in=source_ids_in_tasks)
+            )
+            .distinct()
+            .order_by("name")
+        )
+
+        for source in source_qs:
+            variant_rows: list[dict] = []
+            for variant in variants_by_source.get(source.id, []):
+                cells = []
+                filled_count = 0
+                for task_type in task_types:
+                    items = by_source_variant_type.get((source.id, variant.id, task_type.id), [])
+                    if items:
+                        cell = _build_filled_cell(items, task_type)
+                        filled_count += 1
+                    else:
+                        cell = _build_empty_cell(
+                            task_type,
+                            source_id=source.id,
+                            source_variant_id=variant.id,
+                        )
+                    cells.append(cell)
+                variant_rows.append(
+                    {
+                        "title": variant.label or variant.slug or f"Variant {variant.id}",
+                        "is_without_variant": False,
+                        "cells": cells,
+                        "filled_count": filled_count,
+                    }
+                )
+
+            without_variant_cells = []
+            without_variant_filled = 0
+            for task_type in task_types:
+                items = by_source_without_variant_type.get((source.id, task_type.id), [])
+                if items:
+                    cell = _build_filled_cell(items, task_type)
+                    without_variant_filled += 1
+                else:
+                    cell = _build_empty_cell(
+                        task_type,
+                        source_id=source.id,
+                        source_variant_id=None,
+                    )
+                without_variant_cells.append(cell)
+
+            if variant_rows or without_variant_filled:
+                variant_rows.append(
+                    {
+                        "title": "Без варианта",
+                        "is_without_variant": True,
+                        "cells": without_variant_cells,
+                        "filled_count": without_variant_filled,
+                    }
+                )
+                source_sections.append(
+                    {
+                        "source": source,
+                        "rows": variant_rows,
+                    }
+                )
+
+        no_source_cells = []
+        no_source_filled = 0
+        for task_type in task_types:
+            items = by_no_source_type.get(task_type.id, [])
+            if items:
+                cell = _build_filled_cell(items, task_type)
+                no_source_filled += 1
+            else:
+                cell = _build_empty_cell(
+                    task_type,
+                    source_id=None,
+                    source_variant_id=None,
+                )
+            no_source_cells.append(cell)
+        no_source_row = {
+            "title": "Без источника",
+            "cells": no_source_cells,
+            "filled_count": no_source_filled,
+        }
+
+    context = {
+        "subjects": subjects,
+        "exam_versions": exam_versions,
+        "selected_subject_id": selected_subject_id,
+        "selected_exam_version_id": selected_exam_version_id,
+        "selected_exam": selected_exam,
+        "task_types": task_types,
+        "source_sections": source_sections,
+        "no_source_row": no_source_row,
+    }
+    return render(request, "recsys/task_variant_map.html", context)
+
+
 @staff_member_required
 def task_upload(request):
     """
     Simple staff-only uploader for tasks with optional files (A/B) and image.
     """
+    next_url = _get_safe_next(request)
     if request.method == "POST":
         form = TaskUploadForm(request.POST, request.FILES)
         if form.is_valid():
             task = form.create_task_with_attachments()
             messages.success(request, f"Задача создана: {task.slug}")
+            if next_url:
+                return redirect(next_url)
             return redirect("tasks_upload")
     else:
-        form = TaskUploadForm()
+        initial: dict[str, int] = {}
+        for key in ("subject", "exam_version", "type", "source", "source_variant"):
+            parsed = _parse_int_query(request.GET.get(key))
+            if parsed:
+                initial[key] = parsed
+        form = TaskUploadForm(initial=initial or None)
 
+    context = _build_task_upload_context(form=form, next_url=next_url)
+    return render(request, "recsys/task_upload.html", context)
+
+
+def _build_task_upload_context(
+    *,
+    form: TaskUploadForm,
+    redact_mode: bool = False,
+    selected_task: Task | None = None,
+    editable_tasks=None,
+    next_url: str = "",
+):
     exam_versions = list(
         ExamVersion.objects.values("id", "subject_id", "name", "slug", "status").order_by(
             "subject__name", "name"
@@ -580,18 +822,59 @@ def task_upload(request):
         SourceVariant.objects.values("id", "source_id", "slug", "label").order_by("source__name", "label")
     )
 
-    return render(
-        request,
-        "recsys/task_upload.html",
-        {
-            "form": form,
-            "exam_versions_json": json.dumps(exam_versions, ensure_ascii=False),
-            "task_types_json": json.dumps(task_types_payload, ensure_ascii=False),
-            "required_tags_json": json.dumps(type_required_tags, ensure_ascii=False),
-            "skills_json": json.dumps(skills, ensure_ascii=False),
-            "skill_suggestions_json": json.dumps(skill_suggestions, ensure_ascii=False),
-            "answer_schemas_json": json.dumps(answer_schemas, ensure_ascii=False),
-            "sources_json": json.dumps(sources, ensure_ascii=False),
-            "source_variants_json": json.dumps(source_variants, ensure_ascii=False),
-        },
+    return {
+        "form": form,
+        "redact_mode": redact_mode,
+        "selected_task": selected_task,
+        "editable_tasks": editable_tasks or [],
+        "next_url": next_url,
+        "exam_versions_json": json.dumps(exam_versions, ensure_ascii=False),
+        "task_types_json": json.dumps(task_types_payload, ensure_ascii=False),
+        "required_tags_json": json.dumps(type_required_tags, ensure_ascii=False),
+        "skills_json": json.dumps(skills, ensure_ascii=False),
+        "skill_suggestions_json": json.dumps(skill_suggestions, ensure_ascii=False),
+        "answer_schemas_json": json.dumps(answer_schemas, ensure_ascii=False),
+        "sources_json": json.dumps(sources, ensure_ascii=False),
+        "source_variants_json": json.dumps(source_variants, ensure_ascii=False),
+    }
+
+
+@staff_member_required
+def task_redact(request):
+    next_url = _get_safe_next(request)
+    selected_task_id = (request.POST.get("task_id") or request.GET.get("task") or "").strip()
+    selected_task = None
+    if selected_task_id.isdigit():
+        selected_task = (
+            Task.objects.select_related("subject", "exam_version", "type", "source", "source_variant")
+            .prefetch_related("attachments")
+            .filter(id=int(selected_task_id))
+            .first()
+        )
+
+    if request.method == "POST":
+        form = TaskUploadForm(request.POST, request.FILES, instance=selected_task)
+        if not selected_task:
+            messages.error(request, "Выберите задачу для редактирования.")
+        elif form.is_valid():
+            task = form.create_task_with_attachments()
+            messages.success(request, f"Задача сохранена: {task.slug}")
+            if next_url:
+                return redirect(next_url)
+            return redirect(f"{reverse('tasks_redact')}?task={task.id}")
+    else:
+        form = TaskUploadForm(instance=selected_task) if selected_task else TaskUploadForm()
+
+    editable_tasks = list(
+        Task.objects.select_related("subject", "exam_version", "type")
+        .order_by("-id")
+        .values("id", "slug", "title", "type__name", "exam_version__name", "subject__name")
     )
+    context = _build_task_upload_context(
+        form=form,
+        redact_mode=True,
+        selected_task=selected_task,
+        editable_tasks=editable_tasks,
+        next_url=next_url,
+    )
+    return render(request, "recsys/task_upload.html", context)

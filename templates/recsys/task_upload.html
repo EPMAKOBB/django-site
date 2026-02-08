@@ -214,6 +214,38 @@
     flex-direction: column;
     gap: 10px;
   }
+  .existing-attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .existing-attachment-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: #0e1528;
+  }
+  .existing-attachment-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .existing-attachment-link {
+    color: var(--text-main);
+    text-decoration: underline;
+  }
+  .existing-attachment-remove {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
   .attachment-row {
     display: grid;
     grid-template-columns: 1fr 1fr auto;
@@ -267,6 +299,24 @@
   <div class="upload-card">
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
+      {% if next_url %}
+        <input type="hidden" name="next" value="{{ next_url }}">
+      {% endif %}
+      {% if redact_mode %}
+        <div class="form-field" style="margin-bottom: 12px;">
+          <label for="task-redact-select">Task To Edit</label>
+          <select id="task-redact-select" class="form-control">
+            <option value="">- Select task -</option>
+            {% for task_item in editable_tasks %}
+              <option value="{{ task_item.id }}" {% if selected_task and selected_task.id == task_item.id %}selected{% endif %}>
+                #{{ task_item.id }} · {{ task_item.slug|default:"no-slug" }} · {{ task_item.title }}
+              </option>
+            {% endfor %}
+          </select>
+          <span class="inline-note">Selecting a task reloads the page and fills all fields.</span>
+          <input type="hidden" name="task_id" value="{% if selected_task %}{{ selected_task.id }}{% endif %}">
+        </div>
+      {% endif %}
       {% if form.non_field_errors %}
         <div class="alert-danger">{{ form.non_field_errors }}</div>
       {% endif %}
@@ -366,6 +416,26 @@
 
       <div class="files-block">
         <p><strong>Прикрепления</strong> (по умолчанию 0; добавьте столько, сколько нужно):</p>
+        {% if redact_mode and selected_task %}
+          <div class="existing-attachments">
+            {% for att in selected_task.attachments.all %}
+              <div class="existing-attachment-row">
+                <div class="existing-attachment-meta">
+                  <a class="existing-attachment-link" href="{{ att.file.url }}" target="_blank" rel="noopener">
+                    {{ att.download_name_override|default:att.file.name }}
+                  </a>
+                  <span class="muted">#{{ att.id }} · {{ att.get_kind_display }}{% if att.label %} · {{ att.label }}{% endif %}</span>
+                </div>
+                <label class="existing-attachment-remove">
+                  <input type="checkbox" name="delete_attachment_ids" value="{{ att.id }}">
+                  <span>Удалить</span>
+                </label>
+              </div>
+            {% empty %}
+              <span class="muted">У задачи пока нет прикреплений.</span>
+            {% endfor %}
+          </div>
+        {% endif %}
         <div class="attachments-actions">
           <button type="button" class="pill-button" id="add-attachment">+ Добавить Task attachment</button>
           <span class="inline-note">Для каждого файла задайте имя, по умолчанию оно заполняется slug + расширение.</span>
@@ -391,7 +461,7 @@
       </div>
 
       <div style="margin-top: 16px;">
-        <button type="submit" class="btn-primary">Сохранить</button>
+        <button type="submit" class="btn-primary" {% if redact_mode and not selected_task %}disabled{% endif %}>Сохранить</button>
       </div>
     </form>
   </div>
@@ -406,6 +476,7 @@
   const ANSWER_SCHEMAS = JSON.parse('{{ answer_schemas_json|escapejs }}');
   const SOURCES = JSON.parse('{{ sources_json|escapejs }}');
   const SOURCE_VARIANTS = JSON.parse('{{ source_variants_json|escapejs }}');
+  const REDACT_MODE = {% if redact_mode %}true{% else %}false{% endif %};
 </script>
 
 <script>
@@ -448,6 +519,7 @@
     let lastAutoSlug = "";
     const sourceMap = new Map(SOURCES.map((s) => [String(s.id), s]));
     const variantMap = new Map(SOURCE_VARIANTS.map((v) => [String(v.id), v]));
+    const FORCE_AUTOFILL = !REDACT_MODE;
 
     function currentSourceSlug() {
       const sid = sourceSel ? sourceSel.value : "";
@@ -690,9 +762,9 @@
     ["change","input"].forEach(evt => {
       if (title) title.addEventListener(evt, () => suggestSlug(false));
       if (slug) slug.addEventListener(evt, () => { refreshAutoNamesForSlug(); updatePreview(); });
-      if (typeSel) typeSel.addEventListener(evt, () => suggestTitle(true));
-      if (sourceSel) sourceSel.addEventListener(evt, () => suggestTitle(true));
-      if (variantSel) variantSel.addEventListener(evt, () => suggestTitle(true));
+      if (typeSel) typeSel.addEventListener(evt, () => suggestTitle(FORCE_AUTOFILL));
+      if (sourceSel) sourceSel.addEventListener(evt, () => suggestTitle(FORCE_AUTOFILL));
+      if (variantSel) variantSel.addEventListener(evt, () => suggestTitle(FORCE_AUTOFILL));
       if (examSel) examSel.addEventListener(evt, updatePreview);
     });
 
@@ -751,11 +823,30 @@
     });
 
     // Start with zero attachments; user can add via the button.
-    suggestTitle(true);
-    suggestSlug(true);
+    if (!REDACT_MODE) {
+      suggestTitle(true);
+      suggestSlug(true);
+    }
     updatePreview();
   })();
 </script>
+{% if redact_mode %}
+<script>
+  (function() {
+    const taskSelect = document.getElementById("task-redact-select");
+    if (!taskSelect) return;
+    taskSelect.addEventListener("change", () => {
+      const taskId = taskSelect.value;
+      const baseUrl = "{% url 'tasks_redact' %}";
+      if (!taskId) {
+        window.location.href = baseUrl;
+        return;
+      }
+      window.location.href = `${baseUrl}?task=${encodeURIComponent(taskId)}`;
+    });
+  })();
+</script>
+{% endif %}
 <script>
   (function () {
     const subjectSel = document.getElementById("id_subject");

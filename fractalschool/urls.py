@@ -55,6 +55,8 @@ urlpatterns = [
     path('recsys/dashboard/', recsys_views.dashboard, name='recsys_dashboard'),
     path('recsys/user/<int:user_id>/', recsys_views.teacher_user, name='recsys_teacher_user'),
     path('tasks/upload/', recsys_views.task_upload, name='tasks_upload'),
+    path('tasks/redact/', recsys_views.task_redact, name='tasks_redact'),
+    path('tasks/variant-map/', recsys_views.task_variant_map, name='tasks_variant_map'),
     path('tasks/variant-builder/', recsys_views.variant_builder, name='tasks_variant_builder'),
     path('tasks/', recsys_views.tasks_list, name='tasks_list'),
 
