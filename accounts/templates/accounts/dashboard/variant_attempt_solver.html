@@ -6,6 +6,7 @@
 {% block content %}
 <section class="solver">
   {{ exam_start_info|default:""|json_script:"solver-start-info" }}
+  {{ solver_meta|default:""|json_script:"solver-meta" }}
   <div class="solver__header" role="banner" aria-label="{% trans 'Заголовок варианта' %}">
     <div class="solver__header-col solver__header-col--left">
       <p class="solver__eyebrow">{% trans "Вариант" %}: <span class="solver__eyebrow-value">{{ assignment.template.name }}</span></p>
@@ -23,6 +24,7 @@
       </div>
     </div>
     <div class="solver__header-col solver__header-col--right">
+      <a class="solver__header-link" href="{% url 'home' %}">{% trans "На главную" %}</a>
       <button id="solver-finalize" class="btn btn-primary">{% trans "ЗАВЕРШИТЬ" %}</button>
     </div>
   </div>
@@ -100,6 +102,17 @@
       return "";
     }
   })();
+  const solverMeta = (() => {
+    try {
+      const el = document.getElementById("solver-meta");
+      return el ? JSON.parse(el.textContent) : {};
+    } catch (_) {
+      return {};
+    }
+  })();
+  const assignmentId = solverMeta ? solverMeta.assignment_id : null;
+  const canRestart = solverMeta ? !!solverMeta.can_restart : false;
+  const solverUrlTemplate = solverMeta ? solverMeta.solver_url_template : "";
 
   let attempt = null;
   let currentVariantTaskId = null;
@@ -112,6 +125,7 @@
   let countdownTimer = null;
   let localTimeLeftSeconds = null;
   let saveInFlight = false;
+  let restartInFlight = false;
   let saveSeqCounter = 0;
   const saveQueue = [];
   const lastSaveIdByTask = new Map();
@@ -159,9 +173,69 @@
 
   function renderStatus(message, kind="info") {
     if (!statusMessageEl || !statusEl) return;
-    const text = message && String(message).trim() ? message : "{% trans 'Статус: ок' %}";
+    const text = message && String(message).trim() ? message : "{% trans 'Вариант готов' %}";
     statusMessageEl.textContent = text;
     statusEl.className = kind === "info" ? "solver__status" : "solver__status solver__status--" + kind;
+  }
+
+  function updateFinalizeButtonState() {
+    if (!finalizeBtn) return;
+    if (attempt && attempt.completed_at) {
+      if (canRestart) {
+        finalizeBtn.disabled = false;
+        finalizeBtn.textContent = "{% trans 'ПРОЙТИ ВАРИАНТ ЗАНОВО' %}";
+      } else {
+        finalizeBtn.disabled = true;
+        finalizeBtn.textContent = "{% trans 'ЗАВЕРШИТЬ' %}";
+      }
+    } else {
+      finalizeBtn.disabled = false;
+      finalizeBtn.textContent = "{% trans 'ЗАВЕРШИТЬ' %}";
+    }
+  }
+
+  function buildSolverUrl(newAttemptId) {
+    if (!solverUrlTemplate) {
+      return `/accounts/dashboard/attempts/${newAttemptId}/solver/`;
+    }
+    return solverUrlTemplate.replace("/0/solver/", `/${newAttemptId}/solver/`);
+  }
+
+  async function startNewAttempt() {
+    if (restartInFlight || !assignmentId) {
+      renderStatus("{% trans 'Не удалось начать новую попытку' %}", "error");
+      return;
+    }
+    restartInFlight = true;
+    renderStatus("{% trans 'Начинаем новую попытку...' %}");
+    const resp = await fetch(`/api/variants/assignments/${assignmentId}/attempts/start/`, {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken()},
+      credentials: "same-origin"
+    });
+    if (!resp.ok) {
+      const errorText = await resp.text().catch(() => "");
+      restartInFlight = false;
+      const detail = errorText ? ` ${errorText}` : "";
+      renderStatus("{% trans 'Не удалось начать новую попытку' %}" + detail, "error");
+      return;
+    }
+    const data = await resp.json().catch(() => null);
+    const newAttemptId = data && data.id ? data.id : null;
+    if (!newAttemptId) {
+      restartInFlight = false;
+      renderStatus("{% trans 'Не удалось начать новую попытку' %}", "error");
+      return;
+    }
+    window.location.href = buildSolverUrl(newAttemptId);
+  }
+
+  function handleFinalizeClick() {
+    if (attempt && attempt.completed_at) {
+      if (canRestart) startNewAttempt();
+      return;
+    }
+    finalizeAttempt();
   }
 
   function renderLoadingCard() {
@@ -459,6 +533,7 @@
     const inputs = Array.from(answerFieldsEl.querySelectorAll("input.answer-input"));
     if (!inputs.length) return;
     const total = Math.max(1, rows * cols);
+    if (total <= 1) return;
 
     const tokenize = (text) => {
       return text
@@ -710,7 +785,7 @@
 
   function handleLocalTimeout() {
     if (!attempt || attempt.completed_at) return;
-    renderStatus("{% trans 'Статус: время вышло' %}", "error");
+    renderStatus("{% trans 'Время вышло' %}", "error");
     timeoutTriggered = true;
     finalizeAttempt();
   }
@@ -930,7 +1005,7 @@
     updateNavButtons();
   }
 
-    async function fetchAttempt() {
+  async function fetchAttempt() {
     try {
       const resp = await fetch(`/api/variants/attempts/${attemptId}/`, {credentials: "same-origin"});
       if (!resp.ok) {
@@ -941,7 +1016,8 @@
     } catch (err) {
       console.error("solver fetchAttempt failed", err);
       const message = "{% trans 'Не удалось загрузить данные' %}";
-      renderStatus("{% trans 'Статус: не удалось загрузить данные' %}", "error");
+      const detail = err && err.message ? ` ${err.message}` : "";
+      renderStatus("{% trans 'Не удалось загрузить данные' %}" + detail, "error");
       if (bodyEl) {
         bodyEl.innerHTML = `<p class='muted'>${message}</p>`;
         bodyEl.removeAttribute("data-format");
@@ -959,6 +1035,7 @@
     renderTaskList();
     scheduleMinuteSync();
     startCountdown();
+    updateFinalizeButtonState();
     if (!currentVariantTaskId) {
       selectTask(START_ITEM_ID);
     } else if (currentVariantTaskId === START_ITEM_ID) {
@@ -1109,6 +1186,7 @@
   async function sendSaveRequest(taskId, payload, prevTask, prevSaved, prevEditing, seq, retryCount) {
     const maxRetries = 1;
     const retryDelayMs = 3000;
+    let lastErrorText = "";
     for (let attemptIndex = retryCount; attemptIndex <= maxRetries; attemptIndex += 1) {
       try {
         const resp = await fetch(`/api/variants/attempts/${attemptId}/tasks/${taskId}/save/`, {
@@ -1138,15 +1216,19 @@
           renderTaskList();
           if (lastSaveIdByTask.get(taskId) === seq) {
             pendingPayloadByTask.delete(taskId);
-            renderStatus("{% trans 'Статус: ответ сохранен' %}", "success");
+            renderStatus("{% trans 'Ответ сохранен' %}", "success");
           }
           return;
         }
 
+        lastErrorText = await resp.text().catch(() => "");
         if (resp.status < 500 || attemptIndex >= maxRetries) {
           break;
         }
-      } catch (_) {
+      } catch (err) {
+        if (!lastErrorText && err && err.message) {
+          lastErrorText = err.message;
+        }
         if (attemptIndex >= maxRetries) {
           break;
         }
@@ -1165,7 +1247,8 @@
     if (task) renderTask(task);
     renderTaskList();
     setAnswerLocked(attempt.completed_at !== null || isSaved);
-    renderStatus("{% trans 'Статус: не удалось сохранить ответ' %}", "error");
+    const detail = lastErrorText ? ` ${lastErrorText}` : "";
+    renderStatus("{% trans 'Не удалось сохранить ответ' %}" + detail, "error");
   }
 
   async function processSaveQueue() {
@@ -1198,7 +1281,7 @@
       return;
     }
     if (!attempt || !Array.isArray(attempt.tasks_progress)) {
-      renderStatus("{% trans 'Статус: сохраняем ответ...' %}");
+      renderStatus("{% trans 'Сохраняем ответ...' %}");
       return;
     }
     const payload = parseAnswer();
@@ -1221,7 +1304,7 @@
     if (task) renderTask(task);
     renderTaskList();
     setAnswerLocked(true);
-    renderStatus("{% trans 'Статус: сохраняем ответ...' %}");
+    renderStatus("{% trans 'Сохраняем ответ...' %}");
 
     saveQueue.push({
       taskId,
@@ -1238,15 +1321,25 @@
   async function finalizeAttempt() {
     if (finalizeInFlight || !attempt || attempt.completed_at) return;
     finalizeInFlight = true;
-    renderStatus("{% trans 'Статус: отправляем на проверку...' %}");
-    const resp = await fetch(`/api/variants/attempts/${attemptId}/finalize/`, {
-      method: "POST",
-      headers: {"X-CSRFToken": csrfToken()},
-      credentials: "same-origin"
-    });
-    if (!resp.ok) {
+    renderStatus("{% trans 'Отправляем на проверку...' %}");
+    let resp;
+    try {
+      resp = await fetch(`/api/variants/attempts/${attemptId}/finalize/`, {
+        method: "POST",
+        headers: {"X-CSRFToken": csrfToken()},
+        credentials: "same-origin"
+      });
+    } catch (err) {
       finalizeInFlight = false;
-      renderStatus("{% trans 'Статус: не удалось завершить попытку' %}", "error");
+      const detail = err && err.message ? ` ${err.message}` : "";
+      renderStatus("{% trans 'Не удалось завершить попытку' %}" + detail, "error");
+      return;
+    }
+    if (!resp.ok) {
+      const errorText = await resp.text().catch(() => "");
+      finalizeInFlight = false;
+      const detail = errorText ? ` ${errorText}` : "";
+      renderStatus("{% trans 'Не удалось завершить попытку' %}" + detail, "error");
       return;
     }
     attempt = await resp.json();
@@ -1254,16 +1347,16 @@
     if (Number.isFinite(timeLeft)) {
       localTimeLeftSeconds = timeLeft;
     }
-    renderStatus("{% trans 'Статус: попытка отправлена' %}", "success");
+    renderStatus("{% trans 'Попытка отправлена' %}", "success");
     updateTimerBadge();
     currentVariantTaskId = FINISH_ITEM_ID;
     renderTaskList();
     renderFinishCard();
     setAnswerLocked(true);
     saveBtn.disabled = true;
-    finalizeBtn.disabled = true;
     stopCountdown();
     stopMinuteSync();
+    updateFinalizeButtonState();
     finalizeInFlight = false;
   }
 
@@ -1313,7 +1406,7 @@
         updateTimerBadge();
       }
       if (data.completed) {
-        renderStatus("{% trans 'Статус: время вышло' %}", "error");
+        renderStatus("{% trans 'Время вышло' %}", "error");
         timeoutTriggered = true;
         finalizeAttempt();
       }
@@ -1329,7 +1422,7 @@
   if (saveBtn) saveBtn.addEventListener("click", saveAnswer);
   if (prevBtn) prevBtn.addEventListener("click", () => moveBy(-1));
   if (nextBtn) nextBtn.addEventListener("click", () => moveBy(1));
-  if (finalizeBtn) finalizeBtn.addEventListener("click", finalizeAttempt);
+  if (finalizeBtn) finalizeBtn.addEventListener("click", handleFinalizeClick);
 })();
 </script>
 
