@@ -13,6 +13,7 @@ from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 
 from subjects.models import Subject
+from apps.recsys.utils.sanitize import sanitize_html
 
 
 class TimeStampedModel(models.Model):
@@ -531,7 +532,7 @@ class Task(TimeStampedModel):
         preview = self._render_with_payload(self.default_payload or {}, highlight=True)
         if not preview:
             return self.description
-        return mark_safe(preview)
+        return mark_safe(sanitize_html(preview))
 
     def render_template_payload(self, payload: Mapping[str, object] | None) -> str:
         rendered = self._render_with_payload(payload, highlight=False)

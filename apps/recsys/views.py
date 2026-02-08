@@ -1,5 +1,6 @@
 
 import json
+import logging
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -31,10 +32,13 @@ from .models import (
 )
 from .recommendation import recommend_tasks
 from .forms import TaskUploadForm
-from accounts.models import StudentProfile
+from accounts.models import ClassTeacherSubject, StudentProfile, TeacherStudentLink
 from apps.recsys.service_utils import variants as variant_services
 from apps.recsys.service_utils.type_progress import build_type_progress_map
 from subjects.models import Subject
+
+
+logger = logging.getLogger("recsys")
 
 
 @login_required
@@ -57,6 +61,18 @@ def teacher_user(request, user_id):
     """Display progress for a specific student."""
     user_model = get_user_model()
     student = get_object_or_404(user_model, pk=user_id)
+    if not request.user.is_staff:
+        has_link = TeacherStudentLink.objects.filter(
+            teacher=request.user,
+            student=student,
+            status=TeacherStudentLink.Status.ACTIVE,
+        ).exists()
+        shares_class = ClassTeacherSubject.objects.filter(
+            teacher=request.user,
+            study_class__student_memberships__student=student,
+        ).exists()
+        if not (has_link or shares_class):
+            raise Http404("Student not accessible.")
     masteries = (
         SkillMastery.objects.filter(user=student)
         .select_related("skill")
@@ -95,8 +111,8 @@ def exam_page(request, exam_slug: str):
                 exam_version=exam,
             )
         except drf_exceptions.ValidationError as exc:
-            detail = getattr(exc, "detail", None) or getattr(exc, "args", None)
-            messages.error(request, str(detail or exc))
+            logger.info("Personal assignment validation error", extra={"exam_id": exam.id}, exc_info=exc)
+            messages.error(request, _("Не удалось собрать персональный вариант."))
         else:
             page = variant_services.ensure_variant_page(assignment.template, is_public=False)
             return redirect("variant-page", slug=page.slug)
@@ -276,9 +292,11 @@ def variant_page(request, slug: str):
         try:
             attempt = active_attempt or variant_services.start_new_attempt(request.user, assignment.id)
         except drf_exceptions.ValidationError as exc:
-            messages.error(request, str(getattr(exc, "detail", exc)))
+            logger.info("Variant start validation error", extra={"template_id": template.id}, exc_info=exc)
+            messages.error(request, _("Не удалось начать попытку."))
         except drf_exceptions.APIException as exc:
-            messages.error(request, str(getattr(exc, "detail", exc)))
+            logger.warning("Variant start API error", extra={"template_id": template.id}, exc_info=exc)
+            messages.error(request, _("Не удалось начать попытку."))
         else:
             return redirect("accounts:variant-attempt-solver", attempt_id=attempt.id)
 

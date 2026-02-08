@@ -219,13 +219,15 @@ def assignment_detail(request, assignment_id: int):
     try:
         assignment = variant_services.get_assignment_or_404(request.user, assignment_id)
     except drf_exceptions.NotFound as exc:
-        raise Http404(str(exc)) from exc
+        logger.warning("Assignment not found", extra={"assignment_id": assignment_id}, exc_info=exc)
+        raise Http404("Not found") from exc
 
     if request.method == "POST" and "start_attempt" in request.POST:
         try:
             variant_services.start_new_attempt(request.user, assignment_id)
         except drf_exceptions.ValidationError as exc:
-            messages.error(request, _format_error_detail(exc.detail))
+            logger.info("Assignment start validation error", extra={"assignment_id": assignment_id}, exc_info=exc)
+            messages.error(request, _("Не удалось начать попытку."))
         else:
             messages.success(request, _("Новая попытка по варианту начата"))
             return redirect("accounts:assignment-detail", assignment_id=assignment_id)
@@ -252,7 +254,8 @@ def assignment_result(request, assignment_id: int):
     try:
         assignment = variant_services.get_assignment_history(request.user, assignment_id)
     except drf_exceptions.NotFound as exc:
-        raise Http404(str(exc)) from exc
+        logger.warning("Assignment history not found", extra={"assignment_id": assignment_id}, exc_info=exc)
+        raise Http404("Not found") from exc
 
     attempts = assignment.attempts.all()
     exam_mismatch_notice = None
@@ -1130,7 +1133,8 @@ def variant_attempt_work(request, attempt_id: int):
     try:
         attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
     except drf_exceptions.NotFound as exc:
-        raise Http404(str(exc)) from exc
+        logger.warning("Attempt not found", extra={"attempt_id": attempt_id}, exc_info=exc)
+        raise Http404("Not found") from exc
 
     assignment = attempt.assignment
     template_tasks = {
@@ -1182,12 +1186,26 @@ def variant_attempt_work(request, attempt_id: int):
                                 answer=form.get_answer(),
                             )
                         except drf_exceptions.ValidationError as exc:
-                            messages.error(request, _format_error_detail(exc.detail))
+                            logger.info(
+                                "Task response validation error",
+                                extra={"attempt_id": attempt_id, "variant_task_id": variant_task_id},
+                                exc_info=exc,
+                            )
+                            messages.error(request, _("Не удалось сохранить ответ."))
                         except drf_exceptions.APIException as exc:
-                            detail = getattr(exc, "detail", str(exc))
-                            messages.error(request, _format_error_detail(detail))
+                            logger.warning(
+                                "Task response API error",
+                                extra={"attempt_id": attempt_id, "variant_task_id": variant_task_id},
+                                exc_info=exc,
+                            )
+                            messages.error(request, _("Не удалось сохранить ответ."))
                         except drf_exceptions.NotFound as exc:
-                            raise Http404(str(exc)) from exc
+                            logger.warning(
+                                "Task response not found",
+                                extra={"attempt_id": attempt_id, "variant_task_id": variant_task_id},
+                                exc_info=exc,
+                            )
+                            raise Http404("Not found") from exc
                         else:
                             messages.success(request, _("Ответ сохранен."))
                             return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
@@ -1198,9 +1216,11 @@ def variant_attempt_work(request, attempt_id: int):
             try:
                 variant_services.finalize_attempt(request.user, attempt_id)
             except drf_exceptions.ValidationError as exc:
-                messages.error(request, _format_error_detail(exc.detail))
+                logger.info("Finalize attempt validation error", extra={"attempt_id": attempt_id}, exc_info=exc)
+                messages.error(request, _("Не удалось завершить попытку."))
             except drf_exceptions.NotFound as exc:
-                raise Http404(str(exc)) from exc
+                logger.warning("Finalize attempt not found", extra={"attempt_id": attempt_id}, exc_info=exc)
+                raise Http404("Not found") from exc
             else:
                 messages.success(request, _("Попытка завершена."))
             return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
@@ -1341,7 +1361,8 @@ def variant_attempt_solver(request, attempt_id: int):
     try:
         attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
     except drf_exceptions.NotFound as exc:
-        raise Http404(str(exc)) from exc
+        logger.warning("Attempt not found", extra={"attempt_id": attempt_id}, exc_info=exc)
+        raise Http404("Not found") from exc
 
     assignment = attempt.assignment
     time_left_delta = variant_services.get_time_left(attempt)

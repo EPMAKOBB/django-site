@@ -6,6 +6,7 @@ from django.utils.safestring import mark_safe
 import markdown
 
 from apps.recsys.utils.rendering import render_task_body as _render_task_body
+from apps.recsys.utils.sanitize import sanitize_html
 
 register = template.Library()
 
@@ -26,7 +27,7 @@ def render_markdown(value: str | None) -> str:
         extensions=_MARKDOWN_EXTENSIONS,
         output_format="html5",
     )
-    return mark_safe(html)
+    return mark_safe(sanitize_html(html))
 
 
 @register.filter(name="render_task_body")
