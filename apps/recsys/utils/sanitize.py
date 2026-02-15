@@ -31,6 +31,8 @@ _ALLOWED_TAGS = [
     "tr",
     "th",
     "td",
+    "div",
+    "span",
 ]
 
 _ALLOWED_ATTRS = {
@@ -38,6 +40,8 @@ _ALLOWED_ATTRS = {
     "img": ["src", "alt", "title"],
     "th": ["colspan", "rowspan"],
     "td": ["colspan", "rowspan"],
+    "div": ["class"],
+    "span": ["class"],
 }
 
 _ALLOWED_PROTOCOLS = ["http", "https", "mailto", "data"]

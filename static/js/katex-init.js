@@ -2,7 +2,8 @@
 // Delimiters: $...$, $$...$$, \(...\), \[...\]
 function renderMathBlocks() {
   if (typeof renderMathInElement !== "function") return;
-  document.querySelectorAll('[data-format="markdown"]').forEach((el) => {
+  document.querySelectorAll('[data-format="markdown"], [data-format="html"]').forEach((el) => {
+    if (el.dataset.mathRendered === "1") return;
     renderMathInElement(el, {
       delimiters: [
         { left: "$$", right: "$$", display: true },
@@ -10,8 +11,10 @@ function renderMathBlocks() {
         { left: "$", right: "$", display: false },
         { left: "\\(", right: "\\)", display: false },
       ],
+      ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
       throwOnError: false,
     });
+    el.dataset.mathRendered = "1";
   });
 }
 
