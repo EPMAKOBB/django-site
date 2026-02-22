@@ -915,7 +915,6 @@
         headerTaskMetaEl.textContent = "—";
       }
     }
-    const desc = task.task_snapshot?.description || task.task_snapshot?.content?.statement || "";
     if (task.task_body_html) {
       bodyEl.innerHTML = task.task_body_html;
       if (task.task_rendering_strategy === "markdown") {
@@ -926,7 +925,7 @@
         bodyEl.classList.remove("markdown-content");
       }
     } else {
-      bodyEl.innerHTML = desc ? desc : "<p class='muted'>{% trans 'Описание не найдено' %}</p>";
+      bodyEl.innerHTML = "<p class='muted'>{% trans 'Описание не найдено' %}</p>";
       bodyEl.removeAttribute("data-format");
       bodyEl.classList.remove("markdown-content");
     }

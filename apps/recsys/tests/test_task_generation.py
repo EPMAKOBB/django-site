@@ -414,3 +414,60 @@ class VariantGenerationTests(TestCase):
         self.assignment.refresh_from_db()
         progress_summary = variant_service.calculate_assignment_progress(self.assignment)
         self.assertEqual(progress_summary["solved_tasks"], 1)
+
+    def test_task_body_html_falls_back_to_task_description_without_generation_snapshot(self):
+        self.static_task.description = "first line\nsecond line"
+        self.static_task.rendering_strategy = Task.RenderingStrategy.PLAIN
+        self.static_task.save(update_fields=["description", "rendering_strategy"])
+
+        attempt = variant_service.start_new_attempt(
+            self.assignment.user, self.assignment.id
+        )
+        VariantTaskAttempt.objects.filter(
+            variant_attempt=attempt,
+            variant_task=self.static_variant_task,
+            attempt_number=0,
+        ).delete()
+
+        attempt = variant_service.get_attempt_with_prefetch(
+            self.assignment.user, attempt.id
+        )
+        progress = variant_service.build_tasks_progress(attempt)
+        entry = next(
+            item for item in progress if item["variant_task_id"] == self.static_variant_task.id
+        )
+
+        self.assertIsNone(entry["task_snapshot"])
+        self.assertIn("first line", entry["task_body_html"])
+        self.assertIn("second line", entry["task_body_html"])
+        self.assertIn("<br>", entry["task_body_html"])
+
+    def test_task_body_html_prefers_snapshot_description_over_task_description(self):
+        self.static_task.description = "Task description fallback"
+        self.static_task.rendering_strategy = Task.RenderingStrategy.PLAIN
+        self.static_task.save(update_fields=["description", "rendering_strategy"])
+
+        attempt = variant_service.start_new_attempt(
+            self.assignment.user, self.assignment.id
+        )
+        generation_attempt = VariantTaskAttempt.objects.get(
+            variant_attempt=attempt,
+            variant_task=self.static_variant_task,
+            attempt_number=0,
+        )
+        generation_attempt.task_snapshot["task"]["description"] = "Snapshot **bold**"
+        generation_attempt.task_snapshot["task"]["rendering_strategy"] = (
+            Task.RenderingStrategy.MARKDOWN
+        )
+        generation_attempt.save(update_fields=["task_snapshot"])
+
+        attempt = variant_service.get_attempt_with_prefetch(
+            self.assignment.user, attempt.id
+        )
+        progress = variant_service.build_tasks_progress(attempt)
+        entry = next(
+            item for item in progress if item["variant_task_id"] == self.static_variant_task.id
+        )
+
+        self.assertIn("<strong>bold</strong>", entry["task_body_html"])
+        self.assertNotIn("Task description fallback", entry["task_body_html"])

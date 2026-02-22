@@ -1337,6 +1337,7 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
             if attempt.attempt_number > 0
         ]
         aggregated_time = time_spent_map.get(variant_task.id)
+        desc = ""
         if generated_snapshot:
             rendering_strategy = (
                 generated_snapshot.get("rendering_strategy")
@@ -1349,8 +1350,10 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
                 or generated_snapshot.get("content", {}).get("statement")
                 or ""
             )
-            if desc:
-                task_body_html = _render_task_body(desc, rendering_strategy)
+        if not desc and variant_task.task:
+            desc = variant_task.task.description or ""
+        if desc:
+            task_body_html = _render_task_body(desc, rendering_strategy)
 
         progress.append(
             {
