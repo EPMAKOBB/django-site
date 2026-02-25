@@ -22,6 +22,7 @@ from ..models import (
     VariantTask,
     VariantTaskAttempt,
     VariantTemplate,
+    resolve_media_url,
 )
 from ..service_utils import variants as variant_service
 
@@ -106,7 +107,7 @@ class TaskSerializer(serializers.ModelSerializer):
         if not obj.image:
             return None
         request = self.context.get("request") if isinstance(self.context, dict) else None
-        url = obj.image.url
+        url = resolve_media_url(obj.image.url)
         if request is not None:
             return request.build_absolute_uri(url)
         return url

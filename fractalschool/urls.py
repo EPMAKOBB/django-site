@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import include, path
 from django.contrib.sitemaps.views import sitemap
 from django.conf import settings
+from urllib.parse import urlparse
 
 from apps.recsys import views as recsys_views
 from .views import HomeView, KrylovView, krylov_download, robots_txt, media_download
@@ -65,10 +66,18 @@ urlpatterns = [
 # Serve uploaded media when S3 is not configured.
 # Railway: volume is mounted at /app/media, so we need an explicit route even with DEBUG=False.
 if not getattr(settings, "USE_S3_MEDIA", False):
+    media_url = str(getattr(settings, "MEDIA_URL", "/media/") or "/media/")
+    parsed = urlparse(media_url)
+    media_path = parsed.path or media_url
+    media_prefix = media_path.lstrip("/")
+    if media_prefix and not media_prefix.endswith("/"):
+        media_prefix = f"{media_prefix}/"
+    if not media_prefix:
+        media_prefix = "media/"
     # Force download for all media files in both dev and production.
     urlpatterns += [
         path(
-            f"{settings.MEDIA_URL.lstrip('/')}" + "<path:path>",
+            f"{media_prefix}<path:path>",
             media_download,
             name="media-download",
         ),

@@ -421,7 +421,7 @@
             {% for att in selected_task.attachments.all %}
               <div class="existing-attachment-row">
                 <div class="existing-attachment-meta">
-                  <a class="existing-attachment-link" href="{{ att.file.url }}" target="_blank" rel="noopener">
+                  <a class="existing-attachment-link" href="{{ att.public_url }}" target="_blank" rel="noopener">
                     {{ att.download_name_override|default:att.file.name }}
                   </a>
                   <span class="muted">#{{ att.id }} · {{ att.get_kind_display }}{% if att.label %} · {{ att.label }}{% endif %}</span>
@@ -451,6 +451,7 @@
           <span class="spinner"></span>
           <span>Загружаем из буфера…</span>
         </div>
+        <div id="paste-feedback" class="inline-note" aria-live="polite"></div>
         <div class="form-field" style="margin-top: 10px;">
           <label for="{{ form.image.id_for_label }}">Картинка (опционально)</label>
           {{ form.image }}{{ form.image.errors }}
@@ -514,6 +515,7 @@
     const hiddenAttachmentsField = document.getElementById("id_attachments"); // rendered hidden, used as prototype
     const descriptionField = document.getElementById("id_description");
     const uploadingIndicator = document.getElementById("attachment-uploading");
+    const pasteFeedback = document.getElementById("paste-feedback");
 
     let lastAutoTitle = "";
     let lastAutoSlug = "";
@@ -640,6 +642,81 @@
       if (uploadingIndicator) {
         uploadingIndicator.classList.remove("visible");
       }
+    }
+
+    function showPasteFeedback(message, isError = false) {
+      if (!pasteFeedback) return;
+      pasteFeedback.textContent = message || "";
+      pasteFeedback.style.color = isError ? "#f87171" : "";
+    }
+
+    function collectClipboardFiles(event) {
+      const dt = event.clipboardData;
+      if (!dt) return [];
+      const picked = [];
+      const seen = new Set();
+
+      const pushUnique = (file) => {
+        if (!file) return;
+        const key = [file.name || "", file.size || 0, file.type || "", file.lastModified || 0].join("|");
+        if (seen.has(key)) return;
+        seen.add(key);
+        picked.push(file);
+      };
+
+      if (dt.items && dt.items.length) {
+        for (const item of Array.from(dt.items)) {
+          if (!item || item.kind !== "file") continue;
+          pushUnique(item.getAsFile());
+        }
+      }
+      // Prefer clipboard items to avoid duplicate entries where browsers expose the
+      // same payload in both `items` and `files`.
+      if (!picked.length && dt.files && dt.files.length) {
+        for (const file of Array.from(dt.files)) {
+          pushUnique(file);
+        }
+      }
+      return picked;
+    }
+
+    function assignFileToInput(input, file) {
+      if (!input || !file) return false;
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+      } catch (e) {
+        return false;
+      }
+      const assigned = !!(input.files && input.files.length);
+      if (assigned) {
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      return assigned;
+    }
+
+    function uniqueAttachmentName(rawName, skipInput = null) {
+      const desired = (rawName || "").trim();
+      if (!desired) return desired;
+      const dot = desired.lastIndexOf(".");
+      const stem = dot > 0 ? desired.slice(0, dot) : desired;
+      const ext = dot > 0 ? desired.slice(dot) : "";
+      const taken = new Set(
+        attachmentRows()
+          .map((row) => row.querySelector(".attachment-name"))
+          .filter((input) => input && input !== skipInput)
+          .map((input) => input.value?.trim().toLowerCase() || "")
+          .filter(Boolean)
+      );
+      if (!taken.has(desired.toLowerCase())) return desired;
+      let index = 2;
+      let candidate = `${stem}-${index}${ext}`;
+      while (taken.has(candidate.toLowerCase())) {
+        index += 1;
+        candidate = `${stem}-${index}${ext}`;
+      }
+      return candidate;
     }
 
     function makeAttachmentRow() {
@@ -778,39 +855,76 @@
     }
 
     async function handlePasteAsAttachment(event) {
-      const files = event.clipboardData?.files;
-      if (!files || !files.length) return;
+      const files = collectClipboardFiles(event);
+      if (!files.length) return;
       event.preventDefault();
       showUploading();
+      showPasteFeedback("");
       const tokens = [];
       const imageField = document.getElementById("id_image");
-      const canUseImageField = imageField && (!imageField.files || !imageField.files.length);
-      for (const file of files) {
-        const isImage = (file.type || "").toLowerCase().startsWith("image/");
-        if (isImage && canUseImageField && imageField) {
-          const dt = new DataTransfer();
-          dt.items.add(file);
-          imageField.files = dt.files;
-          imageField.dispatchEvent(new Event("change"));
-          tokens.push("![[att:img]]");
-          continue;
+      let canUseImageField = !!(imageField && (!imageField.files || !imageField.files.length));
+      let attachedCount = 0;
+      let attachedImages = 0;
+      let attachedFiles = 0;
+      let failedCount = 0;
+      try {
+        for (const file of files) {
+          const isImage = (file.type || "").toLowerCase().startsWith("image/");
+          if (isImage && canUseImageField && imageField) {
+            const assigned = assignFileToInput(imageField, file);
+            if (assigned) {
+              tokens.push("![[att:img]]");
+              canUseImageField = false;
+              attachedCount += 1;
+              attachedImages += 1;
+              continue;
+            }
+          }
+          const created = makeAttachmentRow();
+          if (!created) {
+            failedCount += 1;
+            continue;
+          }
+
+          const assigned = assignFileToInput(created.fileInput, file);
+          if (!assigned) {
+            created.row.remove();
+            failedCount += 1;
+            continue;
+          }
+
+          created.refreshSuggestedName();
+          if (created.nameInput) {
+            const uniqueName = uniqueAttachmentName(created.nameInput.value || file.name || "", created.nameInput);
+            if (uniqueName) {
+              created.nameInput.value = uniqueName;
+              created.nameInput.dataset.auto = "true";
+            }
+          }
+          const nameVal = (created.nameInput?.value || file.name || "").trim();
+          const labelSlug = buildLabelSlug(nameVal || file.name || `file${Date.now()}`) || `file${Date.now()}`;
+          tokens.push(`![[att:${labelSlug.toLowerCase()}]]`);
+          attachedCount += 1;
+          attachedFiles += 1;
         }
-        const created = makeAttachmentRow();
-        if (!created) continue;
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        created.fileInput.files = dt.files;
-        created.refreshSuggestedName();
-        const nameVal = (created.nameInput?.value || file.name || "").trim();
-        const labelSlug = buildLabelSlug(nameVal || file.name || `file${Date.now()}`) || `file${Date.now()}`;
-        tokens.push(`![[att:${labelSlug.toLowerCase()}]]`);
+      } finally {
+        hideUploading();
+        updatePreview();
       }
-      hideUploading();
-      updatePreview();
       if (tokens.length && descriptionField) {
         const insert = (descriptionField.value ? " " : "") + tokens.join(" ");
         insertTextAtCursor(descriptionField, insert);
       }
+
+      if (attachedCount === 0) {
+        showPasteFeedback("Could not attach clipboard file. Use file picker as fallback.", true);
+        return;
+      }
+      if (failedCount > 0) {
+        showPasteFeedback(`Attached ${attachedCount} file(s): image=${attachedImages}, attachments=${attachedFiles}. ${failedCount} file(s) were skipped.`, true);
+        return;
+      }
+      showPasteFeedback(`Attached ${attachedCount} file(s): image=${attachedImages}, attachments=${attachedFiles}.`);
     }
 
     if (descriptionField) {

@@ -36,6 +36,7 @@ from apps.recsys.models import (
     VariantTask,
     VariantTaskAttempt,
     VariantTaskTimeLog,
+    resolve_media_url,
 )
 from apps.recsys.recommendation import recommend_tasks
 from . import task_generation
@@ -63,7 +64,7 @@ def _build_task_attachments_payload(task: Task) -> list[dict]:
         if attachment.kind != TaskAttachment.Kind.FILE:
             continue
         try:
-            url = attachment.file.url
+            url = resolve_media_url(attachment.file.url)
         except Exception:
             continue
         name = attachment.download_name_override or Path(attachment.file.name).name
@@ -606,7 +607,7 @@ def _generate_task_snapshot(
     if task is None:  # pragma: no cover - defensive
         return None
 
-    image_url = task.image.url if task.image else None
+    image_url = resolve_media_url(task.image.url) if task.image else None
     correct_answer = deepcopy(task.correct_answer or {})
     scoring_scheme = task.get_scoring_scheme()
     max_score = task.get_max_score()
@@ -1026,7 +1027,7 @@ def submit_task_answer(
                 "title": variant_task.task.title,
                 "description": variant_task.task.description,
                 "rendering_strategy": variant_task.task.rendering_strategy,
-                "image": variant_task.task.image.url
+                "image": resolve_media_url(variant_task.task.image.url)
                 if variant_task.task.image
                 else None,
                 "correct_answer": deepcopy(variant_task.task.correct_answer or {}),

@@ -31,6 +31,7 @@ from .models import (
     VariantAssignment,
     VariantPage,
     VariantTemplate,
+    resolve_media_url,
 )
 from .recommendation import recommend_tasks
 from .forms import TaskUploadForm
@@ -309,7 +310,7 @@ def variant_page(request, slug: str):
             "title": getattr(task, "title", "") if task else "",
             "description": getattr(task, "description", "") if task else "",
             "rendering_strategy": getattr(task, "rendering_strategy", None) if task else None,
-            "image": task.image.url if getattr(task, "image", None) else None,
+            "image": resolve_media_url(task.image.url) if getattr(task, "image", None) else None,
         }
         tasks.append(
             {
@@ -732,11 +733,16 @@ def task_upload(request):
     if request.method == "POST":
         form = TaskUploadForm(request.POST, request.FILES)
         if form.is_valid():
-            task = form.create_task_with_attachments()
-            messages.success(request, f"Задача создана: {task.slug}")
-            if next_url:
-                return redirect(next_url)
-            return redirect("tasks_upload")
+            try:
+                task = form.create_task_with_attachments()
+            except Exception as exc:
+                logger.exception("Task upload failed while saving attachments", exc_info=exc)
+                messages.error(request, "Failed to save task files. Check media storage settings.")
+            else:
+                messages.success(request, f"Task saved: {task.slug}")
+                if next_url:
+                    return redirect(next_url)
+                return redirect("tasks_upload")
     else:
         initial: dict[str, int] = {}
         for key in ("subject", "exam_version", "type", "source", "source_variant"):
@@ -857,11 +863,16 @@ def task_redact(request):
         if not selected_task:
             messages.error(request, "Выберите задачу для редактирования.")
         elif form.is_valid():
-            task = form.create_task_with_attachments()
-            messages.success(request, f"Задача сохранена: {task.slug}")
-            if next_url:
-                return redirect(next_url)
-            return redirect(f"{reverse('tasks_redact')}?task={task.id}")
+            try:
+                task = form.create_task_with_attachments()
+            except Exception as exc:
+                logger.exception("Task redact failed while saving attachments", exc_info=exc)
+                messages.error(request, "Failed to save task files. Check media storage settings.")
+            else:
+                messages.success(request, f"Task saved: {task.slug}")
+                if next_url:
+                    return redirect(next_url)
+                return redirect(f"{reverse('tasks_redact')}?task={task.id}")
     else:
         form = TaskUploadForm(instance=selected_task) if selected_task else TaskUploadForm()
 
@@ -878,3 +889,4 @@ def task_redact(request):
         next_url=next_url,
     )
     return render(request, "recsys/task_upload.html", context)
+

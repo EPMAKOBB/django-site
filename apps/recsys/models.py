@@ -293,6 +293,29 @@ def task_attachment_upload_to(instance: "TaskAttachment", filename: str) -> str:
     return f"tasks/{exam_slug}/{kind_folder}/{final_name}"
 
 
+def resolve_media_url(raw_url: str) -> str:
+    """
+    Return a browser-safe media URL.
+    Some storages may return relative values like `tasks/...`; prepend MEDIA_URL.
+    """
+    if not raw_url:
+        return ""
+    lower = raw_url.lower()
+    if raw_url.startswith("/") or lower.startswith("http://") or lower.startswith("https://"):
+        return raw_url
+
+    media_url = getattr(settings, "MEDIA_URL", "/media/") or "/media/"
+    media_url = str(media_url).strip()
+    if not media_url:
+        media_url = "/media/"
+    if not media_url.endswith("/"):
+        media_url = media_url + "/"
+    media_lower = media_url.lower()
+    if not (media_url.startswith("/") or media_lower.startswith("http://") or media_lower.startswith("https://")):
+        media_url = "/" + media_url
+    return f"{media_url}{raw_url.lstrip('/')}"
+
+
 class Task(TimeStampedModel):
     slug = models.SlugField(
         max_length=128,
@@ -590,6 +613,14 @@ class TaskAttachment(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.task.slug or self.task_id} ({self.kind})"
+
+    @property
+    def public_url(self) -> str:
+        try:
+            raw = self.file.url
+        except Exception:
+            return ""
+        return resolve_media_url(raw)
 
 
 class TaskSkill(TimeStampedModel):

@@ -6,6 +6,7 @@ from typing import Any, Sequence
 from pathlib import Path
 
 from django import forms
+from django.core.files.storage import default_storage
 from django.db.models import Q
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
@@ -17,6 +18,7 @@ from .models import (
     ExamVersion,
     AnswerSchema,
     Skill,
+    resolve_media_url,
     Task,
     TaskAttachment,
     TaskSkill,
@@ -24,6 +26,7 @@ from .models import (
     TaskType,
     Source,
     SourceVariant,
+    task_attachment_upload_to,
 )
 
 
@@ -686,7 +689,7 @@ class TaskUploadForm(forms.ModelForm):
         if remove_attachment_ids:
             TaskAttachment.objects.filter(task=task, id__in=remove_attachment_ids).delete()
 
-        files_to_create: list[TaskAttachment] = []
+        files_to_create: list[tuple[TaskAttachment, Any]] = []
         uploaded_files = list(self.files.getlist("attachments")) if hasattr(self.files, "getlist") else []
         provided_names = list(self.data.getlist("attachment_names")) if hasattr(self, "data") else []
 
@@ -700,13 +703,15 @@ class TaskUploadForm(forms.ModelForm):
             label_slug = slugify(Path(base_label_source).stem) or f"file{index}"
 
             files_to_create.append(
-                TaskAttachment(
-                    task=task,
-                    kind=TaskAttachment.Kind.FILE,
-                    file=uploaded,
-                    label=label_slug[:50],
-                    download_name_override=download_name[:255] if download_name else "",
-                    order=index,
+                (
+                    TaskAttachment(
+                        task=task,
+                        kind=TaskAttachment.Kind.FILE,
+                        label=label_slug[:50],
+                        download_name_override=download_name[:255] if download_name else "",
+                        order=index,
+                    ),
+                    uploaded,
                 )
             )
 
@@ -716,16 +721,27 @@ class TaskUploadForm(forms.ModelForm):
             # Keep one canonical image attachment (label=img) per task.
             TaskAttachment.objects.filter(task=task, kind=TaskAttachment.Kind.IMAGE).delete()
             files_to_create.append(
-                TaskAttachment(
-                    task=task,
-                    kind=TaskAttachment.Kind.IMAGE,
-                    file=image_file,
-                    label="img",
-                    order=0,
+                (
+                    TaskAttachment(
+                        task=task,
+                        kind=TaskAttachment.Kind.IMAGE,
+                        label="img",
+                        order=0,
+                    ),
+                    image_file,
                 )
             )
 
-        for att in files_to_create:
+        for att, uploaded in files_to_create:
+            original_name = getattr(uploaded, "name", "") or "upload.bin"
+            target_name = task_attachment_upload_to(att, original_name)
+            if hasattr(uploaded, "seek"):
+                try:
+                    uploaded.seek(0)
+                except Exception:
+                    pass
+            saved_name = default_storage.save(target_name, uploaded)
+            att.file.name = saved_name
             att.save()
 
         # Sync selected skills (add newly selected, remove unselected)
@@ -799,7 +815,7 @@ class TaskUploadForm(forms.ModelForm):
                                 break
                 if not att:
                     return match.group(0)
-                url = att.file.url
+                url = resolve_media_url(att.file.url)
                 label = att.label or f"att{att.id}"
                 if att.kind == TaskAttachment.Kind.IMAGE:
                     return f"![{label}]({url})"
