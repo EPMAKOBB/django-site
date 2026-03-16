@@ -1,19 +1,45 @@
-venv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
-*.db
-*.sqlite3
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment variables
+.env
+.env.*
+
+# Django
 *.log
 *.pot
 *.mo
-*.py[cod]
-*.egg-info/
-.env
+*.sqlite3
+*.db
+
 staticfiles/
 media/
-.venv/
-passenger_wsgi.py
-public/
 
+# Packaging
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing / cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Misc
+*.swp
+*.bak
