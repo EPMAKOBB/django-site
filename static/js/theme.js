@@ -1,41 +1,24 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const body = document.body;
-    const toggle = document.getElementById('theme-toggle');
-    if (!toggle) return;
-    const icon = toggle.querySelector('.icon');
-    const fallback = toggle.querySelector('.fallback');
-    const navbar = document.querySelector('nav.navbar');
-    const hero = document.getElementById('hero-block');
+  // TEMP THEME PREVIEW: remove after design review
+  const storageKey = 'theme-preview';
+  const body = document.body;
+  const select = document.getElementById('theme-preview-select');
+  if (!body || !select) return;
 
-    let theme = localStorage.getItem('theme') || 'dark';
-    applyTheme(theme);
+  const supportedThemes = new Set(['classic', 'graphite', 'copper', 'daylight']);
 
-    toggle.addEventListener('click', () => {
-        theme = theme === 'dark' ? 'light' : 'dark';
-        localStorage.setItem('theme', theme);
-        applyTheme(theme);
-    });
+  const applyTheme = (theme) => {
+    const safeTheme = supportedThemes.has(theme) ? theme : 'classic';
+    body.dataset.themePreview = safeTheme;
+    select.value = safeTheme;
+  };
 
-    function applyTheme(current) {
-        const isDark = current === 'dark';
-        body.classList.toggle('theme-dark', isDark);
-        body.classList.toggle('theme-light', !isDark);
-        if (navbar) {
-            navbar.classList.toggle('navbar-dark', isDark);
-            navbar.classList.toggle('bg-dark', isDark);
-            navbar.classList.toggle('navbar-light', !isDark);
-            navbar.classList.toggle('bg-light', !isDark);
-        }
-        if (hero) {
-            hero.classList.toggle('bg-dark', isDark);
-            hero.classList.toggle('bg-light', !isDark);
-        }
-        if (isDark) {
-            icon.textContent = '🌞';
-            fallback.textContent = 'дневная';
-        } else {
-            icon.textContent = '🌙';
-            fallback.textContent = 'ночная';
-        }
-    }
+  const storedTheme = window.localStorage.getItem(storageKey);
+  applyTheme(storedTheme || 'classic');
+
+  select.addEventListener('change', () => {
+    const nextTheme = select.value;
+    window.localStorage.setItem(storageKey, nextTheme);
+    applyTheme(nextTheme);
+  });
 });

@@ -9,6 +9,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from .models import Attempt
+from .recommendation import attach_attempt_to_recommendation
 from .services import update_mastery
 
 
@@ -38,10 +39,18 @@ def handle_attempt_post_save(sender, instance: Attempt, created: bool, **kwargs)
 
     Attempt.objects.filter(pk=instance.pk).update(
         attempts_count=total_attempts or 1,
+        attempt_number=total_attempts or 1,
+        mode=(
+            Attempt.Mode.VARIANT
+            if instance.variant_task_attempt_id is not None
+            else Attempt.Mode.TRAINING
+        ),
+        checked_at=instance.checked_at or instance.created_at,
         weight=weight,
     )
-    instance.refresh_from_db(fields=["attempts_count", "weight"])
+    instance.refresh_from_db(fields=["attempts_count", "attempt_number", "mode", "checked_at", "weight"])
 
     with transaction.atomic():
         update_mastery(instance)
+        attach_attempt_to_recommendation(instance)
 

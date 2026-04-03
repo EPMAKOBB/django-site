@@ -10,7 +10,9 @@ from apps.recsys.models import (
     Skill,
     SkillMastery,
     Subject,
+    TagMastery,
     Task,
+    TaskTag,
     TaskSkill,
     TaskType,
     TypeMastery,
@@ -67,3 +69,68 @@ class RecomputeMasteryCommandTest(TestCase):
         self.assertFalse(
             SkillMastery.objects.filter(user=other_user, skill=self.skill).exists()
         )
+
+
+class RecomputeRecsysStateCommandTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create(username="student")
+        self.subject = Subject.objects.create(name="Math")
+        self.exam_version = ExamVersion.objects.create(name="EGE", subject=self.subject)
+        self.task_type = TaskType.objects.create(
+            name="Type",
+            subject=self.subject,
+            exam_version=self.exam_version,
+        )
+        self.tag = TaskTag.objects.create(subject=self.subject, name="Tag")
+        self.task = Task.objects.create(
+            type=self.task_type,
+            title="Task",
+            subject=self.subject,
+            exam_version=self.exam_version,
+            level_band=Task.LevelBand.EXAM,
+            attempts_total=10,
+            score_norm_sum_total=2.0,
+            difficulty_empirical=0.0,
+            difficulty_level=0,
+        )
+        self.task.tags.add(self.tag)
+        TypeMastery.objects.create(
+            user=self.user,
+            task_type=self.task_type,
+            mastery=0.9,
+            coverage=0.4,
+            progress=0.5,
+            confidence=0.6,
+            stability=0.7,
+        )
+        TagMastery.objects.create(
+            user=self.user,
+            task_tag=self.tag,
+            mastery=1.0,
+            coverage=0.4,
+            progress=0.5,
+            confidence=0.6,
+            stability=0.5,
+            last_seen_at=timezone.now() - timedelta(days=30),
+            last_success_at=timezone.now() - timedelta(days=30),
+            attempts_total=5,
+            successes_total=4,
+        )
+
+    def test_recompute_recsys_state_updates_forgetting_and_type_mastery(self):
+        call_command("recompute_recsys_state", user=self.user.username, students_only=True)
+
+        tag_mastery = TagMastery.objects.get(user=self.user, task_tag=self.tag)
+        type_mastery = TypeMastery.objects.get(user=self.user, task_type=self.task_type)
+
+        self.assertLess(tag_mastery.mastery, 1.0)
+        self.assertAlmostEqual(type_mastery.mastery, tag_mastery.mastery)
+        self.assertAlmostEqual(type_mastery.coverage, tag_mastery.coverage)
+        self.assertAlmostEqual(type_mastery.progress, tag_mastery.progress)
+
+    def test_recompute_recsys_state_updates_task_difficulty(self):
+        call_command("recompute_recsys_state", tasks_only=True)
+
+        self.task.refresh_from_db()
+        self.assertAlmostEqual(self.task.difficulty_empirical, 0.8)
+        self.assertEqual(self.task.difficulty_level, 61)

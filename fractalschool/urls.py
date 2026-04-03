@@ -21,7 +21,7 @@ from django.conf import settings
 from urllib.parse import urlparse
 
 from apps.recsys import views as recsys_views
-from .views import HomeView, KrylovView, krylov_download, robots_txt, media_download
+from .views import HomeDraftView, HomeView, KrylovView, krylov_download, robots_txt, media_download
 from .sitemaps import ExamVersionSitemap, StaticViewSitemap
 
 sitemaps = {
@@ -31,6 +31,7 @@ sitemaps = {
 
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
+    path('home-v2/', HomeDraftView.as_view(), name='home-v2'),
     path("krylov/", KrylovView.as_view(), name="krylov"),
     path("krylov/download/<slug:kind>/", krylov_download, name="krylov-download"),
     path("robots.txt", robots_txt, name="robots-txt"),

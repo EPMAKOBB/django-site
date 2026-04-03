@@ -2,6 +2,11 @@ from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from ..recommendation import (
+    mark_latest_recommendation_opened,
+    recommend_task_candidates,
+    recommend_tasks,
+)
 from ..models import (
     Attempt,
     RecommendationLog,
@@ -16,6 +21,7 @@ from ..service_utils import variants as variant_service
 from ..service_utils.type_progress import build_type_progress_map
 from .serializers import (
     AttemptSerializer,
+    RecommendationLogSerializer,
     SkillGroupSerializer,
     SkillMasterySerializer,
     SkillSerializer,
@@ -53,16 +59,105 @@ class NextTaskView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        task = (
-            Task.objects.exclude(attempts__user=request.user)
-            .order_by("id")
-            .first()
+        candidates = recommend_task_candidates(
+            request.user,
+            limit=1,
+            log=True,
+            source_mode="training",
         )
-        if not task:
+        if not candidates:
             return Response({"detail": "No tasks available"}, status=404)
-        RecommendationLog.objects.create(user=request.user, task=task)
-        serializer = TaskSerializer(task, context={"request": request})
-        return Response(serializer.data)
+        candidate = candidates[0]
+        task = candidate.task
+        recommendation = mark_latest_recommendation_opened(
+            request.user,
+            task,
+            source_mode="training",
+        )
+        payload = {
+            "task": TaskSerializer(task, context={"request": request}).data,
+            "recommendation_id": recommendation.id if recommendation else None,
+            "score": candidate.score,
+            "score_snapshot": candidate.score_snapshot,
+            "reason_snapshot": candidate.reason_snapshot,
+            "weak_tags_snapshot": candidate.weak_tags_snapshot,
+            "coverage_gain_snapshot": candidate.coverage_gain_snapshot,
+            "spacing_gain_snapshot": candidate.spacing_gain_snapshot,
+        }
+        return Response(payload)
+
+
+class RecommendationListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            limit = int(request.query_params.get("limit", 5))
+        except (TypeError, ValueError):
+            limit = 5
+        limit = max(1, min(limit, 20))
+        log_flag = request.query_params.get("log", "false").lower() == "true"
+        exclude_recent = request.query_params.get("exclude_recent", "false").lower() == "true"
+        exclude_solved = request.query_params.get("exclude_solved", "true").lower() == "true"
+
+        candidates = recommend_task_candidates(
+            request.user,
+            limit=limit,
+            log=log_flag,
+            source_mode="training",
+            exclude_recent=exclude_recent,
+            exclude_solved=exclude_solved,
+        )
+        payload = []
+        recommendation_ids = {}
+        if log_flag and candidates:
+            logs = RecommendationLog.objects.filter(
+                user=request.user,
+                task_id__in=[candidate.task.id for candidate in candidates],
+                source_mode=RecommendationLog.SourceMode.TRAINING,
+            ).order_by("-recommended_at", "-created_at", "-id")
+            for log in logs:
+                recommendation_ids.setdefault(log.task_id, log.id)
+
+        for candidate in candidates:
+            payload.append(
+                {
+                    "task": TaskSerializer(candidate.task, context={"request": request}).data,
+                    "recommendation_id": recommendation_ids.get(candidate.task.id),
+                    "score": candidate.score,
+                    "score_snapshot": candidate.score_snapshot,
+                    "reason_snapshot": candidate.reason_snapshot,
+                    "weak_tags_snapshot": candidate.weak_tags_snapshot,
+                    "coverage_gain_snapshot": candidate.coverage_gain_snapshot,
+                    "spacing_gain_snapshot": candidate.spacing_gain_snapshot,
+                }
+            )
+        return Response(payload)
+
+
+class RecommendationHistoryView(generics.ListAPIView):
+    serializer_class = RecommendationLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = (
+            RecommendationLog.objects.filter(user=self.request.user)
+            .select_related("task", "task__type", "attempt", "task__subject", "task__exam_version")
+            .prefetch_related("task__skills", "task__tags", "task__type__required_tags")
+            .order_by("-recommended_at", "-created_at", "-id")
+        )
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        source_mode = self.request.query_params.get("source_mode")
+        if source_mode:
+            queryset = queryset.filter(source_mode=source_mode)
+        try:
+            limit = int(self.request.query_params.get("limit", 20))
+        except (TypeError, ValueError):
+            limit = 20
+        limit = max(1, min(limit, 100))
+        return queryset[:limit]
 
 
 class ProgressView(APIView):

@@ -7,6 +7,8 @@ from .views import (
     NextTaskView,
     PastVariantAssignmentListView,
     ProgressView,
+    RecommendationHistoryView,
+    RecommendationListView,
     SkillListView,
     SkillGroupListView,
     TaskTypeListView,
@@ -27,6 +29,8 @@ urlpatterns = [
     path("api/task-types/", TaskTypeListView.as_view(), name="task-type-list"),
     path("api/attempts/", AttemptCreateView.as_view(), name="attempt-create"),
     path("api/next-task/", NextTaskView.as_view(), name="next-task"),
+    path("api/recommendations/", RecommendationListView.as_view(), name="recommendation-list"),
+    path("api/recommendation-history/", RecommendationHistoryView.as_view(), name="recommendation-history"),
     path("api/progress/", ProgressView.as_view(), name="progress"),
     path(
         "api/exam-versions/<int:exam_version_id>/skill-groups/",

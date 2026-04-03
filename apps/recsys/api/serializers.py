@@ -122,14 +122,23 @@ class AttemptSerializer(serializers.ModelSerializer):
             "id",
             "task",
             "is_correct",
+            "score",
+            "max_score",
+            "time_spent",
+            "is_valid_attempt",
+            "mode",
+            "checked_at",
+            "attempt_number",
             "attempts_count",
             "weight",
             "variant_task_attempt",
+            "source_recommendation",
             "created_at",
             "updated_at",
         ]
         read_only_fields = [
             "id",
+            "attempt_number",
             "attempts_count",
             "weight",
             "variant_task_attempt",
@@ -240,10 +249,31 @@ class RecommendationLogSerializer(serializers.ModelSerializer):
             "id",
             "task",
             "completed",
+            "status",
+            "recommended_at",
+            "source_mode",
+            "rank_position",
+            "score_snapshot",
+            "reason_snapshot",
+            "weak_tags_snapshot",
+            "coverage_gain_snapshot",
+            "spacing_gain_snapshot",
+            "attempt",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class RecommendationCandidateSerializer(serializers.Serializer):
+    task = TaskSerializer(read_only=True)
+    recommendation_id = serializers.IntegerField(allow_null=True)
+    score = serializers.FloatField()
+    score_snapshot = serializers.JSONField()
+    reason_snapshot = serializers.JSONField()
+    weak_tags_snapshot = serializers.JSONField()
+    coverage_gain_snapshot = serializers.FloatField()
+    spacing_gain_snapshot = serializers.FloatField()
 
 
 class SkillGroupItemSerializer(serializers.ModelSerializer):
@@ -265,6 +295,7 @@ class SkillGroupSerializer(serializers.ModelSerializer):
 
 __all__ = [
     "AttemptSerializer",
+    "RecommendationCandidateSerializer",
     "RecommendationLogSerializer",
     "SkillSerializer",
     "SkillMasterySerializer",

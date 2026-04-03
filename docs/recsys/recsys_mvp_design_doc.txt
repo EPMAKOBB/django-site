@@ -1,0 +1,801 @@
+# Recsys MVP Design Doc
+
+## 1. Цель системы
+
+Система рекомендаций должна не просто выдавать задачи, а вести ученика к максимально эффективной подготовке к экзамену.
+
+Основная цель:
+- повышать итоговый результат ученика,
+- закрывать слабые места,
+- обеспечивать полный охват обязательных типов и тегов,
+- адаптировать подбор задач под текущий уровень ученика,
+- минимизировать ручное участие преподавателя.
+
+### Главный принцип
+Человек задаёт только то, что система сама не может надёжно определить:
+- `level_band` — педагогический / экзаменационный уровень задачи,
+- `priority_manual` — ручной приоритет задачи с точки зрения её близости и полезности для реального экзамена.
+
+Всё остальное система должна по возможности определять автоматически из данных попыток учеников.
+
+---
+
+## 2. Общая концепция
+
+Система строится вокруг трёх уровней:
+
+### 2.1. События
+Это реальные действия пользователя:
+- открыл задачу,
+- решал задачу,
+- получил балл,
+- потратил время,
+- завершил попытку.
+
+### 2.2. Состояние ученика
+Из событий система строит текущую модель ученика:
+- что он умеет,
+- что не умеет,
+- что уже охвачено,
+- что забывается,
+- где данные уже надёжны, а где нет.
+
+### 2.3. Рекомендации
+На основе состояния ученика система выбирает следующую задачу или набор задач:
+- полезные для роста,
+- полезные для закрытия охвата,
+- соответствующие текущему уровню,
+- важные для экзамена,
+- подходящие по темпу и трудности.
+
+---
+
+## 3. Основные сущности
+
+## 3.1. `recsys_task`
+Хранит свойства самой задачи.
+
+Роль:
+- задаёт структуру задачи,
+- хранит автоматические агрегаты по задаче,
+- хранит ручные управляющие сигналы,
+- даёт данные рекомендателю для оценки трудности и полезности задачи.
+
+### Что относится к задаче как к объекту
+- предмет,
+- экзамен,
+- тип задачи,
+- максимальный балл,
+- схема оценивания,
+- уровень задачи (`level_band`),
+- ожидаемое время,
+- ручной приоритет,
+- агрегаты попыток,
+- сложность задачи.
+
+---
+
+## 3.2. `recsys_tagmastery`
+Главная таблица профиля ученика на уровне тегов.
+
+Роль:
+- хранит текущее освоение по каждому тегу,
+- хранит охват,
+- хранит уверенность системы в оценке,
+- хранит устойчивость знания,
+- является главным источником для рекомендаций и слабых мест.
+
+Это основной слой аналитики ученика.
+
+---
+
+## 3.3. `recsys_typemastery`
+Агрегированное состояние ученика на уровне типа задачи.
+
+Роль:
+- показывает состояние по номеру/типу экзамена,
+- служит витриной прогресса по типам,
+- может использоваться как кэш агрегатов над тегами.
+
+Типы должны опираться на теги, а не заменять их.
+
+---
+
+## 3.4. `recsys_varianttaskattempt`
+Попытка решения задачи внутри пробника / варианта.
+
+Роль:
+- хранит факт решения задачи в контексте варианта,
+- хранит балл, время, номер попытки,
+- участвует в обновлении агрегатов ученика.
+
+Это событийная таблица.
+
+---
+
+## 3.5. `recsys_attempt`
+Универсальная таблица попыток вне контекста пробника, в первую очередь для режима тренировки.
+
+Роль:
+- хранит тренировочные попытки,
+- даёт основу для мгновенной адаптации после каждой задачи,
+- позволяет строить режим тренировки отдельно от режима пробника.
+
+Это событийная таблица.
+
+---
+
+## 3.6. `recsys_recommendationlog`
+Лог выдачи рекомендаций.
+
+Роль:
+- хранит, что именно было рекомендовано,
+- позволяет анализировать, какие рекомендации были показаны, открыты, решены,
+- служит базой для отладки рекомендателя и последующего улучшения алгоритма.
+
+Это событийная таблица.
+
+---
+
+## 4. Канонические смыслы терминов
+
+Этот раздел обязателен. Если его не зафиксировать, система почти гарантированно начнёт расходиться по смыслу.
+
+### `difficulty_level`
+Текущая рабочая сложность задачи в диапазоне `0..1`, которую читает рекомендатель.
+
+### `difficulty_empirical`
+Сырая статистическая сложность задачи, рассчитанная по валидным попыткам учеников.
+
+### `level_band`
+Педагогический и экзаменационный уровень задачи.
+Это не просто трудность, а степень того, насколько задача подтверждает готовность к реальному экзамену.
+
+### `priority_manual`
+Ручной коэффициент приоритета задачи с точки зрения её полезности и близости к реальному экзамену.
+
+### `mastery`
+Текущая оценка владения учеником тегом или типом.
+Это рабочая модель знания, чувствительная к новым попыткам и forgetting.
+
+### `coverage`
+Степень того, насколько обязательные части подготовки реально закрыты.
+`coverage` не равен `mastery`.
+
+### `progress`
+Визуальный прогресс для интерфейса и геймификации.
+Это не то же самое, что `mastery`.
+
+### `confidence`
+Уверенность системы в корректности своей оценки.
+
+### `stability`
+Степень закреплённости знания через успешные подтверждения в разные моменты времени.
+
+### `attempt_number`
+Порядковый номер конкретной попытки по задаче.
+
+### `is_valid_attempt`
+Флаг, определяющий, считается ли попытка валидной для аналитики и пересчётов.
+
+---
+
+## 5. Роль `level_band`
+
+`level_band` и сложность — это разные понятия.
+
+### Почему это важно
+- задача может быть не очень трудной, но полностью экзаменационной,
+- задача может быть очень лёгкой, но полезной только как ввод в тему,
+- задача может быть сложной, но не быть основной для подтверждения базовой готовности.
+
+### Значения `level_band`
+- `intro`
+- `basic`
+- `exam`
+- `hard`
+
+### Коэффициенты вклада в экзаменационную готовность
+- `intro = 0.10`
+- `basic = 0.30`
+- `exam = 1.00`
+- `hard = 1.30`
+
+Смысл:
+- `intro` — почти не подтверждает готовность к экзамену,
+- `basic` — помогает приблизиться к теме,
+- `exam` — полноценное подтверждение,
+- `hard` — усиленное подтверждение.
+
+Эти коэффициенты относятся к readiness / contribution to exam readiness, а не к raw difficulty.
+
+---
+
+## 6. Философия `recsys_task`
+
+Для `recsys_task` действует такой принцип:
+
+### Человек задаёт только:
+- `level_band`
+- `priority_manual`
+
+### Система считает автоматически:
+- `attempts_total`
+- `first_attempt_total`
+- `first_attempt_failed`
+- `difficulty_empirical`
+- `difficulty_level`
+- при необходимости другие агрегаты зрелости статистики.
+
+### Почему так
+Цель — минимизировать ручной труд и сделать систему способной обучаться на реальных данных учеников.
+
+---
+
+## 7. Рекомендуемый состав полей `recsys_task`
+
+## 7.1. Уже есть и остаются
+- `exam_version_id`
+- `subject_id`
+- `type_id`
+- `difficulty_level`
+- `first_attempt_failed`
+- `first_attempt_total`
+- `max_score`
+- `scoring_scheme`
+
+## 7.2. Нужно добавить
+- `level_band`
+- `expected_time_seconds`
+- `difficulty_empirical`
+- `attempts_total`
+- `priority_manual`
+- `score_norm_sum_total`
+
+### Зачем нужен `score_norm_sum_total`
+Это сумма всех `score / max_score` по валидным попыткам задачи.
+Она позволяет быстро и просто обновлять статистическую сложность без тяжёлого пересчёта по всей таблице попыток.
+
+---
+
+## 8. Стратегия сложности задачи
+
+## 8.1. Новые задачи
+Новая задача не должна требовать ручной оценки сложности преподавателем.
+
+Стартовая сложность должна задаваться автоматически через `level_band`.
+
+### Рекомендуемые priors
+- `intro -> 0.20`
+- `basic -> 0.40`
+- `exam -> 0.55`
+- `hard -> 0.75`
+
+Это стартовые priors сложности, а не коэффициенты readiness.
+
+---
+
+## 8.2. Эмпирическая сложность
+Считается по валидным попыткам учеников.
+
+Формулы:
+
+score_norm = score / max_score
+
+score_norm_sum_total = score_norm_sum_total + score_norm
+
+attempts_total = attempts_total + 1
+
+success_empirical = score_norm_sum_total / attempts_total
+
+difficulty_empirical = 1 - success_empirical
+
+Пределы:
+- `difficulty_empirical` от `0` до `1`
+
+Смысл:
+- чем хуже средняя успешность, тем выше сложность.
+
+---
+
+## 8.3. Рабочая сложность
+Рабочая сложность — это `difficulty_level`.
+
+Она должна быть сглаженной, чтобы задача не дёргалась слишком резко при малом числе попыток.
+
+Формулы:
+
+w_difficulty = attempts_total / (attempts_total + k_difficulty)
+
+difficulty_level = w_difficulty * difficulty_empirical + (1 - w_difficulty) * difficulty_prior
+
+где:
+- `difficulty_prior` задаётся автоматически по `level_band`,
+- `k_difficulty` — коэффициент доверия к статистике.
+
+### Рекомендуемый `k_difficulty`
+- минимум: `10`
+- базово: `30`
+- максимум: `50`
+
+Рекомендуемое значение для MVP:
+- `k_difficulty = 30`
+
+---
+
+## 8.4. Почему не нужен `difficulty_final`
+Если уже есть:
+- `difficulty_empirical` — сырая статистика,
+- `difficulty_level` — рабочая сложность,
+
+то отдельное `difficulty_final` только создаёт третью сущность про ту же самую задачу и размывает смысл.
+
+Для MVP это лишнее.
+
+---
+
+## 9. Статистика первого контакта
+
+`first_attempt_failed` и `first_attempt_total` нужно сохранить.
+
+Они не являются основной сложностью задачи, но дают отдельный важный сигнал:
+насколько задача трудна именно при первой встрече.
+
+### Смысл
+- одна задача может быть трудной при первом контакте, но быстро осваиваться,
+- другая может быть стабильно трудной даже после повторов.
+
+Это полезная дополнительная аналитика.
+
+---
+
+## 10. Формулы попытки
+
+После валидной попытки сначала считаются базовые метрики.
+
+### Нормированный балл
+score_norm = score / max_score
+
+Если max_score = 0, то score_norm = 0
+
+### Отношение времени к норме
+time_ratio = time_spent / expected_time_seconds
+
+Если expected_time_seconds отсутствует или равен 0, то time_ratio = 1
+
+### Коэффициент времени
+time_factor = exp(-lambda_time * max(0, min(time_ratio, 3.0) - 1))
+
+Рекомендуемый `lambda_time`:
+- минимум `0.2`
+- базово `0.5`
+- максимум `1.0`
+
+Для MVP:
+- `lambda_time = 0.5`
+
+### Коэффициент уровня readiness
+readiness_band_factor:
+- `intro = 0.10`
+- `basic = 0.30`
+- `exam = 1.00`
+- `hard = 1.30`
+
+### Базовое качество попытки
+base_quality = score_norm * time_factor
+
+### Итоговое качество попытки для готовности
+quality_score = base_quality * readiness_band_factor
+
+---
+
+## 11. `recsys_tagmastery`
+
+Рекомендуемый состав:
+- `id`
+- `created_at`
+- `updated_at`
+- `user_id`
+- `task_tag_id`
+- `mastery`
+- `coverage`
+- `progress`
+- `confidence`
+- `stability`
+- `last_seen_at`
+- `last_success_at`
+- `attempts_total`
+- `successes_total`
+
+### Ограничения
+- уникальность `(user_id, task_tag_id)`
+- индекс по `(user_id, task_tag_id)`
+
+---
+
+## 12. `recsys_typemastery`
+
+Рекомендуемый состав:
+- `id`
+- `created_at`
+- `updated_at`
+- `user_id`
+- `task_type_id`
+- `mastery`
+- `coverage`
+- `progress`
+- `confidence`
+- `stability`
+- `last_seen_at`
+- `last_success_at`
+- `attempts_total`
+- `successes_total`
+
+### Ограничения
+- уникальность `(user_id, task_type_id)`
+- индекс по `(user_id, task_type_id)`
+
+`recsys_typemastery` должен выступать как более высокий агрегат над тегами.
+
+---
+
+## 13. `recsys_varianttaskattempt`
+
+Уже есть:
+- `id`
+- `created_at`
+- `updated_at`
+- `variant_attempt_id`
+- `variant_task_id`
+- `task_id`
+- `attempt_number`
+- `is_correct`
+- `task_snapshot`
+- `max_score`
+- `score`
+- `time_spent`
+
+Добавить:
+- `is_valid_attempt`
+- `checked_at`
+
+Роль:
+- хранить попытку в контексте пробника,
+- быть источником событий для пересчёта агрегатов.
+
+---
+
+## 14. `recsys_attempt`
+
+Уже есть:
+- `id`
+- `created_at`
+- `updated_at`
+- `is_correct`
+- `attempts_count`
+- `user_id`
+- `task_id`
+- `variant_task_attempt_id`
+- `weight`
+
+Добавить:
+- `score`
+- `max_score`
+- `time_spent`
+- `is_valid_attempt`
+- `mode`
+- `checked_at`
+- `attempt_number`
+- `source_recommendation_id`
+
+### Важное правило
+Нельзя одновременно держать `attempts_count` и `attempt_number` как разные сущности.
+Нужно выбрать один канонический смысл.
+Рекомендуется использовать `attempt_number`.
+
+---
+
+## 15. `recsys_recommendationlog`
+
+Уже есть:
+- `id`
+- `created_at`
+- `updated_at`
+- `completed`
+- `user_id`
+- `task_id`
+
+Добавить:
+- `status`
+- `recommended_at`
+- `source_mode`
+- `rank_position`
+- `score_snapshot`
+- `reason_snapshot`
+- `weak_tags_snapshot`
+- `coverage_gain_snapshot`
+- `spacing_gain_snapshot`
+- `attempt_id`
+
+Для MVP часть snapshot-полей можно отложить, если захочется сделать первую версию легче.
+
+---
+
+## 16. Формулы обновления `recsys_tagmastery`
+
+После каждой валидной попытки для всех тегов задачи:
+
+### attempts_total
+attempts_total_new = attempts_total_old + 1
+
+### successes_total
+success_flag = 1, если score_norm >= success_threshold
+success_flag = 0, если score_norm < success_threshold
+
+Рекомендуемый `success_threshold`:
+- минимум `0.5`
+- базово `0.7`
+- максимум `1.0`
+
+Для MVP:
+- `success_threshold = 0.7`
+
+successes_total_new = successes_total_old + success_flag
+
+### mastery
+mastery_new = (1 - alpha_mastery) * mastery_old + alpha_mastery * quality_score
+
+Рекомендуемый `alpha_mastery`:
+- минимум `0.05`
+- базово `0.15`
+- максимум `0.3`
+
+Для MVP:
+- `alpha_mastery = 0.15`
+
+### coverage
+coverage_gain = beta_coverage * quality_score
+coverage_new = min(1.0, coverage_old + coverage_gain)
+
+Рекомендуемый `beta_coverage`:
+- минимум `0.03`
+- базово `0.08`
+- максимум `0.2`
+
+Для MVP:
+- `beta_coverage = 0.08`
+
+### progress
+progress_candidate = (1 - gamma_progress) * progress_old + gamma_progress * quality_score
+progress_new = max(progress_old, progress_candidate)
+
+Рекомендуемый `gamma_progress`:
+- минимум `0.05`
+- базово `0.1`
+- максимум `0.2`
+
+Для MVP:
+- `gamma_progress = 0.1`
+
+### confidence
+confidence_new = 1 - exp(-attempts_total_new / k_confidence)
+
+Рекомендуемый `k_confidence`:
+- минимум `3`
+- базово `5`
+- максимум `10`
+
+Для MVP:
+- `k_confidence = 5`
+
+### stability
+Если success_flag = 1 и last_success_at был не сегодня:
+stability_new = min(1.0, stability_old + delta_stability)
+
+Иначе:
+stability_new = stability_old
+
+Рекомендуемый `delta_stability`:
+- минимум `0.03`
+- базово `0.08`
+- максимум `0.15`
+
+Для MVP:
+- `delta_stability = 0.08`
+
+### даты
+last_seen_at = checked_at
+
+Если success_flag = 1:
+last_success_at = checked_at
+
+---
+
+## 17. Формулы обновления `recsys_typemastery`
+
+После обновления тегов типа:
+
+mastery = avg(mastery_tag)
+coverage = avg(coverage_tag)
+progress = avg(progress_tag)
+confidence = avg(confidence_tag)
+stability = avg(stability_tag)
+
+last_seen_at = max(last_seen_at_tag)
+last_success_at = max(last_success_at_tag)
+
+attempts_total = число валидных попыток пользователя по задачам данного типа
+successes_total = число успешных валидных попыток пользователя по задачам данного типа
+
+---
+
+## 18. Forgetting
+
+Forgetting лучше применять периодически:
+- раз в день,
+- или при открытии аналитики ученика.
+
+### Для mastery
+
+delta_days = число дней с момента last_success_at
+
+lambda_forget = lambda_forget_base / (1 + c_stability * stability)
+
+mastery_decayed = mastery * exp(-lambda_forget * delta_days)
+
+Рекомендуемые коэффициенты:
+- `lambda_forget_base = 0.03`
+- `c_stability = 2.0`
+
+Для MVP можно decayed применять только к `mastery`, а `coverage` и `progress` не уменьшать резко.
+
+---
+
+## 19. Слабые места
+
+Для каждого тега:
+
+forgetting_risk = 1 - exp(-mu_forgetting_risk * delta_days)
+
+Рекомендуемый `mu_forgetting_risk`:
+- минимум `0.02`
+- базово `0.05`
+- максимум `0.1`
+
+Для MVP:
+- `mu_forgetting_risk = 0.05`
+
+### weakness_tag
+weakness_tag = a_mastery * (1 - mastery) + a_coverage * (1 - coverage) + a_forgetting * forgetting_risk
+
+Рекомендуемые коэффициенты:
+- `a_mastery = 0.5`
+- `a_coverage = 0.3`
+- `a_forgetting = 0.2`
+
+---
+
+## 20. Recommendation score
+
+Для каждой задачи-кандидата:
+
+### mastery по задаче
+task_mastery = avg(mastery for tags of task)
+
+### predicted_success
+predicted_success = 1 / (1 + exp(-eta_success * (task_mastery - difficulty_level)))
+
+Рекомендуемый `eta_success`:
+- минимум `3`
+- базово `5`
+- максимум `8`
+
+Для MVP:
+- `eta_success = 5`
+
+### match_score
+match_score = exp(-((predicted_success - target_success) ^ 2) / (2 * sigma_match ^ 2))
+
+Рекомендуемые значения:
+- `target_success = 0.65`
+- `sigma_match = 0.18`
+
+### weak_gain
+weak_gain = avg(weakness_tag for tags of task)
+
+### coverage_gain
+coverage_gain = avg(1 - coverage for tags of task)
+
+### spacing_gain
+spacing_gain = avg(forgetting_risk for tags of task)
+
+### data_bonus
+data_bonus = 1 / (1 + attempts_total)
+
+### итоговый рейтинг
+recommendation_score = priority_manual * (b_weak * weak_gain + b_coverage * coverage_gain + b_match * match_score + b_spacing * spacing_gain + b_data * data_bonus)
+
+Рекомендуемые коэффициенты для MVP:
+- `b_weak = 0.35`
+- `b_coverage = 0.25`
+- `b_match = 0.25`
+- `b_spacing = 0.10`
+- `b_data = 0.05`
+
+---
+
+## 21. Точки пересчёта
+
+## 21.1. После одной валидной попытки
+Пересчитываются:
+- `score_norm`
+- `time_ratio`
+- `quality_score`
+- `recsys_tagmastery`
+- `recsys_typemastery`
+
+Если это тренировочная попытка, после этого сразу строится следующая рекомендация.
+
+---
+
+## 21.2. После завершения пробника
+Для всех валидных задач пробника:
+- обновляются агрегаты ученика,
+- пересчитываются слабые места,
+- пересчитываются рекомендации.
+
+---
+
+## 21.3. Периодический batch по задачам
+Раз в день или после накопления пачки новых попыток:
+- обновляются `attempts_total`
+- обновляется `score_norm_sum_total`
+- обновляется `difficulty_empirical`
+- обновляется `difficulty_level`
+
+---
+
+## 21.4. Периодический batch по ученикам
+Раз в день или при входе:
+- применяется forgetting,
+- обновляются риски повторения,
+- при необходимости пересчитываются рекомендации.
+
+---
+
+## 22. Что входит в MVP
+
+### Входит в MVP
+- `recsys_task` с автоматической сложностью,
+- `recsys_tagmastery`,
+- `recsys_typemastery`,
+- валидные попытки,
+- пересчёт mastery / coverage / confidence / stability,
+- базовый recommendation score,
+- ручные `level_band` и `priority_manual`.
+
+### Можно отложить
+- усложнённые snapshot-поля в recommendation log,
+- более тонкие версии confidence,
+- дополнительные агрегаты типа avg_time per task,
+- более сложные bandit-механики.
+
+---
+
+## 23. Главные проектные решения
+
+1. `difficulty_level` — рабочая автоматическая сложность задачи.
+2. `difficulty_empirical` — сырая статистическая сложность.
+3. `difficulty_final` не нужен.
+4. `level_band` и difficulty — разные сущности.
+5. Человек задаёт только `level_band` и `priority_manual`.
+6. Система сама накапливает статистику и регулирует сложность.
+7. `score_norm_sum_total` нужен для простой и быстрой автоматизации пересчёта задачи.
+8. Основной объект аналитики ученика — тег, а не тип.
+
+---
+
+## 24. Короткая схема в одной строке
+
+Попытка -> нормализация балла и времени -> обновление tagmastery -> агрегация в typemastery -> обновление сложности задач -> пересчёт рекомендаций.
+

@@ -62,6 +62,11 @@ const VARIANT2_CURRENT = 5000;
 const VARIANT2_ORIGINAL = 10000;
 
 function countSubjects() {
+  const subjectCheckboxes = document.querySelectorAll('input[name="subjects"]:checked');
+  if (subjectCheckboxes.length) {
+    return subjectCheckboxes.length;
+  }
+
   return ['id_subject1', 'id_subject2'].reduce((count, id) => {
     const el = document.getElementById(id);
     const value = el && el.value;
@@ -98,6 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
   ['id_grade', 'id_subject1', 'id_subject2'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', updatePrice);
+  });
+  document.querySelectorAll('input[name="subjects"]').forEach((el) => {
+    el.addEventListener('change', updatePrice);
   });
 });
 

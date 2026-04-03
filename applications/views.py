@@ -21,7 +21,7 @@ class ApplicationCreateView(FormView):
             slug, *rest = source_offer.split("-")
             try:
                 subject = Subject.objects.get(slug=slug)
-                initial["subject1"] = subject.pk
+                initial["subjects"] = [subject.pk]
             except Subject.DoesNotExist:
                 pass
             if rest and rest[0].isdigit():
@@ -47,10 +47,14 @@ class ApplicationCreateView(FormView):
         subjects_count = 0
         if form:
             data = form.data if form.is_bound else form.initial
-            if data.get("subject1"):
-                subjects_count += 1
-            if data.get("subject2"):
-                subjects_count += 1
+            if hasattr(data, "getlist"):
+                subjects_count = len([value for value in data.getlist("subjects") if value])
+            else:
+                raw_subjects = data.get("subjects")
+                if isinstance(raw_subjects, (list, tuple)):
+                    subjects_count = len([value for value in raw_subjects if value])
+                elif raw_subjects:
+                    subjects_count = 1
         context["subjects_count"] = subjects_count
         context["application_price"] = get_application_price(subjects_count)
         return context

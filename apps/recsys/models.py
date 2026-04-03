@@ -317,6 +317,12 @@ def resolve_media_url(raw_url: str) -> str:
 
 
 class Task(TimeStampedModel):
+    class LevelBand(models.TextChoices):
+        INTRO = "intro", "Intro"
+        BASIC = "basic", "Basic"
+        EXAM = "exam", "Exam"
+        HARD = "hard", "Hard"
+
     slug = models.SlugField(
         max_length=128,
         unique=True,
@@ -408,7 +414,17 @@ class Task(TimeStampedModel):
     default_payload = models.JSONField(default=dict, blank=True)
     image = models.ImageField(upload_to="tasks/screenshots/", blank=True)
     correct_answer = models.JSONField(blank=True, default=dict)
+    level_band = models.CharField(
+        max_length=16,
+        choices=LevelBand.choices,
+        default=LevelBand.EXAM,
+    )
+    expected_time_seconds = models.PositiveIntegerField(null=True, blank=True)
+    difficulty_empirical = models.FloatField(default=0.0)
     difficulty_level = models.PositiveSmallIntegerField(default=0)
+    attempts_total = models.PositiveIntegerField(default=0)
+    priority_manual = models.FloatField(default=1.0)
+    score_norm_sum_total = models.FloatField(default=0.0)
     first_attempt_total = models.PositiveIntegerField(default=0)
     first_attempt_failed = models.PositiveIntegerField(default=0)
 
@@ -475,6 +491,24 @@ class Task(TimeStampedModel):
         if not 0 <= self.difficulty_level <= 100:
             raise ValidationError(
                 {"difficulty_level": "Сложность должна быть в диапазоне 0–100"}
+            )
+        if not 0.0 <= float(self.difficulty_empirical or 0.0) <= 1.0:
+            raise ValidationError(
+                {"difficulty_empirical": "Empirical difficulty must be in the 0..1 range."}
+            )
+        if self.priority_manual is not None and float(self.priority_manual) < 0.0:
+            raise ValidationError(
+                {"priority_manual": "Manual priority must be non-negative."}
+            )
+        if self.expected_time_seconds is not None and self.expected_time_seconds <= 0:
+            raise ValidationError(
+                {"expected_time_seconds": "Expected time must be positive."}
+            )
+        if self.attempts_total < 0:
+            raise ValidationError({"attempts_total": "Attempts total must be non-negative."})
+        if float(self.score_norm_sum_total or 0.0) < 0.0:
+            raise ValidationError(
+                {"score_norm_sum_total": "Score norm sum total must be non-negative."}
             )
 
         if self.max_score is not None and self.max_score <= 0:
@@ -780,15 +814,37 @@ class SkillGroupItem(TimeStampedModel):
 
 
 class Attempt(TimeStampedModel):
+    class Mode(models.TextChoices):
+        TRAINING = "training", "Training"
+        VARIANT = "variant", "Variant"
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="attempts"
     )
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attempts")
     is_correct = models.BooleanField(default=False)
     attempts_count = models.PositiveIntegerField(default=1)
+    attempt_number = models.PositiveIntegerField(default=1)
+    score = models.FloatField(null=True, blank=True)
+    max_score = models.PositiveSmallIntegerField(default=1)
+    time_spent = models.DurationField(null=True, blank=True)
+    is_valid_attempt = models.BooleanField(default=True)
+    mode = models.CharField(
+        max_length=16,
+        choices=Mode.choices,
+        default=Mode.TRAINING,
+    )
+    checked_at = models.DateTimeField(null=True, blank=True)
     variant_task_attempt = models.ForeignKey(
         "VariantTaskAttempt",
         on_delete=models.CASCADE,
+        related_name="attempts",
+        null=True,
+        blank=True,
+    )
+    source_recommendation = models.ForeignKey(
+        "RecommendationLog",
+        on_delete=models.SET_NULL,
         related_name="attempts",
         null=True,
         blank=True,
@@ -819,6 +875,31 @@ class SkillMastery(TimeStampedModel):
         return f"{self.user} - {self.skill}: {self.mastery}"
 
 
+class TagMastery(TimeStampedModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tag_masteries"
+    )
+    task_tag = models.ForeignKey(
+        TaskTag, on_delete=models.CASCADE, related_name="masteries"
+    )
+    mastery = models.FloatField(default=0.0)
+    coverage = models.FloatField(default=0.0)
+    progress = models.FloatField(default=0.0)
+    confidence = models.FloatField(default=0.0)
+    stability = models.FloatField(default=0.0)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    last_success_at = models.DateTimeField(null=True, blank=True)
+    attempts_total = models.PositiveIntegerField(default=0)
+    successes_total = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("user", "task_tag")
+        indexes = [models.Index(fields=["user", "task_tag"])]
+
+    def __str__(self) -> str:
+        return f"{self.user} - {self.task_tag}: {self.mastery}"
+
+
 class TypeMastery(TimeStampedModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="type_masteries"
@@ -827,7 +908,14 @@ class TypeMastery(TimeStampedModel):
         TaskType, on_delete=models.CASCADE, related_name="masteries"
     )
     mastery = models.FloatField(default=0.0)
+    coverage = models.FloatField(default=0.0)
+    progress = models.FloatField(default=0.0)
     confidence = models.FloatField(default=0.0)
+    stability = models.FloatField(default=0.0)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    last_success_at = models.DateTimeField(null=True, blank=True)
+    attempts_total = models.PositiveIntegerField(default=0)
+    successes_total = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ("user", "task_type")
@@ -838,6 +926,19 @@ class TypeMastery(TimeStampedModel):
 
 
 class RecommendationLog(TimeStampedModel):
+    class Status(models.TextChoices):
+        RECOMMENDED = "recommended", "Recommended"
+        OPENED = "opened", "Opened"
+        ATTEMPTED = "attempted", "Attempted"
+        COMPLETED = "completed", "Completed"
+        DISMISSED = "dismissed", "Dismissed"
+
+    class SourceMode(models.TextChoices):
+        TRAINING = "training", "Training"
+        VARIANT = "variant", "Variant"
+        BATCH = "batch", "Batch"
+        UNKNOWN = "unknown", "Unknown"
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="recommendation_logs"
     )
@@ -845,6 +946,30 @@ class RecommendationLog(TimeStampedModel):
         Task, on_delete=models.CASCADE, related_name="recommendation_logs"
     )
     completed = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.RECOMMENDED,
+    )
+    recommended_at = models.DateTimeField(null=True, blank=True)
+    source_mode = models.CharField(
+        max_length=16,
+        choices=SourceMode.choices,
+        default=SourceMode.UNKNOWN,
+    )
+    rank_position = models.PositiveIntegerField(null=True, blank=True)
+    score_snapshot = models.JSONField(default=dict, blank=True)
+    reason_snapshot = models.JSONField(default=dict, blank=True)
+    weak_tags_snapshot = models.JSONField(default=list, blank=True)
+    coverage_gain_snapshot = models.FloatField(null=True, blank=True)
+    spacing_gain_snapshot = models.FloatField(null=True, blank=True)
+    attempt = models.ForeignKey(
+        Attempt,
+        on_delete=models.SET_NULL,
+        related_name="recommendation_logs",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         indexes = [models.Index(fields=["user", "task"])]
@@ -1137,6 +1262,8 @@ class VariantTaskAttempt(TimeStampedModel):
     max_score = models.PositiveSmallIntegerField(default=1)
     task_snapshot = models.JSONField(default=dict, blank=True)
     time_spent = models.DurationField(null=True, blank=True)
+    is_valid_attempt = models.BooleanField(default=True)
+    checked_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["variant_attempt", "variant_task", "attempt_number"]
