@@ -17,49 +17,50 @@
   <!-- /Yandex.Metrika counter -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="{% block meta_description %}Фрактал — онлайн-школа с персональными заданиями и живыми репетиторами для подготовки к ЕГЭ и ОГЭ по информатике, математике и физике.{% endblock %}">
+  <meta name="description" content="{% block meta_description %}Fractal is an online school for exam preparation in computer science, mathematics, and physics.{% endblock %}">
   <meta name="robots" content="{% block meta_robots %}index,follow{% endblock %}">
   <link rel="canonical" href="{% block canonical_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}">
-  <meta property="og:title" content="{% block og_title %}[Ф] Фрактал — подготовка к ЕГЭ и ОГЭ{% endblock %}">
-  <meta property="og:description" content="{% block og_description %}Персональные задания, аналитика прогресса, репетиторы и подготовка к ЕГЭ, ОГЭ по информатике, математике и физике.{% endblock %}">
+  <meta property="og:title" content="{% block og_title %}[F] Fractal - exam preparation{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Personalized tasks, progress analytics, tutors, and exam preparation.{% endblock %}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{% block og_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}">
   <meta property="og:image" content="{% block og_image %}{{ request.scheme }}://{{ request.get_host }}{% static 'og.png' %}{% endblock %}">
   <meta property="og:locale" content="ru_RU">
-  <meta property="og:site_name" content="Фрактал">
+  <meta property="og:site_name" content="Fractal">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="{% block twitter_title %}[Ф] Фрактал — подготовка к ЕГЭ и ОГЭ{% endblock %}">
-  <meta name="twitter:description" content="{% block twitter_description %}Персональные задания, аналитика прогресса, репетиторы и подготовка к ЕГЭ, ОГЭ по информатике, математике и физике.{% endblock %}">
+  <meta name="twitter:title" content="{% block twitter_title %}[F] Fractal - exam preparation{% endblock %}">
+  <meta name="twitter:description" content="{% block twitter_description %}Personalized tasks, progress analytics, tutors, and exam preparation.{% endblock %}">
   <meta name="twitter:image" content="{% block twitter_image %}{{ request.scheme }}://{{ request.get_host }}{% static 'og.png' %}{% endblock %}">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#061727">
   <link rel="icon" href="{% static 'favicon/favicon.ico' %}" sizes="any">
   <link rel="icon" type="image/svg+xml" href="{% static 'favicon/favicon.svg' %}">
   <link rel="icon" type="image/png" sizes="96x96" href="{% static 'favicon/favicon-96x96.png' %}">
   <link rel="apple-touch-icon" sizes="180x180" href="{% static 'favicon/apple-touch-icon.png' %}">
   <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
-  <title>{% block title %}Решение варианта{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/main.css' %}">
-  <link rel="stylesheet" href="{% static 'css/cyber.css' %}">
+  <title>{% block title %}Variant solving{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/site-foundation.css' %}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
   <link rel="stylesheet" href="{% static 'css/markdown-code-blocks.css' %}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body>
-  <div class="matrix"></div>
-  {% if messages %}
-  <div class="container">
-    <ul class="messages">
-      {% for message in messages %}
-      <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
-      {% endfor %}
-    </ul>
+  <div class="site-shell">
+    {% if messages %}
+    <div class="container">
+      <ul class="messages">
+        {% for message in messages %}
+        <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    <main class="site-main">
+      {% block content %}{% endblock %}
+    </main>
+    {% include 'accounts/includes/variant_basket_widget.html' %}
   </div>
-  {% endif %}
-  <main>
-    {% block content %}{% endblock %}
-  </main>
-  {% include 'accounts/includes/variant_basket_widget.html' %}
-  <script src="{% static 'js/main.js' %}"></script>
+  <script src="{% static 'js/site-theme.js' %}"></script>
+  <script src="{% static 'js/site-main.js' %}"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
   <script src="{% static 'js/markdown-code-blocks.js' %}" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>

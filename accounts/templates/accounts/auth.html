@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block title %}Вход и регистрация{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="auth-entry">
+      <div class="auth-entry__grid">
+        <section class="auth-entry__panel auth-form{% if active_mode == 'login' %} auth-entry__panel--active{% endif %}">
+          <div class="auth-entry__panel-header">
+            <p class="auth-entry__eyebrow mb-8">Уже есть аккаунт?</p>
+            <h2 class="auth-entry__title mb-8">Войти</h2>
+          </div>
+          <form method="post" class="auth-entry__form">
+            {% csrf_token %}
+            <input type="hidden" name="auth_action" value="login">
+            {% if next_url %}
+              <input type="hidden" name="next" value="{{ next_url }}">
+            {% endif %}
+            {{ login_form.non_field_errors }}
+
+            <div class="mb-16">
+              <label for="{{ login_form.username.id_for_label }}">{{ login_form.username.label }}</label>
+              {{ login_form.username }}
+              {% if login_form.username.errors %}
+                <div class="errorlist">{{ login_form.username.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-16">
+              <label for="{{ login_form.password.id_for_label }}">{{ login_form.password.label }}</label>
+              {{ login_form.password }}
+              {% if login_form.password.errors %}
+                <div class="errorlist">{{ login_form.password.errors }}</div>
+              {% endif %}
+            </div>
+
+            <details class="auth-entry__help">
+              <summary class="auth-entry__help-trigger">Забыли пароль?</summary>
+              <div class="auth-entry__help-body">
+                <p class="mb-8">Пока восстановление пароля работает вручную.</p>
+                <p class="mb-0">
+                  Напишите в
+                  <a href="https://t.me/v_IT_ek" target="_blank" rel="noopener">Telegram</a>
+                  или на
+                  <a href="mailto:schoolfractal@gmail.com">schoolfractal@gmail.com</a>,
+                  и я помогу со сбросом.
+                </p>
+              </div>
+            </details>
+
+            <button type="submit" class="btn btn-primary">Войти</button>
+          </form>
+        </section>
+
+        <section class="auth-entry__panel auth-form{% if active_mode == 'signup' %} auth-entry__panel--active{% endif %}">
+          <div class="auth-entry__panel-header">
+            <p class="auth-entry__eyebrow mb-8">Еще нет аккаунта?</p>
+            <h2 class="auth-entry__title mb-8">Зарегистрироваться</h2>
+          </div>
+          <form method="post" class="auth-entry__form">
+            {% csrf_token %}
+            <input type="hidden" name="auth_action" value="signup">
+            {% if next_url %}
+              <input type="hidden" name="next" value="{{ next_url }}">
+            {% endif %}
+            {{ signup_form.non_field_errors }}
+
+            <div class="mb-16">
+              <label for="{{ signup_form.contact.id_for_label }}">{{ signup_form.contact.label }}</label>
+              {{ signup_form.contact }}
+              {% if signup_form.contact.help_text %}
+                <small class="helptext">{{ signup_form.contact.help_text }}</small>
+              {% endif %}
+              {% if signup_form.contact.errors %}
+                <div class="errorlist">{{ signup_form.contact.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-16">
+              <label for="{{ signup_form.username.id_for_label }}">{{ signup_form.username.label }}</label>
+              {{ signup_form.username }}
+              {% if signup_form.username.errors %}
+                <div class="errorlist">{{ signup_form.username.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-16">
+              <label for="{{ signup_form.password.id_for_label }}">{{ signup_form.password.label }}</label>
+              {{ signup_form.password }}
+              {% if signup_form.password.errors %}
+                <div class="errorlist">{{ signup_form.password.errors }}</div>
+              {% endif %}
+            </div>
+
+            <button type="submit" class="btn">Зарегистрироваться</button>
+          </form>
+        </section>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

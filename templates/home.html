@@ -1,17 +1,232 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load static i18n %}
 
-{% block title %}[Ф] Фрактал — подготовка к ЕГЭ и ОГЭ{% endblock %}
+{% block title %}Фрактал - подготовка к экзаменам{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'css/homepage.css' %}">
+{% endblock %}
 
 {% block content %}
-<section class="section">
-  <div class="container">
-    <h1 class="section-title">Подготовка к ЕГЭ и ОГЭ по информатике, математике и физике</h1>
+<section class="home-hero hero">
+  <div
+    class="home-hero__ascii-scene"
+    id="hero-ascii-scene"
+    aria-hidden="true"
+    data-enabled="true"
+  >
+    <canvas class="home-hero__ascii-canvas" id="hero-ascii-canvas"></canvas>
+    <pre class="home-hero__ascii-fallback" id="hero-ascii-fallback" aria-hidden="true">
+..................       ..................       ..................
+      :: :: :: :: :: :: :: :: :: :: :: :: :: ::
+
+                    [          Ф          ]
+              . . . . . . . . . . . . . . . . . .
+
+         ~~~~~~~~          ~~~~~~~~          ~~~~~~~~
+    ..........        ..................        ..........
+            //// //// //// //// //// //// //// ////
+
+      quiet surface / abstract wave / soft field / forward drift
+    </pre>
+  </div>
+
+  <div class="home-hero__center">
+    <div class="home-hero__stack">
+      <div class="home-hero__intro">
+        <p class="home-hero__mark">[&#1060;]</p>
+        <h1 class="home-hero__offer">Подготовка к экзаменам через понятную систему практики</h1>
+        <p class="home-hero__lead">
+          Персональные задания, аналитика прогресса и занятия с преподавателем
+          в одной спокойной и понятной среде.
+        </p>
+      </div>
+
+      <div class="home-hero__cards">
+        <section class="hero-card">
+          <h2>Готовиться самостоятельно</h2>
+          <p>Выберите экзамен и переходите к задачам, вариантам и первым шагам в системе.</p>
+          <div class="hero-card__actions">
+            {% for exam in active_exams %}
+              <a class="btn hero-card__link{% if forloop.first %} hero-card__link--accent{% endif %}" href="{% url 'exam-page' exam.slug|default:exam.name|slugify %}">
+                {{ exam.subject.name }} {{ exam.name }}
+              </a>
+            {% empty %}
+              <span class="btn hero-card__link">Активные экзамены скоро появятся</span>
+            {% endfor %}
+          </div>
+        </section>
+
+        <section class="hero-card">
+          <h2>Готовиться с учителем</h2>
+          <p>Оставьте заявку, и мы подберем формат подготовки под ваши цели, класс и предметы.</p>
+          <form action="{% url 'applications:apply' %}" method="post" class="hero-card__form">
+            {% csrf_token %}
+            {{ form.source_offer }}
+            {{ form.lesson_type }}
+
+            <div class="hero-card__field hero-card__field--inline">
+              <label class="hero-card__label" for="{{ form.grade.id_for_label }}">{{ form.grade.label }}</label>
+              {{ form.grade }}
+            </div>
+
+            <div class="hero-card__field hero-card__field--inline">
+              <span class="hero-card__label">{{ form.subjects.label }}</span>
+              <div class="hero-card__subjects">
+                {% for checkbox in form.subjects %}
+                  <label class="hero-card__subject-option" for="{{ checkbox.id_for_label }}">
+                    {{ checkbox.tag }}
+                    <span>{{ checkbox.choice_label }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="hero-card__field hero-card__field--inline">
+              <label class="hero-card__label" for="{{ form.contact_name.id_for_label }}">{{ form.contact_name.label }}</label>
+              {{ form.contact_name }}
+            </div>
+
+            <div class="hero-card__field hero-card__field--inline">
+              <label class="hero-card__label" for="{{ form.contact_info.id_for_label }}">{{ form.contact_info.label }}</label>
+              {{ form.contact_info }}
+            </div>
+
+            <button type="submit" class="btn hero-card__submit">Отправить заявку</button>
+          </form>
+        </section>
+      </div>
+    </div>
   </div>
 </section>
-  {% include 'partials/exams_intro.html' %}
-  {% include 'partials/enroll.html' %}
-  {% include 'partials/aboutus.html' %}
-  {% include 'partials/testimonials.html' %}
-  {% include 'partials/cta.html' %}
+
+<section class="home-section how-it-works">
+  <div class="container">
+    <div class="home-section__header">
+      <p class="home-section__eyebrow">How it works</p>
+      <h2 class="home-section__title">Подготовка строится как ясный рабочий цикл</h2>
+      <p class="home-section__lead">
+        Без хаотичных подборок и перегруженных экранов. Мы выстраиваем понятный маршрут:
+        от первых задач до устойчивого роста результата.
+      </p>
+    </div>
+
+    <div class="how-it-works__grid">
+      <article class="card how-it-works__step">
+        <div class="how-it-works__number">01</div>
+        <h3>Выбираете направление</h3>
+        <p>Начинаете с нужного экзамена и входите в материал через понятную точку старта.</p>
+      </article>
+      <article class="card how-it-works__step">
+        <div class="how-it-works__number">02</div>
+        <h3>Решаете задачи</h3>
+        <p>Работаете с вариантами, типами заданий и темами без лишнего визуального шума.</p>
+      </article>
+      <article class="card how-it-works__step">
+        <div class="how-it-works__number">03</div>
+        <h3>Видите прогресс</h3>
+        <p>Система помогает понять, где уже есть уверенность, а где нужен следующий шаг.</p>
+      </article>
+      <article class="card how-it-works__step">
+        <div class="how-it-works__number">04</div>
+        <h3>Добавляете преподавателя</h3>
+        <p>Когда нужен живой разбор и персональный маршрут, подключается работа с учителем.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="home-section about-section">
+  <div class="container">
+    <div class="home-section__header">
+      <p class="home-section__eyebrow">About</p>
+      <h2 class="home-section__title">Фрактал объединяет платформу, практику и живое сопровождение</h2>
+    </div>
+
+    <div class="about-grid">
+      <article class="card about-card">
+        <h3>О проекте</h3>
+        <p>
+          Фрактал — это школа подготовки, в которой цифровая среда не заменяет преподавателя,
+          а делает работу точнее и спокойнее. Мы соединяем персональные задания, аналитику прогресса
+          и понятную структуру подготовки к экзаменам.
+        </p>
+        <p class="mt-12">
+          Наша цель — не просто дать больше задач, а собрать рабочую систему,
+          в которой ученик понимает, что делать дальше, видит рост и не теряется в процессе.
+        </p>
+      </article>
+
+      <article class="card socials-card">
+        <h3>Где нас найти</h3>
+        <p>Если хотите посмотреть, как проект развивается, или связаться напрямую, используйте основные площадки.</p>
+        <ul class="socials-list">
+          <li><a href="https://t.me/v_IT_ek" target="_blank" rel="noopener">Telegram</a></li>
+          <li><a href="https://vk.com/schoolfractal" target="_blank" rel="noopener">VK</a></li>
+          <li><a href="https://www.youtube.com/@CRAZYMATIC" target="_blank" rel="noopener">YouTube</a></li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="home-section testimonials">
+  <div class="container">
+    <div class="home-section__header">
+      <p class="home-section__eyebrow">Testimonials</p>
+      <h2 class="home-section__title">Отзывы и реальные результаты</h2>
+      <p class="home-section__lead">
+        Этот блок останется компактным, но должен подтверждать, что система дает не только красивый интерфейс,
+        а реальную пользу в подготовке.
+      </p>
+    </div>
+
+    <div class="testimonials__grid">
+      <article class="card testimonials__item">
+        <h3>Информатика</h3>
+        <p class="testimonials__quote">
+          «Спасибо огромное. Я был в шоке от результата и очень благодарен за подготовку и поддержку».
+        </p>
+        <p class="testimonials__meta">Дмитрий, 100 баллов</p>
+      </article>
+      <article class="card testimonials__item">
+        <h3>Математика</h3>
+        <p class="testimonials__quote">
+          «Подготовка была собрана очень точно. В итоге результат оказался выше, чем я ожидал».
+        </p>
+        <p class="testimonials__meta">Матвей, 99 баллов</p>
+      </article>
+      <article class="card testimonials__item">
+        <h3>Физика</h3>
+        <p class="testimonials__quote">
+          «Система дала хорошую базу и уверенность, а дальше этих знаний хватило и для более сложных испытаний».
+        </p>
+        <p class="testimonials__meta">Андрей, 97 баллов</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="home-section">
+  <div class="container">
+    <div class="card final-cta">
+      <h3>Готовы начать?</h3>
+      <p>
+        Можно сразу перейти к экзаменам и задачам, а можно оставить заявку и собрать персональный маршрут подготовки.
+      </p>
+      <div class="final-cta__actions">
+        {% if active_exams %}
+          {% with first_exam=active_exams.0 %}
+            <a class="btn btn-primary" href="{% url 'exam-page' first_exam.slug|default:first_exam.name|slugify %}">Перейти к экзаменам</a>
+          {% endwith %}
+        {% endif %}
+        <a class="btn" href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}">Открыть личный кабинет</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/home-v2-ascii-scene.js' %}" defer></script>
 {% endblock %}

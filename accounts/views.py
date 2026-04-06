@@ -6,6 +6,7 @@ from copy import deepcopy
 from datetime import timedelta
 
 from django.contrib import messages
+from django.conf import settings
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -14,6 +15,7 @@ from django.db.models import Prefetch
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as drf_exceptions
@@ -45,6 +47,7 @@ from courses.services import (
 )
 
 from .forms import (
+    LoginForm,
     PasswordChangeForm,
     SignupForm,
     TaskCreateForm,
@@ -66,6 +69,13 @@ from .models import (
 
 
 logger = logging.getLogger("accounts")
+
+
+def _get_safe_redirect(request, fallback: str | None = None) -> str:
+    candidate = request.POST.get("next") or request.GET.get("next") or fallback or settings.LOGIN_REDIRECT_URL
+    if url_has_allowed_host_and_scheme(candidate, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return candidate
+    return fallback or settings.LOGIN_REDIRECT_URL
 
 
 def _format_error_detail(detail) -> str:
@@ -177,18 +187,42 @@ def _get_selected_exam_ids(
     return []
 
 
-def signup(request):
-    """Register a new user and log them in."""
+def auth_entry(request, default_mode: str = "login"):
+    """Render a shared auth page with login and signup blocks."""
+
+    if request.user.is_authenticated:
+        return redirect(_get_safe_redirect(request, fallback=reverse("accounts:dashboard")))
+
+    active_mode = default_mode if default_mode in {"login", "signup"} else "login"
+    login_form = LoginForm(request=request, prefix="login")
+    signup_form = SignupForm(prefix="signup")
 
     if request.method == "POST":
-        form = SignupForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect("home")
-    else:
-        form = SignupForm()
-    return render(request, "accounts/signup.html", {"form": form})
+        action = request.POST.get("auth_action")
+        if action == "login":
+            active_mode = "login"
+            login_form = LoginForm(request=request, data=request.POST, prefix="login")
+            signup_form = SignupForm(prefix="signup")
+            if login_form.is_valid():
+                user = login_form.get_user()
+                login(request, user)
+                return redirect(_get_safe_redirect(request))
+        elif action == "signup":
+            active_mode = "signup"
+            login_form = LoginForm(request=request, prefix="login")
+            signup_form = SignupForm(request.POST, prefix="signup")
+            if signup_form.is_valid():
+                user = signup_form.save()
+                login(request, user)
+                return redirect(_get_safe_redirect(request))
+
+    context = {
+        "active_mode": active_mode,
+        "login_form": login_form,
+        "signup_form": signup_form,
+        "next_url": _get_safe_redirect(request, fallback=""),
+    }
+    return render(request, "accounts/auth.html", context)
 
 
 @login_required

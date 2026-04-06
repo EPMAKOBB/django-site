@@ -1,32 +1,23 @@
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.pill');
-  if (!btn) return;
-  const offer = btn.getAttribute('data-offer');
-  alert('Офер: ' + offer + '\nЗдесь можно открыть форму записи и передать код оффера.');
-});
-
 document.addEventListener('DOMContentLoaded', () => {
-  const el = document.getElementById('typewriter');
-  if (!el) return;
-  const text = el.dataset.text || '';
-  const cursor = el.querySelector('.cursor');
-  let index = 0;
-  let current = '';
-  el.textContent = '';
-  if (cursor) el.appendChild(cursor);
-  const interval = setInterval(() => {
-    if (index < text.length) {
-      current += text[index++];
-      el.textContent = current;
-      if (cursor) el.appendChild(cursor);
-    } else {
-      clearInterval(interval);
-      if (cursor) el.appendChild(cursor);
+  const typewriterEl = document.querySelector('.brand__title--typewriter');
+  if (typewriterEl) {
+    const textEl = typewriterEl.querySelector('.brand__title-text');
+    const sourceText = typewriterEl.dataset.typewriterText;
+    if (textEl && sourceText) {
+      typewriterEl.classList.add('is-enhanced');
+      textEl.textContent = '';
+      let index = 0;
+      const tick = () => {
+        if (index >= sourceText.length) return;
+        textEl.textContent += sourceText.charAt(index);
+        index += 1;
+        window.setTimeout(tick, 85);
+      };
+      window.setTimeout(tick, 220);
     }
-  }, 100);
+  }
 });
 
-// Scroll reveal animations
 document.addEventListener('DOMContentLoaded', () => {
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
@@ -45,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const VARIANT1_CURRENT = 3000;
 const VARIANT1_ORIGINAL = 5000;
-const VARIANT1_UNIT = '₽/мес';
+const VARIANT1_UNIT = 'в‚Ѕ/РјРµСЃ';
 
 const VARIANT2_CURRENT = 5000;
 const VARIANT2_ORIGINAL = 10000;
@@ -80,11 +71,11 @@ function updatePrice() {
 
   const currentTotal = isVariant2 ? VARIANT2_CURRENT : VARIANT1_CURRENT;
   const originalTotal = isVariant2 ? VARIANT2_ORIGINAL : VARIANT1_ORIGINAL;
-  const notePrefix = isVariant2 ? 'за два предмета ' : '';
+  const notePrefix = isVariant2 ? 'Р·Р° РґРІР° РїСЂРµРґРјРµС‚Р° ' : '';
 
   priceOldEl.textContent = `${format(originalTotal)} ${unit}`;
   priceNewEl.textContent = `${format(currentTotal)} ${unit}`;
-  priceNoteEl.textContent = `${notePrefix}при записи до 30 сентября`;
+  priceNoteEl.textContent = `${notePrefix}РїСЂРё Р·Р°РїРёСЃРё РґРѕ 30 СЃРµРЅС‚СЏР±СЂСЏ`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -185,14 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-if (typeof module !== 'undefined') {
-  module.exports = { updatePrice };
-}
-
-// -------------------------------
-// Variant basket (teacher)
-// -------------------------------
-
 function getCookie(name) {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
@@ -209,7 +192,7 @@ async function postForm(url, data) {
       'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
       'X-CSRFToken': csrftoken || '',
       'X-Requested-With': 'XMLHttpRequest',
-      'Accept': 'application/json'
+      Accept: 'application/json'
     },
     body: form.toString()
   });
@@ -220,7 +203,7 @@ async function postForm(url, data) {
     payload = {};
   }
   if (!resp.ok) {
-    const error = (payload && payload.error) || 'Ошибка запроса.';
+    const error = (payload && payload.error) || 'РћС€РёР±РєР° Р·Р°РїСЂРѕСЃР°.';
     throw new Error(error);
   }
   return payload;
@@ -235,13 +218,10 @@ document.addEventListener('click', async (e) => {
   try {
     const data = await postForm('/accounts/dashboard/variant-basket/add/', { task_id: taskId });
     if (data && data.ok) {
-      // Show a subtle feedback
       btn.classList.add('pulse');
       setTimeout(() => btn.classList.remove('pulse'), 600);
-      // If widget exists, bump badge text
       const badge = document.querySelector('.variant-basket-widget__badge');
       if (badge) badge.textContent = String(data.count || '');
-      // If widget is not on page yet but count > 0, reload to render it
       if (!document.querySelector('.variant-basket-widget') && (data.count || 0) > 0) {
         window.location.reload();
       }
@@ -251,6 +231,10 @@ document.addEventListener('click', async (e) => {
     }
   } catch (err) {
     console.warn('Variant add request failed:', err);
-    alert(err && err.message ? err.message : 'Не удалось добавить задачу в вариант.');
+    alert(err && err.message ? err.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ РґРѕР±Р°РІРёС‚СЊ Р·Р°РґР°С‡Сѓ РІ РІР°СЂРёР°РЅС‚.');
   }
 });
+
+if (typeof module !== 'undefined') {
+  module.exports = { updatePrice };
+}

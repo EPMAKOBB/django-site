@@ -1,13 +1,12 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 
-from .forms import LoginForm
 from . import views
 
 app_name = "accounts"
 
 urlpatterns = [
-    path("signup/", views.signup, name="signup"),
+    path("signup/", views.auth_entry, {"default_mode": "signup"}, name="signup"),
     path("dashboard/", views.progress, name="dashboard"),
     path(
         "dashboard/assignments/<int:assignment_id>/",
@@ -44,12 +43,6 @@ urlpatterns = [
     path("dashboard/methodist/", views.dashboard_methodist, name="dashboard-methodist"),
     path("join/teacher/<str:code>/", views.join_teacher_with_code, name="join-teacher"),
     path("join/class/<str:code>/", views.join_class_with_code, name="join-class"),
-    path(
-        "login/",
-        auth_views.LoginView.as_view(
-            template_name="accounts/login.html", authentication_form=LoginForm
-        ),
-        name="login",
-    ),
+    path("login/", views.auth_entry, {"default_mode": "login"}, name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
 ]
