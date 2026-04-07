@@ -248,3 +248,117 @@ Use this structure for each update:
 - Review the homepage in the browser and refine copy, spacing, and light-theme behavior.
 - Patch any shared component gaps exposed by the new homepage.
 - Move from homepage polishing into subject-page redesign.
+
+## 2026-04-06
+
+### Done
+- Removed the obsolete homepage partial assembly files that were no longer part of the live homepage path.
+- Confirmed that the production homepage no longer depends on the old `partials/exams_intro`, `partials/enroll`, `partials/aboutus`, `partials/testimonials`, or `partials/cta` templates.
+- Verified the project with `python manage.py check` after the cleanup.
+
+### In Progress
+- Homepage cleanup and stabilization after the structural migration.
+
+### Blocked
+- None recorded yet.
+
+### Dropped / Postponed
+- Broader deletion of old shell assets during this homepage-only cleanup pass, because some legacy files are still indirectly referenced by tests and documentation.
+
+### Decisions
+- Homepage cleanup is being handled conservatively: remove dead live-template files first, then do broader legacy asset cleanup in a dedicated pass.
+
+### Next
+- Review whether `templates/partials/about_fractal.html` still has any product value or should also be removed later.
+- Continue with homepage polish and then move to the subject page.
+
+## 2026-04-07
+
+### Done
+- Approved the planned information architecture for the subject page redesign.
+- Recorded the agreed subject-page structure in the Stage 1-2 working document.
+
+### In Progress
+- Subject-page planning before implementation.
+
+### Blocked
+- None recorded yet.
+
+### Dropped / Postponed
+- Implementation of the future support/motivation layer on the subject page for now.
+
+### Decisions
+- The subject page will be structured in four layers:
+- top summary;
+- what to do next;
+- task types;
+- reserved future support area.
+- The reserved future support area will stay unimplemented for now, but the architecture must leave room for it.
+- Priority for this subject-page redesign plan is medium.
+
+### Next
+- Translate the approved subject-page structure into template-level implementation planning.
+- Define the data and fallback logic for "continue from the last active point".
+
+## 2026-04-07
+
+### Done
+- Started subject-page implementation on top of the approved 4-layer structure.
+- Replaced the old thin exam shell in `templates/exams/detail.html` with a new page-level summary layout.
+- Rebuilt `templates/exams/_public_blocks.html` around:
+- `what to do next`;
+- task types;
+- reserved future support slot.
+- Added a dedicated page stylesheet at `static/css/exam-detail.css`.
+- Added a dedicated page script at `static/js/exam-detail.js`.
+- Implemented client-side summary enrichment using existing progress data:
+- overall progress;
+- current forecast placeholder based on current type coverage;
+- strongest types;
+- weakest types;
+- next best action;
+- resume-from-last-active fallback using local browser storage.
+- Kept the existing backend endpoints and personal mock POST flow intact.
+
+### In Progress
+- First visible subject-page milestone review.
+
+### Blocked
+- No dedicated public training-mode page exists yet, so the training action remains a reserved coming-soon state.
+
+### Dropped / Postponed
+- The future support layer remains unimplemented for now.
+
+### Decisions
+- Subject-page redesign is being delivered in reviewable UI milestones.
+- "Continue from the last active point" will initially use browser-side persistence plus a weakest-type fallback, avoiding backend changes in this phase.
+
+### Next
+- Review the first visible subject-page rebuild in the browser.
+- Refine copy, spacing, and action hierarchy based on feedback.
+- Only after approval, move to the next subject-page refinement pass.
+
+## 2026-04-07
+
+### Done
+- Simplified the subject-page action block after UI review.
+- Reduced `What to do next` from four competing actions to two core actions:
+- personal mock exam;
+- personal training mode placeholder.
+- Removed the unused resume / next-best-action subject-page client logic so the implementation matches the approved UI.
+
+### In Progress
+- Subject-page first milestone is now in a cleaned and stabilized state.
+
+### Blocked
+- No dedicated public training-mode page exists yet, so the second action remains a placeholder.
+
+### Dropped / Postponed
+- Resume and next-best-action CTAs are postponed from the visible subject-page action area for now.
+
+### Decisions
+- The subject-page action block should stay minimal and low-friction in the current phase.
+- Secondary guidance should not compete with the two core learning modes on this screen.
+
+### Next
+- Continue later with subject-page polish and then move toward the real training-mode implementation.

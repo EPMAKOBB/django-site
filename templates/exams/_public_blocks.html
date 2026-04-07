@@ -1,81 +1,133 @@
 {% load i18n %}
 
-<div class="exam-card__section">
-  <div class="exam-panel">
-    <h3>{% trans "Составить персональный вариант" %}</h3>
-    <p class="muted">
-      {% trans "Соберем вариант на основе вашей текущей статистики." %}
-    </p>
-    {% if blueprint %}
-      <div id="exam-auth-alert" class="alert alert-warning" style="display:none;">
-        {% trans "Чтобы составить персональный вариант, войдите или зарегистрируйтесь." %}
-        <a href="{% url 'accounts:login' %}">{% trans "Войти" %}</a>
-        {% trans "или" %}
-        <a href="{% url 'accounts:signup' %}">{% trans "создать аккаунт" %}</a>.
-      </div>
-      <form method="post" class="mb-16" data-exam-personal-form data-auth="{{ is_authenticated|yesno:'1,0' }}">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="build_personal">
-        <button type="submit" class="btn btn-large btn-primary" style="display:block;margin:0 auto;">
-          {% trans "Составить персональный вариант" %}
+<div class="exam-blocks">
+  <section class="exam-layout-section">
+    <div class="exam-section-heading">
+      <p class="exam-section-heading__eyebrow">{% trans "Что делать дальше" %}</p>
+      <h2 class="exam-section-heading__title">{% trans "Выберите следующий рабочий шаг" %}</h2>
+      <p class="exam-section-heading__lead">
+        {% trans "Сначала используйте персональные режимы, затем переходите в нужный тип заданий." %}
+      </p>
+    </div>
+
+    <div class="exam-actions-grid exam-actions-grid--compact">
+      <article class="exam-action-card exam-action-card--primary">
+        <div class="exam-action-card__body">
+          <p class="exam-action-card__eyebrow">{% trans "Персональный пробник" %}</p>
+          <h3 class="exam-action-card__title">{% trans "Собрать персональный вариант" %}</h3>
+          <p class="exam-action-card__text">
+            {% trans "Соберем вариант на основе вашего текущего положения по этому экзамену." %}
+          </p>
+        </div>
+
+        {% if blueprint %}
+          <div id="exam-auth-alert" class="alert alert-warning" style="display:none;">
+            {% trans "Чтобы собрать персональный вариант, войдите или зарегистрируйтесь." %}
+            <a href="{% url 'accounts:login' %}">{% trans "Войти" %}</a>
+            {% trans "или" %}
+            <a href="{% url 'accounts:signup' %}">{% trans "создать аккаунт" %}</a>.
+          </div>
+          <form method="post" data-exam-personal-form data-auth="{{ is_authenticated|yesno:'1,0' }}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="build_personal">
+            <button type="submit" class="btn btn-large btn-primary exam-action-card__button">
+              {% trans "Собрать персональный пробник" %}
+            </button>
+          </form>
+        {% else %}
+          <div class="alert alert-warning">
+            {% trans "Пока нет активной спецификации экзамена для персонального пробника." %}
+          </div>
+        {% endif %}
+      </article>
+
+      <article class="exam-action-card">
+        <div class="exam-action-card__body">
+          <p class="exam-action-card__eyebrow">{% trans "Персональная тренировка" %}</p>
+          <h3 class="exam-action-card__title">{% trans "Тренировочный режим" %}</h3>
+          <p class="exam-action-card__text">
+            {% trans "Этот режим будет добавлен следующим отдельным этапом. Место в навигации уже зарезервировано." %}
+          </p>
+        </div>
+        <button type="button" class="btn btn-secondary exam-action-card__button" disabled>
+          {% trans "Скоро появится" %}
         </button>
-      </form>
-    {% else %}
-      <div class="alert alert-warning">
-        {% trans "Пока нет активной спецификации экзамена." %}
-      </div>
-    {% endif %}
-  </div>
-</div>
+      </article>
+    </div>
 
-<section class="section">
-  <div class="container">
-    <h3 class="section-title">{% trans "Готовые варианты" %}</h3>
     {% if static_variants %}
-      <div class="variant-buttons">
-        {% for variant in static_variants %}
-          {% if variant.page %}
-            <a class="btn btn-secondary btn-large" href="{% url 'variant-page' variant.page.slug %}">{{ variant.name }}</a>
-          {% else %}
-            <button class="btn btn-secondary btn-large" disabled>{{ variant.name }}</button>
-          {% endif %}
-        {% endfor %}
+      <div class="exam-secondary-actions">
+        <p class="exam-secondary-actions__title">{% trans "Готовые варианты" %}</p>
+        <div class="variant-buttons">
+          {% for variant in static_variants %}
+            {% if variant.page %}
+              <a class="btn btn-secondary" href="{% url 'variant-page' variant.page.slug %}">{{ variant.name }}</a>
+            {% else %}
+              <button class="btn btn-secondary" disabled>{{ variant.name }}</button>
+            {% endif %}
+          {% endfor %}
+        </div>
       </div>
-    {% else %}
-      <p class="muted">{% trans "Готовых вариантов пока нет." %}</p>
     {% endif %}
-  </div>
-</section>
+  </section>
 
-<section class="section">
-  <div class="container">
-    <h3 class="section-title">{% trans "Типы заданий" %}</h3>
+  <section class="exam-layout-section">
+    <div class="exam-section-heading">
+      <p class="exam-section-heading__eyebrow">{% trans "Типы заданий" %}</p>
+      <h2 class="exam-section-heading__title">{% trans "Выберите тип, по которому хотите работать" %}</h2>
+      <p class="exam-section-heading__lead">
+        {% trans "Каждая карточка показывает описание, текущий прогресс и быстрый переход в нужный раздел." %}
+      </p>
+    </div>
+
     {% if blueprint and type_rows %}
-      <div class="types-grid">
+      <div class="exam-types-grid">
         {% for row in type_rows %}
-          <div class="type-card" data-type-id="{{ row.type.id }}">
-            <div class="type-card__header">
-              <div class="type-card__title">
-                {% if row.type.slug %}
-                  <a class="type-card__name" href="{% url 'exam-type-page' exam.slug row.type.slug %}">{{ row.type.name }}</a>
-                {% else %}
-                  <a class="type-card__name" href="{% url 'exam-type-page' exam.slug row.type.name|slugify %}">{{ row.type.name }}</a>
-                {% endif %}
-                {% if row.type.description %}: <span class="type-card__desc">{{ row.type.description }}</span>{% endif %}
+          <article
+            class="exam-type-card"
+            data-type-id="{{ row.type.id }}"
+            data-type-name="{{ row.type.name }}"
+            data-type-url="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}"
+          >
+            <div class="exam-type-card__header">
+              <div>
+                <p class="exam-type-card__label">{% trans "Тип заданий" %}</p>
+                <h3 class="exam-type-card__title">{{ row.type.name }}</h3>
               </div>
-              <div class="type-card__pct">
+              <div class="exam-type-card__score">
                 {% if is_authenticated %}
-                  <span class="type-card__pct-value">0%</span>
+                  <span class="exam-type-card__score-value">0%</span>
                 {% else %}
-                  <span class="type-card__pct-muted">—</span>
+                  <span class="exam-type-card__score-muted">—</span>
                 {% endif %}
               </div>
             </div>
+
+            <p class="exam-type-card__description">
+              {% if row.type.description %}
+                {{ row.type.description }}
+              {% else %}
+                {% trans "Описание для этого типа пока не добавлено." %}
+              {% endif %}
+            </p>
+
             <div class="progress-bar">
-              <div class="fill" style="width:0%;"></div>
+              <span class="fill" style="width:0%;"></span>
             </div>
+
+            <div class="exam-type-card__status-row">
+              <span class="badge exam-type-card__status" data-type-status>{% trans "Ждем данные" %}</span>
+              <span class="muted exam-type-card__status-text" data-type-status-text>
+                {% if is_authenticated %}
+                  {% trans "После загрузки появится оценка сильной или слабой зоны." %}
+                {% else %}
+                  {% trans "Войдите, чтобы увидеть ваш статус по типу." %}
+                {% endif %}
+              </span>
+            </div>
+
             {% if row.required_tags %}
-              <div class="type-tags">
+              <div class="exam-type-card__tags">
                 {% for tag in row.required_tags %}
                   <span class="type-tag" data-tag-id="{{ tag.id }}" style="--tag-progress:0%;">
                     <span class="type-tag__label">{{ tag.name }}</span>
@@ -83,11 +135,19 @@
                 {% endfor %}
               </div>
             {% endif %}
-          </div>
+
+            <a class="btn exam-type-card__cta" href="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}" data-type-link>
+              {% trans "Открыть тип" %}
+            </a>
+          </article>
         {% endfor %}
       </div>
     {% else %}
-      <p class="muted">{% trans "Пока нет типов заданий для этого экзамена." %}</p>
+      <div class="card">
+        <p class="muted">{% trans "Пока нет типов заданий для этого экзамена." %}</p>
+      </div>
     {% endif %}
-  </div>
-</section>
+  </section>
+
+  <!-- Reserved future support area: quick theory, achievements, exam info. -->
+</div>

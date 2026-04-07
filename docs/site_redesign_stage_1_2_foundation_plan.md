@@ -949,3 +949,109 @@ Working rules:
 - forms should collapse into vertical flow cleanly;
 - cards should stack without becoming visually noisy;
 - dark and light themes must both remain readable on mobile.
+
+## 25. Planned Subject Page Structure
+
+Status:
+Planned structure, not implemented yet.
+
+Priority:
+Medium.
+
+This structure is currently approved as the working direction for the subject-page redesign.
+
+### 25.1 Section 1: Top Summary
+
+Purpose:
+Answer the question: "Where am I now?"
+
+Planned contents:
+
+- exam title;
+- very short "how to use the system" note;
+- expected score / current forecast;
+- overall progress;
+- 2 strengths;
+- 2 weaknesses.
+
+### 25.2 Section 2: What To Do Next
+
+Purpose:
+Answer the question: "What should I do next?"
+
+Planned contents:
+
+- personal mock exam;
+- personal training mode;
+
+Current phase note:
+
+- after the first UI review, this block was intentionally simplified to only these two core actions;
+- resume and next-best-action ideas are postponed so the screen stays clearer and lower-friction.
+
+### 25.3 Section 3: Task Types
+
+Purpose:
+Answer the question: "Which task types should I work on?"
+
+Planned contents:
+
+- task type list;
+- short description for each type;
+- progress by type;
+- strength/weakness indicator;
+- CTA to open the type page.
+
+### 25.4 Section 4: Reserved Future Support Area
+
+Purpose:
+Keep a clear extension zone in the page architecture for future support and motivation features.
+
+Current status:
+
+- not implemented yet;
+- should remain reserved in the system design;
+- may later host quick theory, exam info, achievements, or related support blocks.
+
+Implementation note:
+
+- even before implementation, the page architecture should leave a clear slot for this future layer so the redesign does not need to be structurally rewritten later.
+
+## 26. Subject Page Implementation Notes
+
+Status:
+Implementation started on 2026-04-07.
+
+### 26.1 First UI Milestone
+
+The first implementation milestone for the subject page includes:
+
+- a new page-level summary shell in `templates/exams/detail.html`;
+- a dedicated subject-page stylesheet;
+- a dedicated subject-page script;
+- a rebuilt dynamic content block in `templates/exams/_public_blocks.html`.
+
+### 26.2 Scope of the First UI Milestone
+
+This milestone should already render the following visible structure:
+
+1. top summary;
+2. what-to-do-next action area;
+3. task-type grid;
+4. reserved future support slot.
+
+### 26.3 Data Strategy for This Milestone
+
+To keep backend changes minimal in this phase:
+
+- existing public and progress endpoints remain in place;
+- summary analytics are derived client-side from the existing per-type progress payload;
+- strengths and weaknesses are inferred from the strongest and weakest type percentages;
+- no extra backend endpoint is introduced for action recommendations in this milestone.
+
+### 26.4 Training-Mode Constraint
+
+The action area must visibly reserve a slot for personal training mode, but:
+
+- there is currently no dedicated public training-mode page to route to;
+- the first implementation should therefore render it as a planned action rather than a fake working CTA.

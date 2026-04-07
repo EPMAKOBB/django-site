@@ -1,101 +1,110 @@
-﻿{% extends "base.html" %}
-{% load i18n %}
+{% extends "base.html" %}
+{% load static i18n %}
 
 {% block title %}{{ exam.subject.name }} - {{ exam.name }}{% endblock %}
-{% block meta_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к ЕГЭ и ОГЭ.{% endblock %}
+{% block meta_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к экзамену.{% endblock %}
 {% block og_title %}{{ exam.subject.name }} — {{ exam.name }} | Фрактал{% endblock %}
-{% block og_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к ЕГЭ и ОГЭ.{% endblock %}
+{% block og_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к экзамену.{% endblock %}
 {% block canonical_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}
 {% block og_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}
 {% block twitter_title %}{{ exam.subject.name }} — {{ exam.name }} | Фрактал{% endblock %}
-{% block twitter_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к ЕГЭ и ОГЭ.{% endblock %}
+{% block twitter_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к экзамену.{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'css/exam-detail.css' %}">
+{% endblock %}
 
 {% block content %}
-<section class="section">
+<section class="section exam-page">
   <div class="container">
-    <h1 class="section-title">{{ exam.subject.name }} - {{ exam.name }}</h1>
-  </div>
-</section>
+    <div
+      class="exam-page__hero"
+      id="exam-page"
+      data-public-url="{% url 'exam-public-blocks' exam_slug %}"
+      data-progress-url="{% url 'exam-progress-data' exam_slug %}"
+      data-auth="{{ is_authenticated|yesno:'1,0' }}"
+      data-exam-slug="{{ exam_slug }}"
+      data-login-url="{% url 'accounts:login' %}?next={{ request.path|urlencode }}"
+    >
+      <div class="exam-page__intro">
+        <p class="exam-page__eyebrow">{{ exam.subject.name }}</p>
+        <h1 class="exam-page__title">{{ exam.name }}</h1>
+        <p class="exam-page__lead">
+          {% trans "Смотрите на сводку сверху, выбирайте следующий шаг в блоке действий и затем переходите к нужному типу заданий." %}
+        </p>
+      </div>
 
-<section class="section" id="exam-page"
-  data-public-url="{% url 'exam-public-blocks' exam_slug %}"
-  data-progress-url="{% url 'exam-progress-data' exam_slug %}"
-  data-auth="{{ is_authenticated|yesno:'1,0' }}">
-  <div class="container">
-    <div id="exam-public-blocks">
-      <div class="exam-skeleton exam-card__section">
-        <div class="skeleton skeleton-panel"></div>
-        <div class="skeleton skeleton-title"></div>
-        <div class="skeleton skeleton-row"></div>
-        <div class="skeleton skeleton-row"></div>
-        <div class="skeleton skeleton-card"></div>
-        <div class="skeleton skeleton-card"></div>
-        <div class="skeleton skeleton-card"></div>
+      <div class="exam-summary-grid">
+        <article class="exam-summary-card">
+          <p class="exam-summary-card__label">{% trans "Текущий прогноз" %}</p>
+          <div class="exam-summary-card__value" id="exam-forecast-value">—</div>
+          <p class="exam-summary-card__note" id="exam-forecast-note">
+            {% if is_authenticated %}
+              {% trans "Будет рассчитан после загрузки прогресса." %}
+            {% else %}
+              {% trans "Войдите, чтобы увидеть персональный прогноз." %}
+            {% endif %}
+          </p>
+        </article>
+
+        <article class="exam-summary-card">
+          <p class="exam-summary-card__label">{% trans "Общий прогресс" %}</p>
+          <div class="exam-summary-card__value" id="exam-progress-value">—</div>
+          <div class="progress-bar exam-summary-card__progress">
+            <span class="fill" id="exam-progress-fill" style="width:0%;"></span>
+          </div>
+          <p class="exam-summary-card__note" id="exam-progress-note">
+            {% if is_authenticated %}
+              {% trans "Среднее покрытие по типам заданий." %}
+            {% else %}
+              {% trans "Прогресс станет доступен после входа." %}
+            {% endif %}
+          </p>
+        </article>
+
+        <article class="exam-summary-card">
+          <p class="exam-summary-card__label">{% trans "Сильные стороны" %}</p>
+          <ul class="exam-summary-list" id="exam-strengths-list">
+            <li>{% trans "Загрузка аналитики..." %}</li>
+            <li>{% trans "Загрузка аналитики..." %}</li>
+          </ul>
+        </article>
+
+        <article class="exam-summary-card">
+          <p class="exam-summary-card__label">{% trans "Слабые стороны" %}</p>
+          <ul class="exam-summary-list" id="exam-weaknesses-list">
+            <li>{% trans "Загрузка аналитики..." %}</li>
+            <li>{% trans "Загрузка аналитики..." %}</li>
+          </ul>
+        </article>
       </div>
     </div>
   </div>
 </section>
 
-<script>
-  (function () {
-    const pageEl = document.getElementById("exam-page");
-    if (!pageEl) return;
-    const publicUrl = pageEl.dataset.publicUrl;
-    const progressUrl = pageEl.dataset.progressUrl;
-    const isAuth = pageEl.dataset.auth === "1";
-    const blocksEl = document.getElementById("exam-public-blocks");
+<section class="section exam-page__content">
+  <div class="container">
+    <div id="exam-public-blocks">
+      <div class="exam-skeleton card">
+        <div class="skeleton skeleton-title"></div>
+        <div class="exam-skeleton__grid">
+          <div class="skeleton skeleton-card"></div>
+          <div class="skeleton skeleton-card"></div>
+          <div class="skeleton skeleton-card"></div>
+          <div class="skeleton skeleton-card"></div>
+        </div>
+        <div class="skeleton skeleton-row"></div>
+        <div class="skeleton skeleton-row"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+      </div>
+    </div>
 
-    const bindPersonalForm = () => {
-      const form = blocksEl.querySelector("[data-exam-personal-form]");
-      if (!form) return;
-      const auth = form.dataset.auth === "1";
-      if (auth) return;
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        const alertEl = blocksEl.querySelector("#exam-auth-alert");
-        if (alertEl) {
-          alertEl.style.display = "block";
-          alertEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }
-      });
-    };
+    <!-- Reserved for the future support layer: quick theory, achievements, exam info. -->
+  </div>
+</section>
+{% endblock %}
 
-    const applyProgress = (payload) => {
-      if (!payload) return;
-      const typeProgress = payload.type_progress || {};
-      const tagProgress = payload.tag_progress || {};
-      Object.keys(typeProgress).forEach((typeId) => {
-        const card = blocksEl.querySelector(`[data-type-id="${typeId}"]`);
-        if (!card) return;
-        const pct = typeProgress[typeId].percent || 0;
-        const pctEl = card.querySelector(".type-card__pct-value");
-        if (pctEl) pctEl.textContent = `${pct}%`;
-        const fillEl = card.querySelector(".progress-bar .fill");
-        if (fillEl) fillEl.style.width = `${pct}%`;
-        const tags = tagProgress[typeId] || {};
-        Object.keys(tags).forEach((tagId) => {
-          const chip = card.querySelector(`[data-tag-id="${tagId}"]`);
-          if (chip) {
-            chip.style.setProperty("--tag-progress", `${tags[tagId]}%`);
-          }
-        });
-      });
-    };
-
-    fetch(publicUrl, { credentials: "same-origin" })
-      .then((resp) => (resp.ok ? resp.json() : null))
-      .then((payload) => {
-        if (!payload || !payload.html) return;
-        blocksEl.innerHTML = payload.html;
-        bindPersonalForm();
-        if (!isAuth) return;
-        return fetch(progressUrl, { credentials: "same-origin" })
-          .then((resp) => (resp.ok ? resp.json() : null))
-          .then((progressPayload) => applyProgress(progressPayload));
-      })
-      .catch(() => {
-        blocksEl.innerHTML = '<div class="alert alert-warning">{% trans "Не удалось загрузить данные экзамена." %}</div>';
-      });
-  })();
-</script>
+{% block extra_js %}
+  <script src="{% static 'js/exam-detail.js' %}"></script>
 {% endblock %}
