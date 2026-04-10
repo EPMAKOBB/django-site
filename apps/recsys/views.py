@@ -35,6 +35,7 @@ from .models import (
 )
 from .recommendation import recommend_tasks
 from .forms import TaskUploadForm
+from .presentation.tasks import build_task_statement_payload
 from accounts.models import ClassTeacherSubject, StudentProfile, TeacherStudentLink
 from apps.recsys.service_utils import variants as variant_services
 from apps.recsys.service_utils.type_progress import build_type_progress_map
@@ -153,15 +154,32 @@ def exam_type_page(request, exam_slug: str, type_slug: str):
     tasks = (
         Task.objects.filter(type=task_type)
         .select_related("subject", "exam_version", "type")
-        .prefetch_related("skills")
+        .prefetch_related("skills", "attachments")
         .order_by("id")
     )
+    task_rows = [
+        {
+            "task": task,
+            "statement": build_task_statement_payload(task=task),
+        }
+        for task in tasks
+    ]
     context = {
         "exam": exam,
         "task_type": task_type,
-        "tasks": tasks,
+        "task_rows": task_rows,
     }
     return render(request, "exams/type_detail.html", context)
+
+
+@login_required
+def training_page(request, exam_slug: str):
+    exam = _get_exam_by_slug(exam_slug)
+    context = {
+        "exam": exam,
+        "exam_slug": exam.slug or exam_slug,
+    }
+    return render(request, "exams/training.html", context)
 
 
 def exam_public_blocks(request, exam_slug: str):
@@ -266,6 +284,7 @@ def variant_page(request, slug: str):
     ).prefetch_related(
         "template__template_tasks__task__subject",
         "template__template_tasks__task__type",
+        "template__template_tasks__task__attachments",
     )
     page = get_object_or_404(page_qs, slug=slug)
     if not page.is_public:
@@ -312,12 +331,13 @@ def variant_page(request, slug: str):
             "rendering_strategy": getattr(task, "rendering_strategy", None) if task else None,
             "image": resolve_media_url(task.image.url) if getattr(task, "image", None) else None,
         }
+        statement = build_task_statement_payload(task=task, statement_source=display)
         tasks.append(
             {
                 "variant_task": variant_task,
                 "task": task,
                 "order": variant_task.order,
-                "display": display,
+                "statement": statement,
             }
         )
 
@@ -381,7 +401,7 @@ def tasks_list(request):
     qs = (
         Task.objects.all()
         .select_related("subject", "exam_version", "type")
-        .prefetch_related("skills")
+        .prefetch_related("skills", "attachments")
     )
     if selected_exam_ids:
         qs = qs.filter(exam_version_id__in=selected_exam_ids)
@@ -416,8 +436,16 @@ def tasks_list(request):
     else:
         qs = qs.order_by("-created_at")
 
+    task_rows = [
+        {
+            "task": task,
+            "statement": build_task_statement_payload(task=task),
+        }
+        for task in qs
+    ]
+
     context = {
-        "tasks": qs,
+        "task_rows": task_rows,
         "exams_by_subject": exams_by_subject,
         "selected_exam_ids": selected_exam_ids,
         "kind": kind,

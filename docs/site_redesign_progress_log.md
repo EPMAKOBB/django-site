@@ -362,3 +362,212 @@ Use this structure for each update:
 
 ### Next
 - Continue later with subject-page polish and then move toward the real training-mode implementation.
+
+## 2026-04-08
+
+### Done
+- Added a dedicated task-rendering unification plan in `docs/recsys/task_rendering_unification_plan.md`.
+- Fixed the preliminary architectural direction before training-mode implementation:
+- one canonical statement-rendering pipeline;
+- server-prepared `task_body_html`;
+- separation between task statement and answer UI;
+- shared statement partial and shared statement CSS scope.
+
+### In Progress
+- Preparing the implementation sequence for unifying task rendering across browse, preview, solver, and future training mode.
+
+### Blocked
+- The actual task-rendering migration is not started yet, so the existing duplicated template branches still remain in the current product surfaces.
+
+### Dropped / Postponed
+- Building training mode directly on top of the current mixed rendering approaches.
+
+### Decisions
+- Task statement rendering must be unified before the training-mode UI is built.
+- Statement rendering and answer-input rendering are now explicitly treated as separate layers.
+- The canonical display field should be `task_body_html`, not template-local markdown/html branching.
+
+### Next
+- Add a presentation builder for task payloads.
+- Introduce a shared `task_statement` partial and shared CSS scope.
+- Migrate task-type page and variant preview first, then align solver, then build training mode on top of the unified layer.
+
+## 2026-04-08
+
+### Done
+- Added the first working dynamic training-mode implementation.
+- Introduced `TrainingSession` and `TrainingSessionStep` as explicit session-history models.
+- Added training service helpers for:
+- start session;
+- get current session;
+- append next recommended step;
+- submit answer with server-side grading;
+- end session.
+- Added training API endpoints:
+- current session;
+- start session;
+- session detail;
+- submit answer;
+- end session.
+- Added the first public training page at `exams/<exam_slug>/training/`.
+- Activated the subject-page training CTA so it now links to the real training route.
+- Added an initial API test for the training session flow.
+
+### In Progress
+- The current training UI is functional but still at the first shell stage and needs product-level polish.
+
+### Blocked
+- None at the backend flow level.
+
+### Dropped / Postponed
+- Rich training analytics panels and deeper session review UX beyond the initial history rail.
+
+### Decisions
+- Dynamic training is now implemented as a real session flow, not just a loose sequence of attempts.
+- Session history is stored explicitly instead of being reconstructed only from attempts and recommendation logs.
+- Submitted steps are viewable in session history but are not editable.
+
+### Next
+- Polish the training page UI and interaction states.
+- Extract a shared response-panel layer instead of keeping answer-input UI page-local.
+- Refine session-history presentation and add richer review/detail behavior.
+
+## 2026-04-08
+
+### Done
+- Extracted a shared schema-driven answer-input helper into `static/js/task-response-panel.js`.
+- Connected the shared response helper in both `templates/base.html` and `templates/base_solver.html`.
+- Added page-level asset extension hooks to `templates/base_solver.html`.
+- Moved the solver answer-schema rendering and payload collection onto the shared helper instead of keeping a solver-only implementation.
+- Rebuilt the training page shell in `templates/exams/training.html` around:
+- a dedicated session header;
+- clearer training stats;
+- a separate response panel;
+- persistent feedback rendering after submit;
+- a more structured history rail.
+- Added dedicated training page styles in `static/css/training-page.css`.
+- Verified the project with `python manage.py check`.
+- Verified the training flow again with `python manage.py test apps.recsys.tests.test_training_api_flow --keepdb`.
+
+### In Progress
+- The training mode now has a stronger shared response layer, but still needs richer review behavior and broader edge-case coverage.
+
+### Blocked
+- None recorded at this implementation layer.
+
+### Dropped / Postponed
+- A deeper reusable review panel for historical training steps is still postponed beyond this pass.
+
+### Decisions
+- Answer-schema rendering is now a shared frontend concern and should not be reimplemented per page.
+- Solver and training should share one schema-input pipeline even if their surrounding UX remains different.
+- `base_solver.html` now supports page-level extension hooks so solver-adjacent screens can evolve without more global template duplication.
+
+### Next
+- Add richer training history step review instead of the current summary-only rail.
+- Expand training tests for exhausted recommendation pools and resume/end-session edge cases.
+- Decide whether the shared response helper should also absorb more of the solver/training feedback rendering layer.
+
+## 2026-04-08
+
+### Done
+- Rewrote `templates/exams/training.html` in clean UTF-8 to remove the corrupted mixed-encoding strings that broke copy on `/training/`.
+- Kept the existing training layout and shared response-panel integration while replacing the broken localized strings in both HTML and inline JS.
+- Re-verified the project with `python manage.py check`.
+- Re-ran `python manage.py test apps.recsys.tests.test_training_api_flow --keepdb` after the encoding fix.
+
+### In Progress
+- Training-mode UX work continues after the page-level encoding repair.
+
+### Blocked
+- None recorded at this layer.
+
+### Dropped / Postponed
+- None recorded for the encoding fix itself.
+
+### Decisions
+- The training page template should be treated as UTF-8 canonical content and not patched incrementally around mojibake fragments.
+- If more page-local JS copy is added on training screens, keep it centralized in a labels object to reduce future encoding drift.
+
+### Next
+- Continue with richer training history/review behavior.
+- Broaden edge-case coverage around session resume and exhausted recommendations.
+
+## 2026-04-09
+
+### Done
+- Reworked `/training/` page-state behavior so the interface now distinguishes:
+- no active session;
+- active session;
+- completed session.
+- Removed the misleading empty working layout from the idle state by hiding the session workspace until a real session exists.
+- Added explicit empty-state content for the task area instead of placeholder dashes.
+- Made the launcher compact when a session is present instead of leaving two competing large blocks on screen.
+- Replaced the raw `{}` launcher failure artifact with a user-facing fallback message in the training-page request flow.
+- Verified the page changes with `python manage.py check`.
+- Re-ran `python manage.py test apps.recsys.tests.test_training_api_flow --keepdb`.
+
+### In Progress
+- Training mode still needs richer history-step review beyond the current summary rail.
+
+### Blocked
+- None recorded at this UI state-management layer.
+
+### Dropped / Postponed
+- None recorded for this pass.
+
+### Decisions
+- The training page should not show its working session shell before the session state is known.
+- Placeholder dashes are not an acceptable fallback for primary training blocks; empty states must explain what the user should do next.
+- Error fallbacks for the training page should be product copy, not raw serialized payloads.
+
+### Next
+- Add per-step review/detail behavior for session history.
+- Tighten the completed-session summary view so it feels intentional rather than just a no-task state.
+
+## 2026-04-09
+
+### Done
+- Started the training-type filter implementation so dynamic training is no longer implicitly "all task types in the exam".
+- Added `selected_task_type_ids` to `TrainingSession` and created the migration `0041_trainingsession_selected_task_type_ids.py`.
+- Added a dedicated training type-filter service in `apps/recsys/service_utils/training_type_filters.py`.
+- Added a new API endpoint `GET /api/training/type-filters/` that returns:
+- recommended type ids;
+- per-type recommendation reasons;
+- default selection flags;
+- a short block-level summary.
+- Updated training session start so it accepts and validates `selected_task_type_ids`.
+- Updated training recommendation filtering so the candidate pool is now constrained by:
+- the current exam version;
+- the selected task types for the session.
+- Extended the training launcher UI with a first working type-filter block:
+- recommendation summary;
+- selected count;
+- recommended and other type groups;
+- reset-to-recommendations action.
+- Added backend regression tests for:
+- cross-exam task leakage prevention;
+- type-filter endpoint payload;
+- invalid foreign task-type selection;
+- respecting explicitly selected task types.
+- Verified the project with `python manage.py check`.
+- Verified the expanded training flow tests with `python manage.py test apps.recsys.tests.test_training_api_flow --keepdb`.
+
+### In Progress
+- The training launcher now supports type filters, but the launcher UX and copy still need browser-level review and visual polish.
+
+### Blocked
+- None recorded at this layer.
+
+### Dropped / Postponed
+- Deeper teacher-facing or curriculum-lock logic remains postponed in favor of user-controlled type filters.
+
+### Decisions
+- Task-type selection for training is now a first-class session parameter, not an implicit frontend-only preference.
+- Recommended types are system-suggested defaults, but the final filter remains user-controlled.
+- Training recommendation must always respect both exam scope and selected type scope.
+
+### Next
+- Review the type-filter launcher UI in the browser and refine spacing/copy/interaction states.
+- Surface the selected task-type summary more explicitly when continuing or reviewing a session.
+- Add per-step review/detail behavior for session history.

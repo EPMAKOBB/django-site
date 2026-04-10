@@ -9,13 +9,20 @@ from ..recommendation import (
 )
 from ..models import (
     Attempt,
+    ExamVersion,
     RecommendationLog,
     Skill,
     SkillMastery,
     SkillGroup,
     Task,
     TaskType,
+    TrainingSession,
     TypeMastery,
+)
+from ..service_utils import training as training_service
+from ..service_utils.training_type_filters import (
+    build_type_filter_payload,
+    validate_selected_task_type_ids,
 )
 from ..service_utils import variants as variant_service
 from ..service_utils.type_progress import build_type_progress_map
@@ -386,4 +393,114 @@ class VariantAssignmentHistoryView(APIView):
             assignment, context={"request": request}
         )
         return Response(serializer.data)
+
+
+class TrainingCurrentSessionView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            exam_version_id = int(request.query_params.get("exam_version_id", 0))
+        except (TypeError, ValueError):
+            exam_version_id = 0
+        if exam_version_id <= 0:
+            raise serializers.ValidationError({"exam_version_id": "exam_version_id is required."})
+        session = training_service.get_current_session(
+            request.user,
+            exam_version_id=exam_version_id,
+        )
+        if session is None:
+            return Response({
+                "session": None,
+                "selected_task_types": [],
+                "current_step": None,
+                "current_task": None,
+                "history": [],
+            })
+        return Response(training_service.session_payload(session))
+
+
+class TrainingTypeFilterView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            exam_version_id = int(request.query_params.get("exam_version_id", 0))
+        except (TypeError, ValueError):
+            exam_version_id = 0
+        if exam_version_id <= 0:
+            raise serializers.ValidationError({"exam_version_id": "exam_version_id is required."})
+        try:
+            exam_version = ExamVersion.objects.get(pk=exam_version_id)
+        except ExamVersion.DoesNotExist as exc:
+            raise serializers.ValidationError({"exam_version_id": "Exam version does not exist."}) from exc
+        return Response(build_type_filter_payload(user=request.user, exam_version=exam_version))
+
+
+class TrainingSessionStartView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    class InputSerializer(serializers.Serializer):
+        exam_version_id = serializers.IntegerField(min_value=1)
+        selected_task_type_ids = serializers.ListField(
+            child=serializers.IntegerField(min_value=1),
+            required=False,
+            allow_empty=True,
+        )
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            exam_version = ExamVersion.objects.get(pk=serializer.validated_data["exam_version_id"])
+        except ExamVersion.DoesNotExist as exc:
+            raise serializers.ValidationError({"exam_version_id": "Exam version does not exist."}) from exc
+        try:
+            selected_task_type_ids = validate_selected_task_type_ids(
+                exam_version=exam_version,
+                selected_task_type_ids=serializer.validated_data.get("selected_task_type_ids"),
+            )
+        except ValueError as exc:
+            raise serializers.ValidationError({"selected_task_type_ids": str(exc)}) from exc
+        session = training_service.start_session(
+            request.user,
+            exam_version=exam_version,
+            selected_task_type_ids=selected_task_type_ids,
+        )
+        return Response(training_service.session_payload(session), status=status.HTTP_201_CREATED)
+
+
+class TrainingSessionDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, session_id: int, *args, **kwargs):
+        session = training_service.get_session_or_404(request.user, session_id)
+        return Response(training_service.session_payload(session))
+
+
+class TrainingSessionSubmitView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    class InputSerializer(serializers.Serializer):
+        step_id = serializers.IntegerField(min_value=1)
+        answer = serializers.JSONField()
+
+    def post(self, request, session_id: int, *args, **kwargs):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = training_service.submit_step_answer(
+            request.user,
+            session_id=session_id,
+            step_id=serializer.validated_data["step_id"],
+            answer=serializer.validated_data["answer"],
+        )
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class TrainingSessionEndView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, session_id: int, *args, **kwargs):
+        session = training_service.end_session(request.user, session_id=session_id)
+        return Response(training_service.session_payload(session))
 

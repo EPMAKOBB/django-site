@@ -37,6 +37,7 @@ from apps.recsys.service_utils.type_progress import (
     TypeProgressInfo,
     build_type_progress_map,
 )
+from apps.recsys.presentation.tasks import build_task_statement_payload
 from subjects.models import Subject
 from courses.models import CourseGraphEdge, CourseModule, CourseModuleItem
 from .context_processors import SESSION_KEY
@@ -1276,20 +1277,10 @@ def variant_attempt_work(request, attempt_id: int):
         task = variant_task.task
         snapshot = item.get("task_snapshot") or {}
         task_payload = snapshot if isinstance(snapshot, dict) else {}
-        display = {
-            "title": (
-                task_payload.get("title")
-                or task_payload.get("content", {}).get("title")
-                or getattr(task, "title", "")
-            ),
-            "description": (
-                task_payload.get("description")
-                or task_payload.get("content", {}).get("statement")
-                or ""
-            ),
-            "rendering_strategy": task_payload.get("rendering_strategy") or getattr(task, "rendering_strategy", None),
-            "image": task_payload.get("image") or (task.image.url if getattr(task, "image", None) else None),
-        }
+        statement = build_task_statement_payload(
+            task=task,
+            statement_source=task_payload,
+        )
 
         saved_response = item.get("saved_response")
         saved_response_display = _stringify_response(saved_response)
@@ -1344,9 +1335,7 @@ def variant_attempt_work(request, attempt_id: int):
                 "variant_task": variant_task,
                 "task": task,
                 "order": item.get("order"),
-                "display": display,
-                "task_body_html": item.get("task_body_html"),
-                "task_rendering_strategy": item.get("task_rendering_strategy"),
+                "statement": statement,
                 "skills": list(task.skills.all()) if task else [],
                 "is_completed": item.get("is_completed", False),
                 "remaining_attempts": remaining_attempts,

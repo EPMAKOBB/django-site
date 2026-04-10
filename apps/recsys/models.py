@@ -978,6 +978,158 @@ class RecommendationLog(TimeStampedModel):
         return f"{self.user} - {self.task}"
 
 
+class TrainingSession(TimeStampedModel):
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        COMPLETED = "completed", "Completed"
+        ABANDONED = "abandoned", "Abandoned"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="training_sessions",
+    )
+    exam_version = models.ForeignKey(
+        ExamVersion,
+        on_delete=models.CASCADE,
+        related_name="training_sessions",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    last_activity_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    selected_task_type_ids = models.JSONField(default=list, blank=True)
+    steps_total = models.PositiveIntegerField(default=0)
+    completed_steps = models.PositiveIntegerField(default=0)
+    correct_steps = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-started_at", "-id"]
+        indexes = [
+            models.Index(fields=["user", "exam_version", "status"]),
+            models.Index(fields=["user", "status"]),
+        ]
+
+    def mark_activity(self) -> None:
+        now = timezone.now()
+        self.last_activity_at = now
+        self.save(update_fields=["last_activity_at", "updated_at"])
+
+    def mark_completed(self) -> None:
+        if self.status == self.Status.COMPLETED:
+            return
+        now = timezone.now()
+        self.status = self.Status.COMPLETED
+        self.last_activity_at = now
+        self.ended_at = now
+        self.save(update_fields=["status", "last_activity_at", "ended_at", "updated_at"])
+
+    def mark_abandoned(self) -> None:
+        if self.status == self.Status.ABANDONED:
+            return
+        now = timezone.now()
+        self.status = self.Status.ABANDONED
+        self.last_activity_at = now
+        self.ended_at = now
+        self.save(update_fields=["status", "last_activity_at", "ended_at", "updated_at"])
+
+    def __str__(self) -> str:
+        return f"Training session {self.id} for {self.user}"
+
+    def clean(self):
+        super().clean()
+        value = self.selected_task_type_ids or []
+        if not isinstance(value, list):
+            raise ValidationError({"selected_task_type_ids": "Value must be a list of task type ids."})
+        normalized: list[int] = []
+        seen: set[int] = set()
+        for item in value:
+            try:
+                type_id = int(item)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"selected_task_type_ids": "Each task type id must be an integer."}) from exc
+            if type_id <= 0:
+                raise ValidationError({"selected_task_type_ids": "Each task type id must be positive."})
+            if type_id in seen:
+                continue
+            seen.add(type_id)
+            normalized.append(type_id)
+        self.selected_task_type_ids = normalized
+
+
+class TrainingSessionStep(TimeStampedModel):
+    class Status(models.TextChoices):
+        RECOMMENDED = "recommended", "Recommended"
+        OPENED = "opened", "Opened"
+        ANSWERED = "answered", "Answered"
+        SKIPPED = "skipped", "Skipped"
+
+    class Result(models.TextChoices):
+        CORRECT = "correct", "Correct"
+        INCORRECT = "incorrect", "Incorrect"
+        PARTIAL = "partial", "Partial"
+        UNKNOWN = "unknown", "Unknown"
+
+    session = models.ForeignKey(
+        TrainingSession,
+        on_delete=models.CASCADE,
+        related_name="steps",
+    )
+    order = models.PositiveIntegerField(default=1)
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="training_steps",
+    )
+    recommendation_log = models.ForeignKey(
+        RecommendationLog,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="training_steps",
+    )
+    attempt = models.ForeignKey(
+        Attempt,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="training_session_steps",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.RECOMMENDED,
+    )
+    result = models.CharField(
+        max_length=16,
+        choices=Result.choices,
+        default=Result.UNKNOWN,
+    )
+    task_snapshot = models.JSONField(default=dict, blank=True)
+    response_snapshot = models.JSONField(default=dict, blank=True)
+    reason_snapshot = models.JSONField(default=dict, blank=True)
+    shown_at = models.DateTimeField(null=True, blank=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["session", "order", "id"]
+        unique_together = ("session", "order")
+        indexes = [
+            models.Index(fields=["session", "order"]),
+            models.Index(fields=["task"]),
+            models.Index(fields=["recommendation_log"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Training step {self.order} for session {self.session_id}"
+
+
 class ExamBlueprint(TimeStampedModel):
     subject = models.ForeignKey(
         Subject,

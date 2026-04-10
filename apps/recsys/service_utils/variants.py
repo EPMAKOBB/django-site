@@ -12,7 +12,6 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
 import hashlib
-from pathlib import Path
 from typing import Any, Iterable, List, Optional, Mapping
 
 from django.db import transaction
@@ -22,12 +21,14 @@ from django.utils.text import slugify
 from rest_framework import exceptions
 
 from apps.recsys.forms import compare_answers
-from apps.recsys.utils.rendering import render_task_body
+from apps.recsys.presentation.tasks import (
+    build_task_attachments_payload,
+    build_task_statement_payload,
+)
 from apps.recsys.models import (
     ExamBlueprint,
     ExamScoreScale,
     Task,
-    TaskAttachment,
     TaskType,
     VariantAssignment,
     VariantAttempt,
@@ -53,30 +54,6 @@ TASK_ATTEMPTS_PREFETCH = Prefetch(
         "variant_task_id", "attempt_number", "id"
     ),
 )
-
-def _render_task_body(description: str, rendering_strategy: str | None) -> str:
-    return render_task_body(description, rendering_strategy)
-
-
-def _build_task_attachments_payload(task: Task) -> list[dict]:
-    attachments_payload: list[dict] = []
-    for attachment in task.attachments.all():
-        if attachment.kind != TaskAttachment.Kind.FILE:
-            continue
-        try:
-            url = resolve_media_url(attachment.file.url)
-        except Exception:
-            continue
-        name = attachment.download_name_override or Path(attachment.file.name).name
-        attachments_payload.append(
-            {
-                "id": attachment.id,
-                "name": name or "download",
-                "label": attachment.label or "",
-                "url": url,
-            }
-        )
-    return attachments_payload
 
 ATTEMPTS_PREFETCH = Prefetch(
     "attempts",
@@ -611,7 +588,7 @@ def _generate_task_snapshot(
     correct_answer = deepcopy(task.correct_answer or {})
     scoring_scheme = task.get_scoring_scheme()
     max_score = task.get_max_score()
-    attachments = _build_task_attachments_payload(task)
+    attachments = build_task_attachments_payload(task)
 
     if task.is_dynamic:
         seed = _compute_task_seed(attempt, variant_task)
@@ -1301,12 +1278,13 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
         task_body_html = ""
         max_score = None
         attachments = []
+        image = None
         if variant_task.task and variant_task.task.type:
             task_type_name = variant_task.task.type.name
         if variant_task.task:
             rendering_strategy = variant_task.task.rendering_strategy
             max_score = variant_task.task.get_max_score()
-            attachments = _build_task_attachments_payload(variant_task.task)
+            attachments = build_task_attachments_payload(variant_task.task)
         if variant_task.task:
             schema = variant_task.task.get_answer_schema()
             if schema:
@@ -1338,23 +1316,16 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
             if attempt.attempt_number > 0
         ]
         aggregated_time = time_spent_map.get(variant_task.id)
-        desc = ""
-        if generated_snapshot:
-            rendering_strategy = (
-                generated_snapshot.get("rendering_strategy")
-                or rendering_strategy
-            )
-            if attachments and "attachments" not in generated_snapshot:
-                generated_snapshot["attachments"] = deepcopy(attachments)
-            desc = (
-                generated_snapshot.get("description")
-                or generated_snapshot.get("content", {}).get("statement")
-                or ""
-            )
-        if not desc and variant_task.task:
-            desc = variant_task.task.description or ""
-        if desc:
-            task_body_html = _render_task_body(desc, rendering_strategy)
+        if generated_snapshot and attachments and "attachments" not in generated_snapshot:
+            generated_snapshot["attachments"] = deepcopy(attachments)
+        statement = build_task_statement_payload(
+            task=variant_task.task,
+            statement_source=generated_snapshot,
+        )
+        task_body_html = statement["task_body_html"]
+        rendering_strategy = statement["task_rendering_strategy"]
+        attachments = statement["attachments"]
+        image = statement["image"]
 
         progress.append(
             {
@@ -1365,6 +1336,8 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
                 "answer_schema": answer_schema,
                 "task_rendering_strategy": rendering_strategy,
                 "task_body_html": task_body_html,
+                "image": image,
+                "attachments": attachments,
                 "max_score": max_score,
                 "max_attempts": variant_task.max_attempts,
                 "attempts": actual_attempts,

@@ -39,6 +39,7 @@
   <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
   <title>{% block title %}[F] Fractal - exam preparation{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/site-foundation.css' %}">
+  <link rel="stylesheet" href="{% static 'css/task-statement.css' %}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
   <link rel="stylesheet" href="{% static 'css/markdown-code-blocks.css' %}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -110,6 +111,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
   <script src="{% static 'js/katex-init.js' %}" defer></script>
+  <script src="{% static 'js/task-response-panel.js' %}" defer></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

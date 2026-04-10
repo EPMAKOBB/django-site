@@ -1,0 +1,838 @@
+﻿{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{{ exam.subject.name }} - {{ exam.name }} - тренировка{% endblock %}
+{% block meta_robots %}noindex,nofollow{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'css/training-page.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div
+    class="container training-page"
+    id="training-app"
+    data-exam-id="{{ exam.id }}"
+    data-type-filters-url="{% url 'training-type-filters' %}"
+    data-current-url="{% url 'training-session-current' %}"
+    data-start-url="{% url 'training-session-start' %}"
+    data-detail-template="/api/training/sessions/__ID__/"
+    data-submit-template="/api/training/sessions/__ID__/submit/"
+    data-end-template="/api/training/sessions/__ID__/end/"
+  >
+    <section id="training-launcher" class="card training-page__setup">
+      <div class="training-page__setup-head">
+        <div class="training-page__setup-copy">
+          <p class="training-page__eyebrow">{{ exam.subject.name }}</p>
+          <h1 class="section-title mt-0 mb-8">{{ exam.name }}: тренировка</h1>
+          <p class="muted mb-0">Адаптивная сессия по выбранным типам задач: после каждого ответа система подбирает следующий шаг.</p>
+        </div>
+        <span id="training-launcher-status" class="training-launcher__status">Проверка состояния</span>
+      </div>
+
+      <p class="training-page__setup-note muted mb-0" id="training-launcher-text">
+        Проверяем, есть ли у вас активная тренировочная сессия.
+      </p>
+
+      <section id="training-type-filters" class="training-launcher__filters">
+        <div class="training-launcher__filters-head">
+          <div>
+            <h2 class="training-launcher__filters-title">Типы задач для тренировки</h2>
+            <p class="muted mb-0" id="training-type-filters-summary">
+              По умолчанию выбраны типы, которые сейчас лучше всего подходят для тренировки.
+            </p>
+          </div>
+          <div class="training-launcher__filters-meta">
+            <span id="training-type-selected-count" class="training-launcher__selected-count">Выбрано: 0</span>
+            <button id="training-type-reset" class="btn btn-secondary" type="button" hidden>Сбросить к рекомендациям</button>
+          </div>
+        </div>
+        <div id="training-type-filters-feedback" class="training-launcher__filters-feedback muted" hidden></div>
+        <div id="training-type-filters-recommended" class="training-launcher__type-group" hidden>
+          <div id="training-type-recommended-list" class="training-launcher__type-list"></div>
+        </div>
+        <button id="training-type-other-toggle" class="training-launcher__toggle btn btn-secondary" type="button" hidden>Показать другие типы</button>
+        <div id="training-type-filters-other" class="training-launcher__type-group" hidden>
+          <div id="training-type-other-list" class="training-launcher__type-list"></div>
+        </div>
+      </section>
+
+      <div class="training-page__launcher-actions">
+        <button id="training-continue" class="btn" type="button" hidden>Продолжить текущую</button>
+        <button id="training-retry" class="btn" type="button" hidden>Повторить</button>
+        <button id="training-start" class="btn btn-primary" type="button">Начать новую</button>
+        <a class="btn btn-secondary" href="{% url 'exam-page' exam.slug %}">Назад к экзамену</a>
+      </div>
+    </section>
+
+    <div id="training-session" class="training-page__session" hidden>
+      <section class="card training-session__header">
+        <div class="training-session__header-main">
+          <div>
+            <h2 class="section-title mb-8" id="training-session-title">Текущая сессия</h2>
+            <p class="muted mb-0" id="training-session-meta">Сессия ещё не загружена.</p>
+          </div>
+          <div class="training-session__header-actions">
+            <button id="training-end" class="btn btn-secondary" type="button">Завершить сессию</button>
+            <button id="training-restart" class="btn" type="button">Начать заново</button>
+          </div>
+        </div>
+        <div class="training-session__stats">
+          <div class="training-stat">
+            <span class="training-stat__label">Шаги</span>
+            <strong id="training-stat-steps">0/0</strong>
+          </div>
+          <div class="training-stat">
+            <span class="training-stat__label">Точность</span>
+            <strong id="training-stat-accuracy">0%</strong>
+          </div>
+          <div class="training-stat">
+            <span class="training-stat__label">Статус</span>
+            <strong id="training-stat-status">ожидание</strong>
+          </div>
+        </div>
+      </section>
+
+      <div class="training-layout">
+        <section class="card training-task">
+          <div class="training-task__header">
+            <div>
+              <p class="muted mb-8" id="training-task-meta">Следующий шаг появится после запуска сессии.</p>
+              <h2 class="section-title mb-0" id="training-task-title">Текущая задача</h2>
+            </div>
+            <p class="training-task__reason muted mb-0" id="training-task-reason" hidden></p>
+          </div>
+
+          <div id="training-task-body" class="task-statement__body task-content training-task__body">
+            <div class="training-empty-state">
+              <h3 class="training-empty-state__title">Сессия ещё не начата</h3>
+              <p class="muted mb-0">Запустите новую тренировку или продолжите текущую, чтобы получить задачу.</p>
+            </div>
+          </div>
+          <div id="training-attachments" class="task-statement__attachments mt-12" hidden></div>
+
+          <section class="training-response" id="training-response" hidden>
+            <div class="training-response__header">
+              <label class="block mb-0" for="training-answer-text">Ответ</label>
+              <p class="muted mb-0" id="training-response-hint">Ответ проверяется на сервере, а после этого система подбирает следующую задачу.</p>
+            </div>
+            <div id="training-answer-builder" class="training-response__builder" hidden>
+              <div id="training-answer-fields"></div>
+            </div>
+            <textarea id="training-answer-text" class="training-response__textarea" rows="3" placeholder="Введите ответ"></textarea>
+            <div class="training-response__actions">
+              <button id="training-submit" class="btn btn-primary" type="button">Отправить ответ</button>
+            </div>
+          </section>
+
+          <section id="training-feedback" class="training-feedback" hidden>
+            <div class="training-feedback__header">
+              <strong id="training-feedback-title"></strong>
+              <span class="muted" id="training-feedback-score"></span>
+            </div>
+            <p class="training-feedback__reason muted mb-0" id="training-feedback-reason" hidden></p>
+            <div id="training-feedback-fields" class="training-response__builder" hidden></div>
+            <pre id="training-feedback-correct" class="solver__answer solver__answer--readonly"></pre>
+          </section>
+        </section>
+
+        <aside class="card training-history">
+          <div class="training-history__header">
+            <h2 class="section-title">История сессии</h2>
+            <p class="muted mb-0" id="training-summary">История появится после первых решённых шагов.</p>
+          </div>
+          <ul id="training-history" class="training-history__list"></ul>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const app = document.getElementById("training-app");
+  if (!app) return;
+
+  const helper = window.FractalTaskResponse || null;
+  const examId = Number(app.dataset.examId || 0);
+  const typeFiltersUrl = app.dataset.typeFiltersUrl;
+  const currentUrl = app.dataset.currentUrl;
+  const startUrl = app.dataset.startUrl;
+  const detailTemplate = app.dataset.detailTemplate;
+  const submitTemplate = app.dataset.submitTemplate;
+  const endTemplate = app.dataset.endTemplate;
+
+  const launcherEl = document.getElementById("training-launcher");
+  const launcherStatusEl = document.getElementById("training-launcher-status");
+  const launcherTextEl = document.getElementById("training-launcher-text");
+  const typeFiltersEl = document.getElementById("training-type-filters");
+  const typeFiltersSummaryEl = document.getElementById("training-type-filters-summary");
+  const typeFiltersFeedbackEl = document.getElementById("training-type-filters-feedback");
+  const typeFiltersRecommendedEl = document.getElementById("training-type-filters-recommended");
+  const typeFiltersOtherEl = document.getElementById("training-type-filters-other");
+  const typeOtherToggleEl = document.getElementById("training-type-other-toggle");
+  const typeRecommendedListEl = document.getElementById("training-type-recommended-list");
+  const typeOtherListEl = document.getElementById("training-type-other-list");
+  const typeSelectedCountEl = document.getElementById("training-type-selected-count");
+  const typeResetBtn = document.getElementById("training-type-reset");
+  const continueBtn = document.getElementById("training-continue");
+  const retryBtn = document.getElementById("training-retry");
+  const startBtn = document.getElementById("training-start");
+  const sessionEl = document.getElementById("training-session");
+  const sessionTitleEl = document.getElementById("training-session-title");
+  const sessionMetaEl = document.getElementById("training-session-meta");
+  const summaryEl = document.getElementById("training-summary");
+  const statStepsEl = document.getElementById("training-stat-steps");
+  const statAccuracyEl = document.getElementById("training-stat-accuracy");
+  const statStatusEl = document.getElementById("training-stat-status");
+  const endBtn = document.getElementById("training-end");
+  const restartBtn = document.getElementById("training-restart");
+  const taskMetaEl = document.getElementById("training-task-meta");
+  const taskTitleEl = document.getElementById("training-task-title");
+  const taskReasonEl = document.getElementById("training-task-reason");
+  const taskBodyEl = document.getElementById("training-task-body");
+  const attachmentsEl = document.getElementById("training-attachments");
+  const responseEl = document.getElementById("training-response");
+  const answerBuilderEl = document.getElementById("training-answer-builder");
+  const answerFieldsEl = document.getElementById("training-answer-fields");
+  const answerTextEl = document.getElementById("training-answer-text");
+  const submitBtn = document.getElementById("training-submit");
+  const feedbackEl = document.getElementById("training-feedback");
+  const feedbackTitleEl = document.getElementById("training-feedback-title");
+  const feedbackScoreEl = document.getElementById("training-feedback-score");
+  const feedbackReasonEl = document.getElementById("training-feedback-reason");
+  const feedbackFieldsEl = document.getElementById("training-feedback-fields");
+  const feedbackCorrectEl = document.getElementById("training-feedback-correct");
+  const historyEl = document.getElementById("training-history");
+
+  const inputOptions = {
+    gridClassName: "training-response-grid",
+    rowClassName: "training-response-row",
+    cellClassName: "training-response-cell",
+    inputClassName: "module-detail__answer-input",
+  };
+
+  const labels = {
+    activeSessionFound: "Найдена активная сессия. Можно продолжить её или начать новую.",
+    noActiveSession: "Активной сессии нет. Начните новую тренировку.",
+    requestFailed: "Не удалось загрузить состояние тренировки.",
+    typeFiltersFailed: "Не удалось загрузить рекомендуемые типы. Можно начать тренировку с автоматическим подбором по умолчанию.",
+    statusChecking: "Проверка состояния",
+    statusReady: "Готово к старту",
+    statusActive: "Активная сессия",
+    statusError: "Ошибка загрузки",
+    materials: "Материалы",
+    selectedCount: "Выбрано",
+    recommendedTypesTitle: "Рекомендуемые типы сейчас",
+    recommendedGroupTitle: "Рекомендуем по умолчанию",
+    otherTypesTitle: "Другие типы",
+    loadingTypeFilters: "Подбираем типы, которые сейчас лучше всего подходят для тренировки.",
+    noTypesAvailable: "Для этого экзамена пока не настроены типы задач.",
+    leaveAtLeastOneType: "Нужно выбрать хотя бы один тип задач для тренировки.",
+    startWithSelectedTypes: "Тренировка будет запущена только по выбранным типам.",
+    historyEmpty: "Здесь появятся решённые шаги сессии.",
+    summaryEmpty: "История появится после первых решённых шагов.",
+    resultCorrect: "верно",
+    resultPartial: "частично",
+    resultIncorrect: "неверно",
+    resultUnknown: "без оценки",
+    feedbackCorrect: "Ответ верный",
+    feedbackMismatch: "Ответ не совпал",
+    nextFocus: "Следующий фокус",
+    sessionActiveTitle: "Текущая сессия",
+    sessionCompletedTitle: "Последняя сессия",
+    sessionFinished: "Сессия завершена или задачи закончились.",
+    noActiveTask: "Нет активной задачи",
+    noTaskForSession: "Для этой сессии сейчас нет активной задачи.",
+    fallbackTaskTitle: "Задача",
+    missingTaskBody: "Условие задания недоступно.",
+    whyTask: "Почему эта задача",
+    stepsSolved: "Шагов решено",
+    correctSteps: "Правильных",
+    startedAt: "Начата",
+    lastActivity: "Последняя активность",
+    noTaskYet: "Следующий шаг появится после запуска сессии.",
+    noSessionBodyTitle: "Сессия ещё не начата",
+    noSessionBodyText: "Запустите новую тренировку или продолжите текущую, чтобы получить задачу.",
+    finishedBodyTitle: "Сессия завершена",
+    finishedBodyText: "Можно начать новую адаптивную тренировку или вернуться к экзамену.",
+    startBusy: "Запуск...",
+    startNew: "Начать новую",
+    restart: "Начать заново",
+    continueBusy: "Загрузка...",
+    continueCurrent: "Продолжить текущую",
+    submitBusy: "Проверка...",
+    submitAnswer: "Отправить ответ",
+    endBusy: "Завершение...",
+    endSession: "Завершить сессию",
+    statusIdle: "ожидание",
+  };
+
+  let state = null;
+  let currentSchema = null;
+  let lastSubmissionResult = null;
+  let typeFilterPayload = null;
+  let selectedTaskTypeIds = [];
+  let otherTypesExpanded = false;
+
+  function csrfToken() {
+    const value = document.cookie.split(";").map((entry) => entry.trim()).find((entry) => entry.startsWith("csrftoken="));
+    return value ? decodeURIComponent(value.split("=")[1]) : "";
+  }
+
+  function endpoint(template, id) {
+    return template.replace("__ID__", String(id));
+  }
+
+  function formatDate(value) {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString();
+  }
+
+  function formatStatus(value) {
+    return value || labels.statusIdle;
+  }
+
+  function jsonOrText(value) {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (_) {
+      return String(value ?? "");
+    }
+  }
+
+  function resultLabel(result) {
+    if (result === "correct") return labels.resultCorrect;
+    if (result === "partial") return labels.resultPartial;
+    if (result === "incorrect") return labels.resultIncorrect;
+    return result || labels.resultUnknown;
+  }
+
+  function buildReasonText(value) {
+    if (!value) return "";
+    if (Array.isArray(value)) {
+      return value.filter(Boolean).join(", ");
+    }
+    if (typeof value === "object") {
+      if (value.reason) return String(value.reason);
+      if (value.label) return String(value.label);
+      return Object.entries(value)
+        .filter(([, item]) => item !== null && item !== undefined && item !== "")
+        .map(([key, item]) => `${key}: ${item}`)
+        .join(" В· ");
+    }
+    return String(value);
+  }
+
+  function setWorkspaceVisible(isVisible) {
+    sessionEl.hidden = !isVisible;
+    sessionEl.style.display = isVisible ? "" : "none";
+  }
+
+  function setPageMode(mode) {
+    app.dataset.mode = mode;
+    if (mode === "idle") {
+      launcherEl.hidden = false;
+      launcherEl.classList.remove("training-page__setup--compact");
+      setWorkspaceVisible(false);
+      return;
+    }
+    setWorkspaceVisible(true);
+    launcherEl.hidden = false;
+    launcherEl.classList.add("training-page__setup--compact");
+  }
+
+  function uniqueTypeIds(values) {
+    const seen = new Set();
+    const result = [];
+    (values || []).forEach((value) => {
+      const normalized = Number(value);
+      if (!Number.isInteger(normalized) || normalized <= 0 || seen.has(normalized)) return;
+      seen.add(normalized);
+      result.push(normalized);
+    });
+    return result;
+  }
+
+  function updateSelectedTypeCount() {
+    const count = selectedTaskTypeIds.length;
+    typeSelectedCountEl.textContent = `${labels.selectedCount}: ${count}`;
+    if (typeFilterPayload && Array.isArray(typeFilterPayload.types) && typeFilterPayload.types.length) {
+      startBtn.disabled = count === 0;
+    }
+  }
+  function renderOtherTypesToggle(count) {
+    if (!count) {
+      typeOtherToggleEl.hidden = true;
+      typeFiltersOtherEl.hidden = true;
+      return;
+    }
+    typeOtherToggleEl.hidden = false;
+    typeOtherToggleEl.textContent = otherTypesExpanded ? "Скрыть другие типы" : "Показать другие типы";
+    typeFiltersOtherEl.hidden = !otherTypesExpanded;
+  }
+
+  function renderTypeFilterCard(item) {
+    const card = document.createElement("label");
+    card.className = "training-type-card";
+    card.dataset.typeId = String(item.type_id);
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selectedTaskTypeIds.includes(item.type_id);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        selectedTaskTypeIds = uniqueTypeIds([...selectedTaskTypeIds, item.type_id]);
+      } else {
+        selectedTaskTypeIds = selectedTaskTypeIds.filter((value) => value !== item.type_id);
+      }
+      updateSelectedTypeCount();
+      if (typeFilterPayload) {
+        typeFiltersFeedbackEl.hidden = selectedTaskTypeIds.length > 0;
+        typeFiltersFeedbackEl.textContent = selectedTaskTypeIds.length > 0 ? labels.startWithSelectedTypes : labels.leaveAtLeastOneType;
+      }
+    });
+
+    const body = document.createElement("div");
+    body.className = "training-type-card__body";
+
+    const title = document.createElement("div");
+    title.className = "training-type-card__title";
+    title.textContent = item.type_name;
+
+    body.appendChild(title);
+    if (item.reason_summary) {
+      const reason = document.createElement("p");
+      reason.className = "training-type-card__reason";
+      reason.textContent = item.reason_summary;
+      body.appendChild(reason);
+    }
+
+    card.appendChild(checkbox);
+    card.appendChild(body);
+    return card;
+  }
+
+  function renderTypeFilters(payload) {
+    typeFilterPayload = payload;
+    typeFiltersSummaryEl.textContent = payload.summary || labels.loadingTypeFilters;
+    typeRecommendedListEl.innerHTML = "";
+    typeOtherListEl.innerHTML = "";
+    typeFiltersFeedbackEl.hidden = true;
+    typeFiltersFeedbackEl.textContent = "";
+
+    const recommended = [];
+    const other = [];
+    (payload.types || []).forEach((item) => {
+      if (item.recommended) recommended.push(item);
+      else other.push(item);
+    });
+
+    selectedTaskTypeIds = uniqueTypeIds(payload.recommended_type_ids || payload.types.filter((item) => item.selected_by_default).map((item) => item.type_id));
+    updateSelectedTypeCount();
+    typeResetBtn.hidden = selectedTaskTypeIds.length === 0;
+
+    recommended.forEach((item) => typeRecommendedListEl.appendChild(renderTypeFilterCard(item)));
+    other.forEach((item) => typeOtherListEl.appendChild(renderTypeFilterCard(item)));
+    typeFiltersRecommendedEl.hidden = recommended.length === 0;
+    renderOtherTypesToggle(other.length);
+    typeFiltersOtherEl.hidden = other.length === 0;
+
+    if (!recommended.length && !other.length) {
+      typeFiltersFeedbackEl.hidden = false;
+      typeFiltersFeedbackEl.textContent = labels.noTypesAvailable;
+      startBtn.disabled = true;
+    }
+  }
+
+  function clearTypeFilters(message) {
+    typeFilterPayload = null;
+    selectedTaskTypeIds = [];
+    otherTypesExpanded = false;
+    typeRecommendedListEl.innerHTML = "";
+    typeOtherListEl.innerHTML = "";
+    typeFiltersRecommendedEl.hidden = true;
+    typeFiltersOtherEl.hidden = true;
+    typeOtherToggleEl.hidden = true;
+    typeFiltersFeedbackEl.hidden = !message;
+    typeFiltersFeedbackEl.textContent = message || "";
+    typeFiltersSummaryEl.textContent = labels.loadingTypeFilters;
+    typeResetBtn.hidden = true;
+    updateSelectedTypeCount();
+    startBtn.disabled = false;
+  }
+
+  function setLauncherState(options) {
+    const hasActive = !!(options && options.hasActive);
+    const hasError = !!(options && options.hasError);
+    const message = options && options.message ? options.message : (hasActive ? labels.activeSessionFound : labels.noActiveSession);
+    const statusText = options && options.statusText
+      ? options.statusText
+      : (hasError ? labels.statusError : (hasActive ? labels.statusActive : labels.statusReady));
+    continueBtn.hidden = !hasActive;
+    continueBtn.style.display = hasActive ? "" : "none";
+    continueBtn.setAttribute("aria-hidden", hasActive ? "false" : "true");
+    retryBtn.hidden = !hasError;
+    retryBtn.style.display = hasError ? "" : "none";
+    retryBtn.setAttribute("aria-hidden", hasError ? "false" : "true");
+    launcherStatusEl.textContent = statusText;
+    launcherStatusEl.dataset.status = hasError ? "error" : (hasActive ? "active" : "idle");
+    launcherTextEl.textContent = message;
+    if (typeFiltersEl) {
+      typeFiltersEl.hidden = hasActive;
+    }
+  }
+
+  function setBusy(button, isBusy, busyText, idleText) {
+    if (!button) return;
+    button.disabled = isBusy;
+    button.textContent = isBusy ? busyText : idleText;
+  }
+
+  function renderAttachments(attachments) {
+    if (!attachmentsEl) return;
+    if (!Array.isArray(attachments) || attachments.length === 0) {
+      attachmentsEl.hidden = true;
+      attachmentsEl.innerHTML = "";
+      return;
+    }
+    attachmentsEl.hidden = false;
+    attachmentsEl.innerHTML = "";
+    const title = document.createElement("p");
+    title.className = "task-statement__attachments-title";
+    title.textContent = labels.materials;
+    attachmentsEl.appendChild(title);
+    const list = document.createElement("ul");
+    list.className = "task-statement__attachments-list";
+    attachments.forEach((attachment) => {
+      if (!attachment || !attachment.url) return;
+      const item = document.createElement("li");
+      item.className = "task-statement__attachments-item";
+      const link = document.createElement("a");
+      link.className = "task-statement__attachments-link";
+      link.href = attachment.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      if (attachment.label) {
+        const label = document.createElement("span");
+        label.className = "task-statement__attachments-label";
+        label.textContent = attachment.label;
+        link.appendChild(label);
+      }
+      const name = document.createElement("span");
+      name.textContent = attachment.name || attachment.url;
+      link.appendChild(name);
+      item.appendChild(link);
+      list.appendChild(item);
+    });
+    attachmentsEl.appendChild(list);
+  }
+
+  function renderHistory(history) {
+    historyEl.innerHTML = "";
+    if (!Array.isArray(history) || !history.length) {
+      const item = document.createElement("li");
+      item.className = "training-history__empty";
+      item.textContent = labels.historyEmpty;
+      historyEl.appendChild(item);
+      return;
+    }
+    history.forEach((itemData) => {
+      const item = document.createElement("li");
+      item.className = "training-history__item";
+
+      const top = document.createElement("div");
+      top.className = "training-history__top";
+      top.innerHTML = `<strong>#${itemData.order} ${itemData.task_title || ""}</strong><span class="training-history__result">${resultLabel(itemData.result)}</span>`;
+
+      const meta = document.createElement("p");
+      meta.className = "muted training-history__meta";
+      meta.textContent = [itemData.task_type_name || "", formatDate(itemData.answered_at || itemData.shown_at)].filter(Boolean).join(" В· ");
+
+      item.appendChild(top);
+      item.appendChild(meta);
+
+      const reasonText = buildReasonText(itemData.reason_snapshot);
+      if (reasonText) {
+        const reason = document.createElement("p");
+        reason.className = "training-history__reason";
+        reason.textContent = reasonText;
+        item.appendChild(reason);
+      }
+
+      historyEl.appendChild(item);
+    });
+  }
+
+  function renderFeedback(result, errorText) {
+    if (errorText) {
+      feedbackEl.hidden = false;
+      feedbackTitleEl.textContent = errorText;
+      feedbackScoreEl.textContent = "";
+      feedbackReasonEl.hidden = true;
+      feedbackReasonEl.textContent = "";
+      feedbackFieldsEl.innerHTML = "";
+      feedbackFieldsEl.hidden = true;
+      feedbackCorrectEl.hidden = false;
+      feedbackCorrectEl.textContent = "";
+      return;
+    }
+
+    if (!result) {
+      feedbackEl.hidden = true;
+      return;
+    }
+
+    feedbackEl.hidden = false;
+    feedbackTitleEl.textContent = result.is_correct ? labels.feedbackCorrect : labels.feedbackMismatch;
+    feedbackScoreEl.textContent = `score: ${result.score ?? "-"} / ${result.max_score ?? "-"}`;
+
+    const reasonText = buildReasonText(result.next_reason_snapshot || result.reason_snapshot);
+    feedbackReasonEl.hidden = !reasonText;
+    feedbackReasonEl.textContent = reasonText ? `${labels.nextFocus}: ${reasonText}` : "";
+
+    if (currentSchema && helper && result.correct_answer !== null && result.correct_answer !== undefined) {
+      helper.buildReadOnlyInputs(feedbackFieldsEl, currentSchema, result.correct_answer, inputOptions);
+      feedbackFieldsEl.hidden = false;
+      feedbackCorrectEl.hidden = true;
+      feedbackCorrectEl.textContent = "";
+    } else {
+      feedbackFieldsEl.innerHTML = "";
+      feedbackFieldsEl.hidden = true;
+      feedbackCorrectEl.hidden = false;
+      feedbackCorrectEl.textContent = jsonOrText(result.correct_answer);
+    }
+  }
+
+  function renderBodyEmptyState(title, text) {
+    taskBodyEl.innerHTML = `<div class="training-empty-state"><h3 class="training-empty-state__title">${title}</h3><p class="muted mb-0">${text}</p></div>`;
+  }
+
+  function renderCurrentTask(task, sessionStatus) {
+    if (!task) {
+      currentSchema = null;
+      taskMetaEl.textContent = sessionStatus === "completed" ? labels.sessionFinished : labels.noTaskYet;
+      taskTitleEl.textContent = sessionStatus === "completed" ? labels.noActiveTask : labels.fallbackTaskTitle;
+      taskReasonEl.hidden = true;
+      taskReasonEl.textContent = "";
+      renderBodyEmptyState(
+        sessionStatus === "completed" ? labels.finishedBodyTitle : labels.noSessionBodyTitle,
+        sessionStatus === "completed" ? labels.finishedBodyText : labels.noSessionBodyText
+      );
+      renderAttachments([]);
+      responseEl.hidden = true;
+      answerBuilderEl.hidden = true;
+      answerFieldsEl.innerHTML = "";
+      answerTextEl.hidden = false;
+      answerTextEl.value = "";
+      submitBtn.disabled = true;
+      return;
+    }
+
+    taskMetaEl.textContent = `#${task.order} В· ${task.task_type_name || ""}`;
+    taskTitleEl.textContent = task.title || labels.fallbackTaskTitle;
+    taskBodyEl.innerHTML = task.task_body_html || `<p class="muted">${labels.missingTaskBody}</p>`;
+    taskBodyEl.setAttribute("data-format", task.task_rendering_strategy === "markdown" ? "markdown" : "html");
+
+    const reasonText = buildReasonText(task.reason_snapshot);
+    taskReasonEl.hidden = !reasonText;
+    taskReasonEl.textContent = reasonText ? `${labels.whyTask}: ${reasonText}` : "";
+
+    renderAttachments(task.attachments);
+    currentSchema = task.answer_schema || null;
+    responseEl.hidden = false;
+
+    if (currentSchema && helper) {
+      answerBuilderEl.hidden = false;
+      answerTextEl.hidden = true;
+      helper.buildInputs(answerFieldsEl, currentSchema, null, inputOptions);
+    } else {
+      answerBuilderEl.hidden = true;
+      answerFieldsEl.innerHTML = "";
+      answerTextEl.hidden = false;
+      answerTextEl.value = "";
+    }
+
+    submitBtn.disabled = false;
+  }
+
+  function renderIdleState(message, options) {
+    state = null;
+    setPageMode("idle");
+    setLauncherState({
+      hasActive: !!(options && options.allowContinue),
+      hasError: !!(options && options.isError),
+      statusText: options && options.statusText ? options.statusText : null,
+      message: message || labels.noActiveSession,
+    });
+    lastSubmissionResult = null;
+    renderFeedback(null, "");
+  }
+
+  function renderPayload(payload) {
+    state = payload;
+    const session = payload.session;
+    if (!session) {
+      renderIdleState(labels.noActiveSession, {
+        allowContinue: false,
+        isError: false,
+        statusText: labels.statusReady,
+      });
+      return;
+    }
+
+    const isActive = session.status === "active";
+    setPageMode(isActive ? "active" : "completed");
+    setLauncherState({
+      hasActive: isActive,
+      hasError: false,
+      statusText: isActive ? labels.statusActive : labels.statusReady,
+    });
+    sessionTitleEl.textContent = isActive ? labels.sessionActiveTitle : labels.sessionCompletedTitle;
+    sessionMetaEl.textContent = `${labels.startedAt}: ${formatDate(session.started_at)} В· ${labels.lastActivity}: ${formatDate(session.last_activity_at || session.started_at)}`;
+    statStepsEl.textContent = `${session.completed_steps}/${session.steps_total}`;
+    statAccuracyEl.textContent = `${Math.round((session.accuracy || 0) * 100)}%`;
+    statStatusEl.textContent = formatStatus(session.status);
+    summaryEl.textContent = `${labels.stepsSolved}: ${session.completed_steps} В· ${labels.correctSteps}: ${session.correct_steps}`;
+    endBtn.hidden = !isActive;
+    renderHistory(payload.history || []);
+    renderCurrentTask(payload.current_task, session.status);
+    renderFeedback(lastSubmissionResult, "");
+  }
+
+  async function requestJson(url, options) {
+    const response = await fetch(url, options);
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      const detail = data && typeof data === "object" ? data.detail : null;
+      throw new Error(detail || labels.requestFailed);
+    }
+    return data && typeof data === "object" ? data : {};
+  }
+
+  async function loadCurrent() {
+    const payload = await requestJson(`${currentUrl}?exam_version_id=${examId}`, { credentials: "same-origin" });
+    renderPayload(payload);
+  }
+
+  async function loadTypeFilters() {
+    clearTypeFilters("");
+    const payload = await requestJson(`${typeFiltersUrl}?exam_version_id=${examId}`, { credentials: "same-origin" });
+    renderTypeFilters(payload);
+  }
+
+  async function startSession() {
+    setBusy(startBtn, true, labels.startBusy, labels.startNew);
+    setBusy(restartBtn, true, labels.startBusy, labels.restart);
+    lastSubmissionResult = null;
+    renderFeedback(null, "");
+    try {
+      const payload = await requestJson(startUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+        body: JSON.stringify({
+          exam_version_id: examId,
+          selected_task_type_ids: selectedTaskTypeIds,
+        }),
+      });
+      renderPayload(payload);
+    } finally {
+      setBusy(startBtn, false, labels.startBusy, labels.startNew);
+      setBusy(restartBtn, false, labels.startBusy, labels.restart);
+    }
+  }
+
+  async function continueSession() {
+    if (!state || !state.session) return;
+    setBusy(continueBtn, true, labels.continueBusy, labels.continueCurrent);
+    try {
+      const payload = await requestJson(endpoint(detailTemplate, state.session.id), { credentials: "same-origin" });
+      renderPayload(payload);
+    } finally {
+      setBusy(continueBtn, false, labels.continueBusy, labels.continueCurrent);
+    }
+  }
+
+  async function submitAnswer() {
+    if (!state || !state.session || !state.current_task) return;
+    setBusy(submitBtn, true, labels.submitBusy, labels.submitAnswer);
+    const answer = currentSchema && helper
+      ? helper.collectPayload(answerFieldsEl, currentSchema)
+      : answerTextEl.value;
+    try {
+      const payload = await requestJson(endpoint(submitTemplate, state.session.id), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+        body: JSON.stringify({ step_id: state.current_task.step_id, answer }),
+      });
+      lastSubmissionResult = payload.submission_result || null;
+      renderPayload(payload);
+    } catch (error) {
+      renderFeedback(null, String(error.message || error));
+    } finally {
+      setBusy(submitBtn, false, labels.submitBusy, labels.submitAnswer);
+    }
+  }
+
+  async function endSession() {
+    if (!state || !state.session) return;
+    setBusy(endBtn, true, labels.endBusy, labels.endSession);
+    try {
+      const payload = await requestJson(endpoint(endTemplate, state.session.id), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRFToken": csrfToken() },
+      });
+      renderPayload(payload);
+    } finally {
+      setBusy(endBtn, false, labels.endBusy, labels.endSession);
+    }
+  }
+
+  startBtn.addEventListener("click", startSession);
+  continueBtn.addEventListener("click", continueSession);
+  typeOtherToggleEl.addEventListener("click", () => {
+    otherTypesExpanded = !otherTypesExpanded;
+    renderOtherTypesToggle(typeOtherListEl.children.length);
+  });
+  typeResetBtn.addEventListener("click", () => {
+    if (!typeFilterPayload) return;
+    selectedTaskTypeIds = uniqueTypeIds(typeFilterPayload.recommended_type_ids || []);
+    renderTypeFilters(typeFilterPayload);
+  });
+  retryBtn.addEventListener("click", () => {
+    loadTypeFilters().catch(() => clearTypeFilters(labels.typeFiltersFailed));
+    loadCurrent().catch((error) => renderIdleState(String(error.message || error || labels.requestFailed), { allowContinue: false, isError: true, statusText: labels.statusError }));
+  });
+  restartBtn.addEventListener("click", startSession);
+  endBtn.addEventListener("click", endSession);
+  submitBtn.addEventListener("click", submitAnswer);
+
+  renderIdleState("Проверяем, есть ли у вас активная тренировочная сессия.", {
+    allowContinue: false,
+    isError: false,
+    statusText: labels.statusChecking,
+  });
+  loadTypeFilters().catch(() => {
+    clearTypeFilters(labels.typeFiltersFailed);
+  });
+  loadCurrent().catch((error) => {
+    renderIdleState(String(error.message || error || labels.requestFailed), {
+      allowContinue: false,
+      isError: true,
+      statusText: labels.statusError,
+    });
+  });
+})();
+</script>
+{% endblock %}
+
+
+

@@ -46,12 +46,12 @@
           <p class="exam-action-card__eyebrow">{% trans "Персональная тренировка" %}</p>
           <h3 class="exam-action-card__title">{% trans "Тренировочный режим" %}</h3>
           <p class="exam-action-card__text">
-            {% trans "Этот режим будет добавлен следующим отдельным этапом. Место в навигации уже зарезервировано." %}
+            {% trans "Запускает адаптивную сессию: после каждого ответа система подбирает следующую задачу." %}
           </p>
         </div>
-        <button type="button" class="btn btn-secondary exam-action-card__button" disabled>
-          {% trans "Скоро появится" %}
-        </button>
+        <a class="btn btn-secondary exam-action-card__button" href="{% url 'exam-training-page' exam.slug %}">
+          {% trans "Открыть тренировку" %}
+        </a>
       </article>
     </div>
 

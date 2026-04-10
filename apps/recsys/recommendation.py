@@ -250,10 +250,16 @@ def _select_candidates(
     user,
     now,
     *,
+    exam_version=None,
+    task_type_ids: list[int] | tuple[int, ...] | None = None,
     exclude_recent: bool = True,
     exclude_solved: bool = True,
 ):
     queryset = Task.objects.all()
+    if exam_version is not None:
+        queryset = queryset.filter(exam_version=exam_version)
+    if task_type_ids:
+        queryset = queryset.filter(type_id__in=task_type_ids)
     if exclude_solved:
         solved_task_ids = Attempt.objects.filter(
             user=user,
@@ -353,6 +359,8 @@ def recommend_task_candidates(
     limit: int | None = None,
     log: bool = False,
     source_mode: str = RecommendationLog.SourceMode.UNKNOWN,
+    exam_version=None,
+    task_type_ids: list[int] | tuple[int, ...] | None = None,
     exclude_recent: bool = True,
     exclude_solved: bool = True,
 ) -> list[RecommendationCandidate]:
@@ -361,6 +369,8 @@ def recommend_task_candidates(
         _select_candidates(
             user,
             now,
+            exam_version=exam_version,
+            task_type_ids=task_type_ids,
             exclude_recent=exclude_recent,
             exclude_solved=exclude_solved,
         ).prefetch_related("tags", "skills")
@@ -384,6 +394,8 @@ def recommend_tasks(
     limit: int | None = None,
     log: bool = False,
     source_mode: str = RecommendationLog.SourceMode.UNKNOWN,
+    exam_version=None,
+    task_type_ids: list[int] | tuple[int, ...] | None = None,
     exclude_recent: bool = True,
     exclude_solved: bool = True,
 ):
@@ -395,6 +407,8 @@ def recommend_tasks(
             limit=limit,
             log=log,
             source_mode=source_mode,
+            exam_version=exam_version,
+            task_type_ids=task_type_ids,
             exclude_recent=exclude_recent,
             exclude_solved=exclude_solved,
         )

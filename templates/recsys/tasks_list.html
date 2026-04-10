@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load i18n markdown_extras %}
+{% load i18n %}
 
 {% block title %}{% trans 'Задачи' %}{% endblock %}
 {% block meta_robots %}noindex,nofollow{% endblock %}
@@ -50,53 +50,29 @@
     </form>
 
     <div class="grid tasks-grid">
-      {% for task in tasks %}
-        <article class="card task-card">
-          {% if request.user.is_authenticated and request.user.teacherprofile %}
-            <div class="task-card__add">
-              {% include 'accounts/includes/add_to_variant_button.html' with task_id=task.id %}
-            </div>
-          {% endif %}
-          <div class="section-title">{{ task.title }}</div>
-          {% if task.exam_version %}
-            <div class="hint">{{ task.subject.name }} — {{ task.exam_version.name }}</div>
-          {% else %}
-            <div class="hint">{{ task.subject.name }}</div>
-          {% endif %}
-          <div class="mt-8">
-            <span class="chip">{% if task.is_dynamic %}{% trans 'динамическая' %}{% else %}{% trans 'статическая' %}{% endif %}</span>
-            <span class="chip">{% trans 'сложность' %}: {{ task.difficulty_level }}</span>
-          </div>
-          {% if task.uses_pre_generated_data %}
-            {% with preview=task.render_template_preview %}
-              {% if preview %}
-                {% if task.rendering_strategy == task.RenderingStrategy.HTML %}
-                  <div class="mt-8 task-description task-content" data-format="html">
-                    {{ preview|render_task_body:task.rendering_strategy }}
-                  </div>
-                {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
-                  <div class="mt-8 task-description markdown-content task-content" data-format="markdown">
-                    {{ preview|render_task_body:task.rendering_strategy }}
-                  </div>
-                {% else %}
-                  <p class="mt-8 task-description task-content" data-format="text">{{ preview|render_task_body:task.rendering_strategy }}</p>
-                {% endif %}
-              {% endif %}
-            {% endwith %}
-          {% elif task.description %}
-            {% if task.rendering_strategy == task.RenderingStrategy.HTML %}
-              <div class="mt-8 task-description task-content" data-format="html">
-                {{ task.description|render_task_body:task.rendering_strategy }}
+      {% for row in task_rows %}
+        {% with task=row.task statement=row.statement %}
+          <article class="card task-card">
+            {% if request.user.is_authenticated and request.user.teacherprofile %}
+              <div class="task-card__add">
+                {% include 'accounts/includes/add_to_variant_button.html' with task_id=task.id %}
               </div>
-            {% elif task.rendering_strategy == task.RenderingStrategy.MARKDOWN %}
-              <div class="mt-8 task-description markdown-content task-content" data-format="markdown">
-                {{ task.description|render_task_body:task.rendering_strategy }}
-              </div>
-            {% else %}
-              <p class="mt-8 task-description task-content" data-format="text">{{ task.description|render_task_body:task.rendering_strategy }}</p>
             {% endif %}
-          {% endif %}
-        </article>
+            <div class="section-title">{{ task.title }}</div>
+            {% if task.exam_version %}
+              <div class="hint">{{ task.subject.name }} — {{ task.exam_version.name }}</div>
+            {% else %}
+              <div class="hint">{{ task.subject.name }}</div>
+            {% endif %}
+            <div class="mt-8">
+              <span class="chip">{% if task.is_dynamic %}{% trans 'динамическая' %}{% else %}{% trans 'статическая' %}{% endif %}</span>
+              <span class="chip">{% trans 'сложность' %}: {{ task.difficulty_level }}</span>
+            </div>
+            <div class="mt-8 task-description">
+              {% include "recsys/components/task_statement.html" with task_body_html=statement.task_body_html image=statement.image attachments=statement.attachments empty_message="Условие задания недоступно." %}
+            </div>
+          </article>
+        {% endwith %}
       {% empty %}
         <p class="hint">{% trans 'Задачи не найдены. Измените фильтры.' %}</p>
       {% endfor %}
@@ -105,7 +81,6 @@
 </section>
 
 <script>
-  // Optional: auto-submit on change
   (function(){
     var form = document.getElementById('filters');
     if (!form) return;
@@ -113,6 +88,5 @@
       form.submit();
     });
   })();
-  </script>
+</script>
 {% endblock %}
-

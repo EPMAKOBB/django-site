@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n markdown_extras %}
+{% load i18n %}
 
 {% block title %}{{ page_title }}{% endblock %}
 {% block meta_robots %}noindex,nofollow{% endblock %}
@@ -50,29 +50,9 @@
             </header>
 
             <div class="variant-page__task-content">
-              {% if item.display.description %}
-                {% if item.task and item.display.rendering_strategy == item.task.RenderingStrategy.HTML %}
-                  <div class="variant-page__task-description task-content" data-format="html">
-                    {{ item.display.description|render_task_body:item.display.rendering_strategy }}
-                  </div>
-                {% elif item.task and item.display.rendering_strategy == item.task.RenderingStrategy.MARKDOWN %}
-                  <div class="variant-page__task-description markdown-content task-content" data-format="markdown">
-                    {{ item.display.description|render_task_body:item.display.rendering_strategy }}
-                  </div>
-                {% else %}
-                  <div class="variant-page__task-description task-content" data-format="text">
-                    {{ item.display.description|render_task_body:item.display.rendering_strategy }}
-                  </div>
-                {% endif %}
-              {% else %}
-                <p class="muted">{% trans "Условие задания недоступно." %}</p>
-              {% endif %}
-
-              {% if item.display.image %}
-                <div class="variant-page__task-image">
-                  <img src="{{ item.display.image }}" alt="{% trans 'Иллюстрация к заданию' %}">
-                </div>
-              {% endif %}
+              <div class="variant-page__task-description">
+                {% include "recsys/components/task_statement.html" with task_body_html=item.statement.task_body_html image=item.statement.image attachments=item.statement.attachments empty_message="Условие задания недоступно." %}
+              </div>
             </div>
           </article>
         {% endfor %}

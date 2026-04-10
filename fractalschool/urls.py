@@ -45,6 +45,7 @@ urlpatterns = [
     path('', include('apps.recsys.api.urls')),
 
     path('exams/<slug:exam_slug>/', recsys_views.exam_page, name='exam-page'),
+    path('exams/<slug:exam_slug>/training/', recsys_views.training_page, name='exam-training-page'),
     path('exams/<slug:exam_slug>/public/', recsys_views.exam_public_blocks, name='exam-public-blocks'),
     path('exams/<slug:exam_slug>/progress/', recsys_views.exam_progress_data, name='exam-progress-data'),
     path(

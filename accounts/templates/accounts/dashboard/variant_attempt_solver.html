@@ -36,7 +36,7 @@
 
     <main class="solver__main" aria-live="polite">
       <article class="solver__task-card" id="solver-task-card">
-        <div id="solver-task-body" class="solver__task-body task-content">
+        <div id="solver-task-body" class="solver__task-body task-content task-statement__body">
           <p class="muted">{% trans "Загрузка варианта..." %}</p>
         </div>
         <div id="solver-attachments" class="solver__attachments" hidden></div>
@@ -78,6 +78,7 @@
   const answerEl = document.getElementById("solver-answer");
   const answerBuilderEl = document.getElementById("solver-answer-builder");
   const answerFieldsEl = document.getElementById("solver-answer-fields");
+  const taskResponseHelper = window.FractalTaskResponse || null;
   const footerEl = document.querySelector(".solver__footer");
   const attachmentsEl = document.getElementById("solver-attachments");
   const correctAnswerFieldsEl = document.getElementById("solver-correct-answer-fields");
@@ -487,257 +488,37 @@
   }
 
   function buildInputs(schema, savedValue) {
-    if (!answerFieldsEl || !schema) return;
-    answerFieldsEl.innerHTML = "";
-    const cfg = schema.config || {};
-    const rows = Number(cfg.rows || 1);
-    const cols = Number(cfg.cols || 1);
-    const inputType = cfg.input_type || "string";
-    const perCellMax = cfg.per_cell_max_length ? Number(cfg.per_cell_max_length) : null;
-
-    const container = document.createElement("div");
-    container.className = "answer-grid";
-
-    for (let r = 0; r < rows; r++) {
-      const rowEl = document.createElement("div");
-      rowEl.className = "answer-row";
-      for (let c = 0; c < cols; c++) {
-        const wrap = document.createElement("div");
-        wrap.className = "answer-cell";
-        const input = document.createElement("input");
-        input.name = `answer_r${r}_c${c}`;
-        input.dataset.row = String(r);
-        input.dataset.col = String(c);
-        input.className = "answer-input";
-        input.type = "text";
-        if (inputType === "uint" || inputType === "int") {
-          input.inputMode = "numeric";
-        } else if (inputType === "float") {
-          input.inputMode = "decimal";
-        }
-        if (perCellMax) input.maxLength = perCellMax;
-        wrap.appendChild(input);
-        rowEl.appendChild(wrap);
-      }
-      container.appendChild(rowEl);
-    }
-
-    answerFieldsEl.appendChild(container);
-    setupAutoAdvance(cfg);
-    setupPasteFill(rows, cols);
-    setInputsFromPayload(schema, savedValue);
-  }
-
-  function setupPasteFill(rows, cols) {
-    if (!answerFieldsEl) return;
-    const inputs = Array.from(answerFieldsEl.querySelectorAll("input.answer-input"));
-    if (!inputs.length) return;
-    const total = Math.max(1, rows * cols);
-    if (total <= 1) return;
-
-    const tokenize = (text) => {
-      return text
-        .replace(/\r\n/g, "\n")
-        .replace(/\t/g, " ")
-        .split(/[\s,;]+/)
-        .map((v) => v.trim())
-        .filter((v) => v.length);
-    };
-
-    inputs.forEach((input, idx) => {
-      input.addEventListener("paste", (e) => {
-        const raw = (e.clipboardData || window.clipboardData)?.getData("text") || "";
-        const tokens = tokenize(raw);
-        if (tokens.length <= 1) return;
-        e.preventDefault();
-        let cursor = idx;
-        tokens.forEach((token) => {
-          if (cursor >= total) return;
-          if (inputs[cursor]) inputs[cursor].value = token;
-          cursor += 1;
-        });
-      });
+    if (!answerFieldsEl || !schema || !taskResponseHelper) return;
+    taskResponseHelper.buildInputs(answerFieldsEl, schema, savedValue, {
+      gridClassName: "answer-grid",
+      rowClassName: "answer-row",
+      cellClassName: "answer-cell",
+      inputClassName: "answer-input",
+      autoAdvance: true,
+      pasteFill: true,
     });
-  }
-
-  function setupAutoAdvance(cfg) {
-    if (!answerFieldsEl) return;
-    const rows = Number(cfg.rows || 1);
-    const cols = Number(cfg.cols || 1);
-    const perCellMax = cfg.per_cell_max_length ? Number(cfg.per_cell_max_length) : null;
-    if (!(rows === 1 && cols > 1 && perCellMax === 1)) return;
-    const inputs = Array.from(answerFieldsEl.querySelectorAll("input.answer-input"));
-    inputs.forEach((input, idx) => {
-      input.addEventListener("input", (e) => {
-        const val = e.target.value || "";
-        if (val.length >= 1 && idx < inputs.length - 1) {
-          inputs[idx + 1].focus();
-          inputs[idx + 1].select();
-        }
-      });
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Backspace" && !e.target.value && idx > 0) {
-          inputs[idx - 1].focus();
-        }
-      });
-    });
-  }
-
-  function setInputsFromPayload(schema, payload) {
-    if (!answerFieldsEl || payload === null || payload === undefined) return;
-    const cfg = schema.config || {};
-    const rows = Number(cfg.rows || 1);
-    const cols = Number(cfg.cols || 1);
-    const normalise = (value) => (value === null || value === undefined) ? "" : String(value);
-    const setCell = (r, c, value) => {
-      const input = answerFieldsEl.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
-      if (input) input.value = normalise(value);
-    };
-
-    if (rows === 1 && cols === 1) {
-      setCell(0, 0, payload);
-      return;
-    }
-
-    if (rows === 1) {
-      const rowVals = Array.isArray(payload) ? payload : [];
-      for (let c = 0; c < cols; c++) {
-        setCell(0, c, rowVals[c]);
-      }
-      return;
-    }
-
-    const matrix = Array.isArray(payload) ? payload : [];
-    for (let r = 0; r < rows; r++) {
-      const rowVals = Array.isArray(matrix[r]) ? matrix[r] : [];
-      for (let c = 0; c < cols; c++) {
-        setCell(r, c, rowVals[c]);
-      }
-    }
-  }
-
-  function setInputsFromPayloadIn(container, schema, payload) {
-    if (!container || payload === null || payload === undefined) return;
-    const cfg = schema.config || {};
-    const rows = Number(cfg.rows || 1);
-    const cols = Number(cfg.cols || 1);
-    const normalise = (value) => (value === null || value === undefined) ? "" : String(value);
-    const setCell = (r, c, value) => {
-      const input = container.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
-      if (input) input.value = normalise(value);
-    };
-
-    if (rows === 1 && cols === 1) {
-      setCell(0, 0, payload);
-      return;
-    }
-
-    if (rows === 1) {
-      const rowVals = Array.isArray(payload) ? payload : [];
-      for (let c = 0; c < cols; c++) {
-        setCell(0, c, rowVals[c]);
-      }
-      return;
-    }
-
-    const matrix = Array.isArray(payload) ? payload : [];
-    for (let r = 0; r < rows; r++) {
-      const rowVals = Array.isArray(matrix[r]) ? matrix[r] : [];
-      for (let c = 0; c < cols; c++) {
-        setCell(r, c, rowVals[c]);
-      }
-    }
   }
 
   function buildReadOnlyInputs(schema, payload) {
-    if (!correctAnswerFieldsEl || !schema) return;
-    correctAnswerFieldsEl.innerHTML = "";
-    const cfg = schema.config || {};
-    const rows = Number(cfg.rows || 1);
-    const cols = Number(cfg.cols || 1);
-
-    const container = document.createElement("div");
-    container.className = "answer-grid";
-
-    for (let r = 0; r < rows; r++) {
-      const rowEl = document.createElement("div");
-      rowEl.className = "answer-row";
-      for (let c = 0; c < cols; c++) {
-        const wrap = document.createElement("div");
-        wrap.className = "answer-cell";
-        const input = document.createElement("input");
-        input.dataset.row = String(r);
-        input.dataset.col = String(c);
-        input.className = "answer-input";
-        input.type = "text";
-        input.readOnly = true;
-        input.disabled = true;
-        wrap.appendChild(input);
-        rowEl.appendChild(wrap);
-      }
-      container.appendChild(rowEl);
-    }
-
-    correctAnswerFieldsEl.appendChild(container);
-    setInputsFromPayloadIn(correctAnswerFieldsEl, schema, payload);
+    if (!correctAnswerFieldsEl || !schema || !taskResponseHelper) return;
+    taskResponseHelper.buildReadOnlyInputs(correctAnswerFieldsEl, schema, payload, {
+      gridClassName: "answer-grid",
+      rowClassName: "answer-row",
+      cellClassName: "answer-cell",
+      inputClassName: "answer-input",
+    });
   }
 
   function collectPayload(schema) {
-    if (!answerFieldsEl || !schema) return null;
-    const cfg = schema.config || {};
-    const rows = Number(cfg.rows || 1);
-    const cols = Number(cfg.cols || 1);
-    const allowBlankRows = !!cfg.allow_blank_rows;
-    const inputType = cfg.input_type || "string";
-
-    const normalizeValue = (rawValue) => {
-      const value = (rawValue ?? "").toString().trim();
-      if (!value) return "";
-      if (inputType === "int") {
-        if (!/^-?\d+$/.test(value)) return value;
-        return parseInt(value, 10);
-      }
-      if (inputType === "uint") {
-        if (!/^\d+$/.test(value)) return value;
-        return parseInt(value, 10);
-      }
-      if (inputType === "float") {
-        const normalized = value.replace(",", ".");
-        const parsed = Number(normalized);
-        return Number.isFinite(parsed) ? parsed : value;
-      }
-      return value;
-    };
-
-    const fetchCell = (r, c) => {
-      const input = answerFieldsEl.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
-      return input ? input.value : "";
-    };
-
-    if (rows === 1 && cols === 1) {
-      return normalizeValue(fetchCell(0, 0));
+    if (!answerFieldsEl || !schema || !taskResponseHelper) return null;
+    const payload = taskResponseHelper.collectPayload(answerFieldsEl, schema);
+    if (!schema || !schema.config || !schema.config.allow_blank_rows || !Array.isArray(payload)) {
+      return payload;
     }
-
-    if (rows === 1) {
-      return Array.from({ length: cols }, (_, c) => normalizeValue(fetchCell(0, c)));
+    while (payload.length && (payload[payload.length - 1].length === 0 || payload[payload.length - 1].every((value) => value === ""))) {
+      payload.pop();
     }
-
-    const matrix = [];
-    for (let r = 0; r < rows; r++) {
-      const rowVals = Array.from({ length: cols }, (_, c) => normalizeValue(fetchCell(r, c)));
-      if (allowBlankRows && rowVals.every((v) => v === "")) {
-        matrix.push([]);
-      } else {
-        matrix.push(rowVals);
-      }
-    }
-
-    if (allowBlankRows) {
-      while (matrix.length && (matrix[matrix.length - 1].length === 0 || matrix[matrix.length - 1].every((v) => v === ""))) {
-        matrix.pop();
-      }
-    }
-    return matrix;
+    return payload;
   }
 
   function formatTimeLeft(totalSeconds) {
