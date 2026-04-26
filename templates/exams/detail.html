@@ -18,7 +18,7 @@
 <section class="section exam-page">
   <div class="container">
     <div
-      class="exam-page__hero"
+      class="exam-page__workspace"
       id="exam-page"
       data-public-url="{% url 'exam-public-blocks' exam_slug %}"
       data-progress-url="{% url 'exam-progress-data' exam_slug %}"
@@ -26,13 +26,9 @@
       data-exam-slug="{{ exam_slug }}"
       data-login-url="{% url 'accounts:login' %}?next={{ request.path|urlencode }}"
     >
-      <div class="exam-page__intro">
-        <p class="exam-page__eyebrow">{{ exam.subject.name }}</p>
-        <h1 class="exam-page__title">{{ exam.name }}</h1>
-        <p class="exam-page__lead">
-          {% trans "Смотрите на сводку сверху, выбирайте следующий шаг в блоке действий и затем переходите к нужному типу заданий." %}
-        </p>
-      </div>
+      <header class="exam-page__header">
+        <h1 class="exam-page__title">{{ exam.subject.name }} {{ exam.name }}</h1>
+      </header>
 
       <div class="exam-summary-grid">
         <article class="exam-summary-card">
@@ -85,7 +81,7 @@
 <section class="section exam-page__content">
   <div class="container">
     <div id="exam-public-blocks">
-      <div class="exam-skeleton card">
+      <div class="exam-skeleton">
         <div class="skeleton skeleton-title"></div>
         <div class="exam-skeleton__grid">
           <div class="skeleton skeleton-card"></div>

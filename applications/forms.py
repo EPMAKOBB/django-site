@@ -9,7 +9,7 @@ from .models import Application
 class ApplicationForm(forms.ModelForm):
     grade = forms.TypedChoiceField(
         coerce=int,
-        choices=[("", _("Класс"))] + [(value, str(value)) for value in range(1, 12)],
+        choices=[("", _("Выберите класс"))] + [(value, str(value)) for value in range(1, 12)],
         label=_("Класс"),
         required=False,
         empty_value=None,

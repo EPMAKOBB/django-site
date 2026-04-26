@@ -135,7 +135,9 @@ def media_download(request, path):
     if response.status_code == 200:
         filename = Path(path).name
         quoted = quote(filename)
+        content_type = response.get("Content-Type", "")
+        disposition = "inline" if content_type.startswith("image/") else "attachment"
         response["Content-Disposition"] = (
-            f'attachment; filename="{filename}"; filename*=UTF-8\'\'{quoted}'
+            f'{disposition}; filename="{filename}"; filename*=UTF-8\'\'{quoted}'
         )
     return response

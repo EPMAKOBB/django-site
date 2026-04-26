@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<section class="home-hero hero">
+<section class="home-hero hero" id="home-start-options">
   <div
     class="home-hero__ascii-scene"
     id="hero-ascii-scene"
@@ -35,17 +35,12 @@
     <div class="home-hero__stack">
       <div class="home-hero__intro">
         <p class="home-hero__mark">[&#1060;]</p>
-        <h1 class="home-hero__offer">Подготовка к экзаменам через понятную систему практики</h1>
-        <p class="home-hero__lead">
-          Персональные задания, аналитика прогресса и занятия с преподавателем
-          в одной спокойной и понятной среде.
-        </p>
+        <h1 class="home-hero__offer">Система, которая подбирает задачи под тебя</h1>
       </div>
 
       <div class="home-hero__cards">
         <section class="hero-card">
           <h2>Готовиться самостоятельно</h2>
-          <p>Выберите экзамен и переходите к задачам, вариантам и первым шагам в системе.</p>
           <div class="hero-card__actions">
             {% for exam in active_exams %}
               <a class="btn hero-card__link{% if forloop.first %} hero-card__link--accent{% endif %}" href="{% url 'exam-page' exam.slug|default:exam.name|slugify %}">
@@ -59,7 +54,6 @@
 
         <section class="hero-card">
           <h2>Готовиться с учителем</h2>
-          <p>Оставьте заявку, и мы подберем формат подготовки под ваши цели, класс и предметы.</p>
           <form action="{% url 'applications:apply' %}" method="post" class="hero-card__form">
             {% csrf_token %}
             {{ form.source_offer }}
@@ -100,131 +94,98 @@
   </div>
 </section>
 
-<section class="home-section how-it-works">
-  <div class="container">
-    <div class="home-section__header">
-      <p class="home-section__eyebrow">How it works</p>
-      <h2 class="home-section__title">Подготовка строится как ясный рабочий цикл</h2>
-      <p class="home-section__lead">
-        Без хаотичных подборок и перегруженных экранов. Мы выстраиваем понятный маршрут:
-        от первых задач до устойчивого роста результата.
-      </p>
-    </div>
-
-    <div class="how-it-works__grid">
-      <article class="card how-it-works__step">
-        <div class="how-it-works__number">01</div>
-        <h3>Выбираете направление</h3>
-        <p>Начинаете с нужного экзамена и входите в материал через понятную точку старта.</p>
-      </article>
-      <article class="card how-it-works__step">
-        <div class="how-it-works__number">02</div>
-        <h3>Решаете задачи</h3>
-        <p>Работаете с вариантами, типами заданий и темами без лишнего визуального шума.</p>
-      </article>
-      <article class="card how-it-works__step">
-        <div class="how-it-works__number">03</div>
-        <h3>Видите прогресс</h3>
-        <p>Система помогает понять, где уже есть уверенность, а где нужен следующий шаг.</p>
-      </article>
-      <article class="card how-it-works__step">
-        <div class="how-it-works__number">04</div>
-        <h3>Добавляете преподавателя</h3>
-        <p>Когда нужен живой разбор и персональный маршрут, подключается работа с учителем.</p>
-      </article>
-    </div>
-  </div>
-</section>
-
-<section class="home-section about-section">
-  <div class="container">
-    <div class="home-section__header">
-      <p class="home-section__eyebrow">About</p>
-      <h2 class="home-section__title">Фрактал объединяет платформу, практику и живое сопровождение</h2>
-    </div>
-
-    <div class="about-grid">
-      <article class="card about-card">
-        <h3>О проекте</h3>
+<div class="home-after-hero" aria-label="О школе Фрактал">
+  <div class="home-after-hero__inner">
+    <section class="home-editorial-section" aria-labelledby="home-about-project-title">
+      <div class="home-editorial-section__heading">
+        <span class="home-editorial-section__index">1</span>
+        <h2 id="home-about-project-title">О проекте</h2>
+      </div>
+      <div class="home-editorial-section__body">
         <p>
-          Фрактал — это школа подготовки, в которой цифровая среда не заменяет преподавателя,
-          а делает работу точнее и спокойнее. Мы соединяем персональные задания, аналитику прогресса
-          и понятную структуру подготовки к экзаменам.
+          Главной проблемой образования всегда было то, что каждому ученику нужен свой подход,
+          а учитель один на весь класс. Однако современные технологии решают эту проблему.
+          Сейчас рекомендательные алгоритмы могут знать человека лучше, чем он сам.
         </p>
-        <p class="mt-12">
-          Наша цель — не просто дать больше задач, а собрать рабочую систему,
-          в которой ученик понимает, что делать дальше, видит рост и не теряется в процессе.
+        <p>
+          Наша задача — применить эти алгоритмы для того, чтобы рекомендовать наиболее подходящие задания.
+          Тогда процесс образования станет максимально эффективным, а учиться будет легко и просто.
         </p>
-      </article>
+      </div>
+    </section>
 
-      <article class="card socials-card">
-        <h3>Где нас найти</h3>
-        <p>Если хотите посмотреть, как проект развивается, или связаться напрямую, используйте основные площадки.</p>
-        <ul class="socials-list">
-          <li><a href="https://t.me/v_IT_ek" target="_blank" rel="noopener">Telegram</a></li>
-          <li><a href="https://vk.com/schoolfractal" target="_blank" rel="noopener">VK</a></li>
-          <li><a href="https://www.youtube.com/@CRAZYMATIC" target="_blank" rel="noopener">YouTube</a></li>
-        </ul>
-      </article>
-    </div>
-  </div>
-</section>
-
-<section class="home-section testimonials">
-  <div class="container">
-    <div class="home-section__header">
-      <p class="home-section__eyebrow">Testimonials</p>
-      <h2 class="home-section__title">Отзывы и реальные результаты</h2>
-      <p class="home-section__lead">
-        Этот блок останется компактным, но должен подтверждать, что система дает не только красивый интерфейс,
-        а реальную пользу в подготовке.
-      </p>
-    </div>
-
-    <div class="testimonials__grid">
-      <article class="card testimonials__item">
-        <h3>Информатика</h3>
-        <p class="testimonials__quote">
-          «Спасибо огромное. Я был в шоке от результата и очень благодарен за подготовку и поддержку».
+    <section class="home-editorial-section" aria-labelledby="home-about-us-title">
+      <div class="home-editorial-section__heading">
+        <span class="home-editorial-section__index">2</span>
+        <h2 id="home-about-us-title">О нас</h2>
+      </div>
+      <div class="home-editorial-section__body">
+        <p>
+          Школа Фрактал — это семейный проект репетиторов, сочетающий опыт поколений и современные технологии.<br>
+          Основатель: Ермаков Виктор Вадимович — программист и репетитор с 15-летним стажем, представитель четвертого поколения инженеров знаменитой «Бауманки».<br>
+          Сооснователь: Ермакова Мария Вадимовна, школьный учитель и физик-технолог, автор научных работ.<br>
+          Методист: Ермаков Вадим Александрович, учитель и репетитор с 50-летним стажем.
         </p>
-        <p class="testimonials__meta">Дмитрий, 100 баллов</p>
-      </article>
-      <article class="card testimonials__item">
-        <h3>Математика</h3>
-        <p class="testimonials__quote">
-          «Подготовка была собрана очень точно. В итоге результат оказался выше, чем я ожидал».
-        </p>
-        <p class="testimonials__meta">Матвей, 99 баллов</p>
-      </article>
-      <article class="card testimonials__item">
-        <h3>Физика</h3>
-        <p class="testimonials__quote">
-          «Система дала хорошую базу и уверенность, а дальше этих знаний хватило и для более сложных испытаний».
-        </p>
-        <p class="testimonials__meta">Андрей, 97 баллов</p>
-      </article>
-    </div>
-  </div>
-</section>
+      </div>
+    </section>
 
-<section class="home-section">
-  <div class="container">
-    <div class="card final-cta">
-      <h3>Готовы начать?</h3>
-      <p>
-        Можно сразу перейти к экзаменам и задачам, а можно оставить заявку и собрать персональный маршрут подготовки.
-      </p>
-      <div class="final-cta__actions">
+    <section class="home-editorial-section home-editorial-section--compact" aria-labelledby="home-socials-title">
+      <div class="home-editorial-section__heading">
+        <span class="home-editorial-section__index">3</span>
+        <h2 id="home-socials-title">Соцсети</h2>
+      </div>
+      <ul class="home-socials-list" aria-label="Социальные сети Фрактала">
+        <li><a href="https://t.me/v_IT_ek" target="_blank" rel="noopener">Telegram</a></li>
+        <li><a href="https://vk.com/schoolfractal" target="_blank" rel="noopener">VK</a></li>
+        <li><a href="https://www.youtube.com/@CRAZYMATIC" target="_blank" rel="noopener">YouTube</a></li>
+      </ul>
+    </section>
+
+    <section class="home-editorial-section" aria-labelledby="home-reviews-title">
+      <div class="home-editorial-section__heading">
+        <span class="home-editorial-section__index">4</span>
+        <h2 id="home-reviews-title">Отзывы</h2>
+      </div>
+      <div class="home-reviews">
+        <figure class="home-review">
+          <blockquote>
+            «Виктор, спасибо Вам огромное! Я вообще в шоке! Я Вам бесконечно благодарен!»
+          </blockquote>
+          <figcaption>Дмитрий, 100 баллов на ЕГЭ по информатике</figcaption>
+        </figure>
+        <figure class="home-review">
+          <blockquote>
+            «Было относительно просто, если честно. Вполне себе мог получить 100 баллов,
+            но у меня 99. Тоже неплохо, думаю»
+          </blockquote>
+          <figcaption>Матвей, 99 баллов на ЕГЭ по математике</figcaption>
+        </figure>
+        <figure class="home-review">
+          <blockquote>
+            «Сдал ЕГЭ на высочайший балл, после чего знаний хватило на то,
+            чтобы самостоятельно подготовиться к ДВИ МГУ по физике на 90+»
+          </blockquote>
+          <figcaption>Андрей, 97 баллов на ЕГЭ по физике</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="home-editorial-section home-editorial-cta" aria-labelledby="home-start-title">
+      <div class="home-editorial-section__heading">
+        <span class="home-editorial-section__index">5</span>
+        <h2 id="home-start-title">Готовы начать?</h2>
+      </div>
+      <div class="home-editorial-cta__actions">
         {% if active_exams %}
           {% with first_exam=active_exams.0 %}
-            <a class="btn btn-primary" href="{% url 'exam-page' first_exam.slug|default:first_exam.name|slugify %}">Перейти к экзаменам</a>
+            <a class="home-editorial-button" href="#home-start-options">Вернуться к выбору занятий</a>
           {% endwith %}
         {% endif %}
-        <a class="btn" href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}">Открыть личный кабинет</a>
+        <a class="home-editorial-button" href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}">Открыть личный кабинет</a>
       </div>
-    </div>
+    </section>
   </div>
-</section>
+</div>
 {% endblock %}
 
 {% block extra_js %}

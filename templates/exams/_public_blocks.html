@@ -2,21 +2,24 @@
 
 <div class="exam-blocks">
   <section class="exam-layout-section">
-    <div class="exam-section-heading">
-      <p class="exam-section-heading__eyebrow">{% trans "Что делать дальше" %}</p>
-      <h2 class="exam-section-heading__title">{% trans "Выберите следующий рабочий шаг" %}</h2>
-      <p class="exam-section-heading__lead">
-        {% trans "Сначала используйте персональные режимы, затем переходите в нужный тип заданий." %}
-      </p>
-    </div>
-
-    <div class="exam-actions-grid exam-actions-grid--compact">
+    <div class="exam-actions-grid">
       <article class="exam-action-card exam-action-card--primary">
         <div class="exam-action-card__body">
-          <p class="exam-action-card__eyebrow">{% trans "Персональный пробник" %}</p>
+          <h3 class="exam-action-card__title">{% trans "Тренировочный режим" %}</h3>
+          <p class="exam-action-card__text">
+            {% trans "Запускает адаптивную сессию: после каждого ответа система подбирает следующую задачу." %}
+          </p>
+        </div>
+        <a class="btn btn-primary exam-action-card__button" href="{% url 'exam-training-page' exam.slug %}">
+          {% trans "Открыть тренировку" %}
+        </a>
+      </article>
+
+      <article class="exam-action-card">
+        <div class="exam-action-card__body">
           <h3 class="exam-action-card__title">{% trans "Собрать персональный вариант" %}</h3>
           <p class="exam-action-card__text">
-            {% trans "Соберем вариант на основе вашего текущего положения по этому экзамену." %}
+            {% trans "Соберем вариант на основе вашего текущих успехов по этому экзамену." %}
           </p>
         </div>
 
@@ -30,7 +33,7 @@
           <form method="post" data-exam-personal-form data-auth="{{ is_authenticated|yesno:'1,0' }}">
             {% csrf_token %}
             <input type="hidden" name="action" value="build_personal">
-            <button type="submit" class="btn btn-large btn-primary exam-action-card__button">
+            <button type="submit" class="btn btn-secondary exam-action-card__button">
               {% trans "Собрать персональный пробник" %}
             </button>
           </form>
@@ -39,19 +42,6 @@
             {% trans "Пока нет активной спецификации экзамена для персонального пробника." %}
           </div>
         {% endif %}
-      </article>
-
-      <article class="exam-action-card">
-        <div class="exam-action-card__body">
-          <p class="exam-action-card__eyebrow">{% trans "Персональная тренировка" %}</p>
-          <h3 class="exam-action-card__title">{% trans "Тренировочный режим" %}</h3>
-          <p class="exam-action-card__text">
-            {% trans "Запускает адаптивную сессию: после каждого ответа система подбирает следующую задачу." %}
-          </p>
-        </div>
-        <a class="btn btn-secondary exam-action-card__button" href="{% url 'exam-training-page' exam.slug %}">
-          {% trans "Открыть тренировку" %}
-        </a>
       </article>
     </div>
 
@@ -73,25 +63,21 @@
 
   <section class="exam-layout-section">
     <div class="exam-section-heading">
-      <p class="exam-section-heading__eyebrow">{% trans "Типы заданий" %}</p>
-      <h2 class="exam-section-heading__title">{% trans "Выберите тип, по которому хотите работать" %}</h2>
-      <p class="exam-section-heading__lead">
-        {% trans "Каждая карточка показывает описание, текущий прогресс и быстрый переход в нужный раздел." %}
-      </p>
+      <h2 class="exam-section-heading__title">{% trans "Типы заданий" %}</h2>
     </div>
 
     {% if blueprint and type_rows %}
       <div class="exam-types-grid">
         {% for row in type_rows %}
-          <article
+          <a
             class="exam-type-card"
+            href="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}"
             data-type-id="{{ row.type.id }}"
             data-type-name="{{ row.type.name }}"
             data-type-url="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}"
           >
             <div class="exam-type-card__header">
               <div>
-                <p class="exam-type-card__label">{% trans "Тип заданий" %}</p>
                 <h3 class="exam-type-card__title">{{ row.type.name }}</h3>
               </div>
               <div class="exam-type-card__score">
@@ -135,11 +121,7 @@
                 {% endfor %}
               </div>
             {% endif %}
-
-            <a class="btn exam-type-card__cta" href="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}" data-type-link>
-              {% trans "Открыть тип" %}
-            </a>
-          </article>
+          </a>
         {% endfor %}
       </div>
     {% else %}

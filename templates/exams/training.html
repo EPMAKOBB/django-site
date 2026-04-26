@@ -21,12 +21,11 @@
     data-submit-template="/api/training/sessions/__ID__/submit/"
     data-end-template="/api/training/sessions/__ID__/end/"
   >
-    <section id="training-launcher" class="card training-page__setup">
+    <section id="training-launcher" class="training-page__setup">
       <div class="training-page__setup-head">
         <div class="training-page__setup-copy">
-          <p class="training-page__eyebrow">{{ exam.subject.name }}</p>
-          <h1 class="section-title mt-0 mb-8">{{ exam.name }}: тренировка</h1>
-          <p class="muted mb-0">Адаптивная сессия по выбранным типам задач: после каждого ответа система подбирает следующий шаг.</p>
+          <a class="training-page__back" href="{% url 'exam-page' exam.slug %}">&larr; {{ exam.subject.name }} {{ exam.name }}</a>
+          <h1 class="training-page__title">Тренировка</h1>
         </div>
         <span id="training-launcher-status" class="training-launcher__status">Проверка состояния</span>
       </div>
@@ -38,67 +37,38 @@
       <section id="training-type-filters" class="training-launcher__filters">
         <div class="training-launcher__filters-head">
           <div>
-            <h2 class="training-launcher__filters-title">Типы задач для тренировки</h2>
-            <p class="muted mb-0" id="training-type-filters-summary">
-              По умолчанию выбраны типы, которые сейчас лучше всего подходят для тренировки.
-            </p>
+            <h2 class="training-launcher__filters-title">Что тренируем</h2>
           </div>
           <div class="training-launcher__filters-meta">
             <span id="training-type-selected-count" class="training-launcher__selected-count">Выбрано: 0</span>
-            <button id="training-type-reset" class="btn btn-secondary" type="button" hidden>Сбросить к рекомендациям</button>
           </div>
         </div>
-        <div id="training-type-filters-feedback" class="training-launcher__filters-feedback muted" hidden></div>
-        <div id="training-type-filters-recommended" class="training-launcher__type-group" hidden>
-          <div id="training-type-recommended-list" class="training-launcher__type-list"></div>
+        <div class="training-launcher__presets" role="group" aria-label="Режим выбора типов">
+          <button id="training-type-preset-recommended" class="btn btn-secondary training-launcher__preset is-active" type="button">Выбрать рекомендуемые</button>
+          <button id="training-type-preset-all" class="btn btn-secondary training-launcher__preset" type="button">Выбрать все</button>
+          <button id="training-type-preset-none" class="btn btn-secondary training-launcher__preset" type="button">Снять все</button>
         </div>
-        <button id="training-type-other-toggle" class="training-launcher__toggle btn btn-secondary" type="button" hidden>Показать другие типы</button>
-        <div id="training-type-filters-other" class="training-launcher__type-group" hidden>
-          <div id="training-type-other-list" class="training-launcher__type-list"></div>
+        <div id="training-type-filters-feedback" class="training-launcher__filters-feedback muted" hidden></div>
+        <div id="training-type-filters-list" class="training-launcher__type-group" hidden>
+          <div id="training-type-list" class="training-launcher__type-list"></div>
         </div>
       </section>
 
       <div class="training-page__launcher-actions">
         <button id="training-continue" class="btn" type="button" hidden>Продолжить текущую</button>
         <button id="training-retry" class="btn" type="button" hidden>Повторить</button>
-        <button id="training-start" class="btn btn-primary" type="button">Начать новую</button>
-        <a class="btn btn-secondary" href="{% url 'exam-page' exam.slug %}">Назад к экзамену</a>
+        <button id="training-start" class="btn btn-primary" type="button">Начать новую сессию</button>
       </div>
     </section>
 
     <div id="training-session" class="training-page__session" hidden>
-      <section class="card training-session__header">
-        <div class="training-session__header-main">
-          <div>
-            <h2 class="section-title mb-8" id="training-session-title">Текущая сессия</h2>
-            <p class="muted mb-0" id="training-session-meta">Сессия ещё не загружена.</p>
-          </div>
-          <div class="training-session__header-actions">
-            <button id="training-end" class="btn btn-secondary" type="button">Завершить сессию</button>
-            <button id="training-restart" class="btn" type="button">Начать заново</button>
-          </div>
-        </div>
-        <div class="training-session__stats">
-          <div class="training-stat">
-            <span class="training-stat__label">Шаги</span>
-            <strong id="training-stat-steps">0/0</strong>
-          </div>
-          <div class="training-stat">
-            <span class="training-stat__label">Точность</span>
-            <strong id="training-stat-accuracy">0%</strong>
-          </div>
-          <div class="training-stat">
-            <span class="training-stat__label">Статус</span>
-            <strong id="training-stat-status">ожидание</strong>
-          </div>
-        </div>
-      </section>
+      <a class="training-page__back training-page__back--inline training-session__backline" href="{% url 'exam-page' exam.slug %}">&larr; {{ exam.subject.name }} {{ exam.name }}</a>
 
-      <div class="training-layout">
-        <section class="card training-task">
+      <div class="training-session__workspace">
+        <section class="training-task">
           <div class="training-task__header">
             <div>
-              <p class="muted mb-8" id="training-task-meta">Следующий шаг появится после запуска сессии.</p>
+              <p class="muted mb-8" id="training-task-meta">Следующий шаг появится после запуска.</p>
               <h2 class="section-title mb-0" id="training-task-title">Текущая задача</h2>
             </div>
             <p class="training-task__reason muted mb-0" id="training-task-reason" hidden></p>
@@ -107,7 +77,7 @@
           <div id="training-task-body" class="task-statement__body task-content training-task__body">
             <div class="training-empty-state">
               <h3 class="training-empty-state__title">Сессия ещё не начата</h3>
-              <p class="muted mb-0">Запустите новую тренировку или продолжите текущую, чтобы получить задачу.</p>
+              <p class="muted mb-0">Начните или продолжите тренировку.</p>
             </div>
           </div>
           <div id="training-attachments" class="task-statement__attachments mt-12" hidden></div>
@@ -115,14 +85,14 @@
           <section class="training-response" id="training-response" hidden>
             <div class="training-response__header">
               <label class="block mb-0" for="training-answer-text">Ответ</label>
-              <p class="muted mb-0" id="training-response-hint">Ответ проверяется на сервере, а после этого система подбирает следующую задачу.</p>
+              <p class="muted mb-0" id="training-response-hint">Проверим ответ и сразу подберём следующий шаг.</p>
             </div>
             <div id="training-answer-builder" class="training-response__builder" hidden>
               <div id="training-answer-fields"></div>
             </div>
             <textarea id="training-answer-text" class="training-response__textarea" rows="3" placeholder="Введите ответ"></textarea>
             <div class="training-response__actions">
-              <button id="training-submit" class="btn btn-primary" type="button">Отправить ответ</button>
+              <button id="training-submit" class="btn btn-primary" type="button">Проверить</button>
             </div>
           </section>
 
@@ -137,13 +107,37 @@
           </section>
         </section>
 
-        <aside class="card training-history">
-          <div class="training-history__header">
-            <h2 class="section-title">История сессии</h2>
-            <p class="muted mb-0" id="training-summary">История появится после первых решённых шагов.</p>
-          </div>
-          <ul id="training-history" class="training-history__list"></ul>
+        <aside class="training-session__aside">
+          <section class="training-session__header training-session__panel">
+            <h2 class="training-session__title section-title mb-0" id="training-session-title">Текущая сессия</h2>
+            <p class="muted mb-0" id="training-session-meta">Сессия ещё не загружена.</p>
+            <p class="training-session__summary mb-0">
+              Шаги: <strong id="training-stat-steps">0/0</strong> |
+              Точность: <strong id="training-stat-accuracy">0%</strong> |
+              Статус: <strong id="training-stat-status">ожидание</strong>
+            </p>
+          </section>
+
+          <section class="training-history training-session__panel">
+            <div class="training-history__header">
+              <h2 class="section-title">История</h2>
+              <p class="muted mb-0" id="training-summary">История появится после первых решённых шагов.</p>
+            </div>
+            <ul id="training-history" class="training-history__list"></ul>
+          </section>
         </aside>
+      </div>
+
+      <div class="training-session__footer">
+        <section class="training-session__panel training-session__panel--actions">
+          <div class="training-session__panel-head">
+            <h2 class="section-title mb-0">Сессия</h2>
+          </div>
+          <div class="training-session__header-actions">
+            <button id="training-end" class="btn btn-secondary" type="button">Завершить</button>
+            <button id="training-restart" class="btn" type="button">Заменить новой</button>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -169,15 +163,13 @@
   const launcherStatusEl = document.getElementById("training-launcher-status");
   const launcherTextEl = document.getElementById("training-launcher-text");
   const typeFiltersEl = document.getElementById("training-type-filters");
-  const typeFiltersSummaryEl = document.getElementById("training-type-filters-summary");
   const typeFiltersFeedbackEl = document.getElementById("training-type-filters-feedback");
-  const typeFiltersRecommendedEl = document.getElementById("training-type-filters-recommended");
-  const typeFiltersOtherEl = document.getElementById("training-type-filters-other");
-  const typeOtherToggleEl = document.getElementById("training-type-other-toggle");
-  const typeRecommendedListEl = document.getElementById("training-type-recommended-list");
-  const typeOtherListEl = document.getElementById("training-type-other-list");
+  const typeFiltersListEl = document.getElementById("training-type-filters-list");
+  const typeListEl = document.getElementById("training-type-list");
   const typeSelectedCountEl = document.getElementById("training-type-selected-count");
-  const typeResetBtn = document.getElementById("training-type-reset");
+  const typePresetRecommendedBtn = document.getElementById("training-type-preset-recommended");
+  const typePresetAllBtn = document.getElementById("training-type-preset-all");
+  const typePresetNoneBtn = document.getElementById("training-type-preset-none");
   const continueBtn = document.getElementById("training-continue");
   const retryBtn = document.getElementById("training-retry");
   const startBtn = document.getElementById("training-start");
@@ -216,7 +208,7 @@
   };
 
   const labels = {
-    activeSessionFound: "Найдена активная сессия. Можно продолжить её или начать новую.",
+    activeSessionFound: "Найдена активная сессия. Её можно продолжить или заменить новой.",
     noActiveSession: "Активной сессии нет. Начните новую тренировку.",
     requestFailed: "Не удалось загрузить состояние тренировки.",
     typeFiltersFailed: "Не удалось загрузить рекомендуемые типы. Можно начать тренировку с автоматическим подбором по умолчанию.",
@@ -226,13 +218,10 @@
     statusError: "Ошибка загрузки",
     materials: "Материалы",
     selectedCount: "Выбрано",
-    recommendedTypesTitle: "Рекомендуемые типы сейчас",
-    recommendedGroupTitle: "Рекомендуем по умолчанию",
-    otherTypesTitle: "Другие типы",
-    loadingTypeFilters: "Подбираем типы, которые сейчас лучше всего подходят для тренировки.",
+    loadingTypeFilters: "",
     noTypesAvailable: "Для этого экзамена пока не настроены типы задач.",
     leaveAtLeastOneType: "Нужно выбрать хотя бы один тип задач для тренировки.",
-    startWithSelectedTypes: "Тренировка будет запущена только по выбранным типам.",
+    startWithSelectedTypes: "Сессия будет запущена по выбранным типам.",
     historyEmpty: "Здесь появятся решённые шаги сессии.",
     summaryEmpty: "История появится после первых решённых шагов.",
     resultCorrect: "верно",
@@ -260,14 +249,14 @@
     finishedBodyTitle: "Сессия завершена",
     finishedBodyText: "Можно начать новую адаптивную тренировку или вернуться к экзамену.",
     startBusy: "Запуск...",
-    startNew: "Начать новую",
-    restart: "Начать заново",
+    startNew: "Начать новую сессию",
+    restart: "Заменить новой",
     continueBusy: "Загрузка...",
     continueCurrent: "Продолжить текущую",
     submitBusy: "Проверка...",
-    submitAnswer: "Отправить ответ",
+    submitAnswer: "Проверить",
     endBusy: "Завершение...",
-    endSession: "Завершить сессию",
+    endSession: "Завершить",
     statusIdle: "ожидание",
   };
 
@@ -276,7 +265,7 @@
   let lastSubmissionResult = null;
   let typeFilterPayload = null;
   let selectedTaskTypeIds = [];
-  let otherTypesExpanded = false;
+  let activeTypePreset = "recommended";
 
   function csrfToken() {
     const value = document.cookie.split(";").map((entry) => entry.trim()).find((entry) => entry.startsWith("csrftoken="));
@@ -324,7 +313,7 @@
       return Object.entries(value)
         .filter(([, item]) => item !== null && item !== undefined && item !== "")
         .map(([key, item]) => `${key}: ${item}`)
-        .join(" В· ");
+        .join(" | ");
     }
     return String(value);
   }
@@ -338,13 +327,15 @@
     app.dataset.mode = mode;
     if (mode === "idle") {
       launcherEl.hidden = false;
+      launcherEl.style.display = "";
       launcherEl.classList.remove("training-page__setup--compact");
       setWorkspaceVisible(false);
       return;
     }
     setWorkspaceVisible(true);
-    launcherEl.hidden = false;
-    launcherEl.classList.add("training-page__setup--compact");
+    launcherEl.hidden = true;
+    launcherEl.style.display = "none";
+    launcherEl.classList.remove("training-page__setup--compact");
   }
 
   function uniqueTypeIds(values) {
@@ -366,15 +357,74 @@
       startBtn.disabled = count === 0;
     }
   }
-  function renderOtherTypesToggle(count) {
-    if (!count) {
-      typeOtherToggleEl.hidden = true;
-      typeFiltersOtherEl.hidden = true;
+
+  function updatePresetButtons() {
+    [
+      [typePresetRecommendedBtn, "recommended"],
+      [typePresetAllBtn, "all"],
+      [typePresetNoneBtn, "none"],
+    ].forEach(([button, mode]) => {
+      if (!button) return;
+      const isActive = activeTypePreset === mode;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  function recommendedTypeIds() {
+    if (!typeFilterPayload) return [];
+    return uniqueTypeIds(
+      typeFilterPayload.recommended_type_ids
+      || (typeFilterPayload.types || [])
+        .filter((item) => item.selected_by_default || item.recommended)
+        .map((item) => item.type_id)
+    );
+  }
+
+  function allTypeIds() {
+    if (!typeFilterPayload) return [];
+    return uniqueTypeIds((typeFilterPayload.types || []).map((item) => item.type_id));
+  }
+
+  function syncPresetState() {
+    const selected = uniqueTypeIds(selectedTaskTypeIds);
+    const recommended = recommendedTypeIds();
+    const all = allTypeIds();
+    const sameAs = (left, right) => left.length === right.length && left.every((value, index) => value === right[index]);
+
+    if (sameAs(selected, recommended)) activeTypePreset = "recommended";
+    else if (sameAs(selected, all)) activeTypePreset = "all";
+    else if (selected.length === 0) activeTypePreset = "none";
+    else activeTypePreset = null;
+
+    updatePresetButtons();
+  }
+
+  function updateTypeSelection(nextIds) {
+    selectedTaskTypeIds = uniqueTypeIds(nextIds);
+    updateSelectedTypeCount();
+    syncPresetState();
+    if (typeFilterPayload) {
+      typeFiltersFeedbackEl.hidden = selectedTaskTypeIds.length > 0;
+      typeFiltersFeedbackEl.textContent = selectedTaskTypeIds.length > 0 ? labels.startWithSelectedTypes : labels.leaveAtLeastOneType;
+    }
+    renderTypeFilters(typeFilterPayload);
+  }
+
+  function applyPreset(mode) {
+    if (!typeFilterPayload) return;
+    if (mode === "recommended") {
+      activeTypePreset = "recommended";
+      updateTypeSelection(recommendedTypeIds());
       return;
     }
-    typeOtherToggleEl.hidden = false;
-    typeOtherToggleEl.textContent = otherTypesExpanded ? "Скрыть другие типы" : "Показать другие типы";
-    typeFiltersOtherEl.hidden = !otherTypesExpanded;
+    if (mode === "all") {
+      activeTypePreset = "all";
+      updateTypeSelection(allTypeIds());
+      return;
+    }
+    activeTypePreset = "none";
+    updateTypeSelection([]);
   }
 
   function renderTypeFilterCard(item) {
@@ -387,14 +437,9 @@
     checkbox.checked = selectedTaskTypeIds.includes(item.type_id);
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) {
-        selectedTaskTypeIds = uniqueTypeIds([...selectedTaskTypeIds, item.type_id]);
+        updateTypeSelection([...selectedTaskTypeIds, item.type_id]);
       } else {
-        selectedTaskTypeIds = selectedTaskTypeIds.filter((value) => value !== item.type_id);
-      }
-      updateSelectedTypeCount();
-      if (typeFilterPayload) {
-        typeFiltersFeedbackEl.hidden = selectedTaskTypeIds.length > 0;
-        typeFiltersFeedbackEl.textContent = selectedTaskTypeIds.length > 0 ? labels.startWithSelectedTypes : labels.leaveAtLeastOneType;
+        updateTypeSelection(selectedTaskTypeIds.filter((value) => value !== item.type_id));
       }
     });
 
@@ -419,33 +464,25 @@
   }
 
   function renderTypeFilters(payload) {
+    if (!payload) return;
     typeFilterPayload = payload;
-    typeFiltersSummaryEl.textContent = payload.summary || labels.loadingTypeFilters;
-    typeRecommendedListEl.innerHTML = "";
-    typeOtherListEl.innerHTML = "";
+    typeListEl.innerHTML = "";
     typeFiltersFeedbackEl.hidden = true;
     typeFiltersFeedbackEl.textContent = "";
+    typeFiltersListEl.hidden = false;
 
-    const recommended = [];
-    const other = [];
-    (payload.types || []).forEach((item) => {
-      if (item.recommended) recommended.push(item);
-      else other.push(item);
-    });
+    if (!selectedTaskTypeIds.length && activeTypePreset === "recommended") {
+      selectedTaskTypeIds = recommendedTypeIds();
+    }
 
-    selectedTaskTypeIds = uniqueTypeIds(payload.recommended_type_ids || payload.types.filter((item) => item.selected_by_default).map((item) => item.type_id));
+    (payload.types || []).forEach((item) => typeListEl.appendChild(renderTypeFilterCard(item)));
     updateSelectedTypeCount();
-    typeResetBtn.hidden = selectedTaskTypeIds.length === 0;
+    syncPresetState();
 
-    recommended.forEach((item) => typeRecommendedListEl.appendChild(renderTypeFilterCard(item)));
-    other.forEach((item) => typeOtherListEl.appendChild(renderTypeFilterCard(item)));
-    typeFiltersRecommendedEl.hidden = recommended.length === 0;
-    renderOtherTypesToggle(other.length);
-    typeFiltersOtherEl.hidden = other.length === 0;
-
-    if (!recommended.length && !other.length) {
+    if (!(payload.types || []).length) {
       typeFiltersFeedbackEl.hidden = false;
       typeFiltersFeedbackEl.textContent = labels.noTypesAvailable;
+      typeFiltersListEl.hidden = true;
       startBtn.disabled = true;
     }
   }
@@ -453,17 +490,13 @@
   function clearTypeFilters(message) {
     typeFilterPayload = null;
     selectedTaskTypeIds = [];
-    otherTypesExpanded = false;
-    typeRecommendedListEl.innerHTML = "";
-    typeOtherListEl.innerHTML = "";
-    typeFiltersRecommendedEl.hidden = true;
-    typeFiltersOtherEl.hidden = true;
-    typeOtherToggleEl.hidden = true;
+    activeTypePreset = "recommended";
+    typeListEl.innerHTML = "";
+    typeFiltersListEl.hidden = true;
     typeFiltersFeedbackEl.hidden = !message;
     typeFiltersFeedbackEl.textContent = message || "";
-    typeFiltersSummaryEl.textContent = labels.loadingTypeFilters;
-    typeResetBtn.hidden = true;
     updateSelectedTypeCount();
+    updatePresetButtons();
     startBtn.disabled = false;
   }
 
@@ -552,7 +585,7 @@
 
       const meta = document.createElement("p");
       meta.className = "muted training-history__meta";
-      meta.textContent = [itemData.task_type_name || "", formatDate(itemData.answered_at || itemData.shown_at)].filter(Boolean).join(" В· ");
+      meta.textContent = [itemData.task_type_name || "", formatDate(itemData.answered_at || itemData.shown_at)].filter(Boolean).join(" | ");
 
       item.appendChild(top);
       item.appendChild(meta);
@@ -634,7 +667,7 @@
       return;
     }
 
-    taskMetaEl.textContent = `#${task.order} В· ${task.task_type_name || ""}`;
+    taskMetaEl.textContent = `#${task.order} | ${task.task_type_name || ""}`;
     taskTitleEl.textContent = task.title || labels.fallbackTaskTitle;
     taskBodyEl.innerHTML = task.task_body_html || `<p class="muted">${labels.missingTaskBody}</p>`;
     taskBodyEl.setAttribute("data-format", task.task_rendering_strategy === "markdown" ? "markdown" : "html");
@@ -694,11 +727,11 @@
       statusText: isActive ? labels.statusActive : labels.statusReady,
     });
     sessionTitleEl.textContent = isActive ? labels.sessionActiveTitle : labels.sessionCompletedTitle;
-    sessionMetaEl.textContent = `${labels.startedAt}: ${formatDate(session.started_at)} В· ${labels.lastActivity}: ${formatDate(session.last_activity_at || session.started_at)}`;
+    sessionMetaEl.textContent = `${labels.startedAt}: ${formatDate(session.started_at)} | ${labels.lastActivity}: ${formatDate(session.last_activity_at || session.started_at)}`;
     statStepsEl.textContent = `${session.completed_steps}/${session.steps_total}`;
     statAccuracyEl.textContent = `${Math.round((session.accuracy || 0) * 100)}%`;
     statStatusEl.textContent = formatStatus(session.status);
-    summaryEl.textContent = `${labels.stepsSolved}: ${session.completed_steps} В· ${labels.correctSteps}: ${session.correct_steps}`;
+    summaryEl.textContent = `${labels.stepsSolved}: ${session.completed_steps} | ${labels.correctSteps}: ${session.correct_steps}`;
     endBtn.hidden = !isActive;
     renderHistory(payload.history || []);
     renderCurrentTask(payload.current_task, session.status);
@@ -798,15 +831,9 @@
 
   startBtn.addEventListener("click", startSession);
   continueBtn.addEventListener("click", continueSession);
-  typeOtherToggleEl.addEventListener("click", () => {
-    otherTypesExpanded = !otherTypesExpanded;
-    renderOtherTypesToggle(typeOtherListEl.children.length);
-  });
-  typeResetBtn.addEventListener("click", () => {
-    if (!typeFilterPayload) return;
-    selectedTaskTypeIds = uniqueTypeIds(typeFilterPayload.recommended_type_ids || []);
-    renderTypeFilters(typeFilterPayload);
-  });
+  typePresetRecommendedBtn.addEventListener("click", () => applyPreset("recommended"));
+  typePresetAllBtn.addEventListener("click", () => applyPreset("all"));
+  typePresetNoneBtn.addEventListener("click", () => applyPreset("none"));
   retryBtn.addEventListener("click", () => {
     loadTypeFilters().catch(() => clearTypeFilters(labels.typeFiltersFailed));
     loadCurrent().catch((error) => renderIdleState(String(error.message || error || labels.requestFailed), { allowContinue: false, isError: true, statusText: labels.statusError }));

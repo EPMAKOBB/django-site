@@ -68,9 +68,10 @@
             <a
               href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}"
               class="btn"
+              {% if user.is_authenticated %}aria-label="Личный кабинет" title="Личный кабинет"{% endif %}
             >
               {% if user.is_authenticated %}
-                кабинет: {{ request.user.username }}
+                <span aria-hidden="true">👤</span> {{ request.user.username }}
               {% else %}
                 &#1074;&#1086;&#1081;&#1090;&#1080;
               {% endif %}
