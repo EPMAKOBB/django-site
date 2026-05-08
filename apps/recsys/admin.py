@@ -38,6 +38,7 @@ from .models import (
     VariantPage,
 )
 from .service_utils import pregenerated_import, task_generation
+from .service_utils.publication import with_publication_counts
 
 
 class TaskPregeneratedUploadForm(forms.Form):
@@ -214,6 +215,8 @@ class TaskAdmin(admin.ModelAdmin):
         "dynamic_mode",
         "rendering_strategy",
     )
+    list_editable = ("status",)
+    actions = ("publish_selected", "move_selected_to_draft")
     filter_horizontal = ("tags",)
     readonly_fields = (
         "image_preview",
@@ -265,6 +268,16 @@ class TaskAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+    @admin.action(description="Publish selected tasks")
+    def publish_selected(self, request, queryset):
+        updated = queryset.update(status=Task.Status.PUBLISHED)
+        self.message_user(request, f"Published {updated} task(s).", level=messages.SUCCESS)
+
+    @admin.action(description="Move selected tasks to draft")
+    def move_selected_to_draft(self, request, queryset):
+        updated = queryset.update(status=Task.Status.DRAFT)
+        self.message_user(request, f"Moved {updated} task(s) to draft.", level=messages.SUCCESS)
 
     @admin.display(description="Предпросмотр")
     def image_preview(self, obj):
@@ -542,11 +555,25 @@ class VariantTemplateAdmin(admin.ModelAdmin):
         "display_order",
         "time_limit",
         "max_attempts",
+        "public_ready",
+        "unpublished_tasks_count_display",
         "created_at",
     )
+
     search_fields = ("name", "exam_version__name", "slug")
     list_filter = ("exam_version", "kind", "is_public")
     ordering = ("display_order", "name")
+
+    def get_queryset(self, request):
+        return with_publication_counts(super().get_queryset(request))
+
+    @admin.display(boolean=True, description="Public ready")
+    def public_ready(self, obj):
+        return int(getattr(obj, "unpublished_tasks_count", 0) or 0) == 0
+
+    @admin.display(description="Unpublished tasks")
+    def unpublished_tasks_count_display(self, obj):
+        return int(getattr(obj, "unpublished_tasks_count", 0) or 0)
 
 
 @admin.register(VariantTask)

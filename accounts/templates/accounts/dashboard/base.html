@@ -3,28 +3,10 @@
 {% block title %}{% block dashboard_title %}{% endblock %}{% endblock %}
 {% block content %}
 <div class="dashboard-container container">
-  {% if role == 'student' %}
-    <div class="dashboard-exams-line" style="margin-bottom:12px;">
-      {% with exams_list=request.user.studentprofile.exam_versions.all %}
-        {% if exams_list|length %}
-          <div class="flex items-center gap-8" role="group" aria-label="{% trans 'Экзамены пользователя' %}">
-            {% for exam in exams_list %}
-              <button type="button" class="btn">{{ exam.name }}</button>
-            {% endfor %}
-          </div>
-        {% else %}
-          <div class="hint">{% trans "выбрать экзамены можно в" %} <a href="{% url 'accounts:dashboard-settings' %}">{% trans "настройках" %}</a></div>
-        {% endif %}
-      {% endwith %}
-    </div>
-  {% endif %}
   <nav class="dashboard-tabs" aria-label="{% trans 'Навигация по разделам' %}">
     <ul class="tabs" role="tablist">
       <li class="{% if active_tab == 'tasks' %}active{% endif %}" role="presentation">
-        <a role="tab" aria-selected="{% if active_tab == 'tasks' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard' %}">{% trans 'Задания' %}</a>
-      </li>
-      <li class="{% if active_tab == 'statistics' %}active{% endif %}" role="presentation">
-        <a role="tab" aria-selected="{% if active_tab == 'statistics' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-subjects' %}">{% trans 'Статистика' %}</a>
+        <a role="tab" aria-selected="{% if active_tab == 'tasks' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard' %}">{% trans 'История' %}</a>
       </li>
       <li class="{% if active_tab == 'courses' %}active{% endif %}" role="presentation">
         <a role="tab" aria-selected="{% if active_tab == 'courses' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-courses' %}">{% trans 'Курсы' %}</a>

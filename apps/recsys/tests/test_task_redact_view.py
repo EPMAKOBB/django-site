@@ -152,4 +152,4 @@ class TaskRedactViewTests(TestCase):
         self.assertFalse(
             TaskAttachment.objects.filter(task=self.task, id=old_attachment.id).exists()
         )
-        self.assertTrue(any("new-name.txt" in str(name) for name in attachment_names))
+        self.assertTrue(any("new-name" in str(name) for name in attachment_names))

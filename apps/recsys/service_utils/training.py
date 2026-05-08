@@ -74,6 +74,28 @@ def _serialize_step(step: TrainingSessionStep) -> dict[str, Any]:
     }
 
 
+def _freshen_open_task_snapshot(step: TrainingSessionStep) -> dict[str, Any]:
+    task_snapshot = deepcopy(step.task_snapshot or {})
+    if step.task is None:
+        return task_snapshot
+
+    fresh_snapshot = _task_snapshot(step.task)
+    for key in (
+        "title",
+        "description",
+        "rendering_strategy",
+        "task_body_html",
+        "image",
+        "attachments",
+        "answer_schema",
+        "max_score",
+        "task_type_name",
+    ):
+        if key in {"task_body_html", "image", "attachments"} or not task_snapshot.get(key):
+            task_snapshot[key] = deepcopy(fresh_snapshot.get(key))
+    return task_snapshot
+
+
 def _session_summary(session: TrainingSession) -> dict[str, Any]:
     accuracy = (
         (session.correct_steps / session.completed_steps)
@@ -133,8 +155,6 @@ def _pick_candidate_for_session(user, session: TrainingSession) -> Recommendatio
     for candidate in candidates:
         if candidate.task.id not in used_task_ids:
             return candidate
-    if candidates:
-        return candidates[0]
     return None
 
 
@@ -203,6 +223,34 @@ def _selected_task_types_summary(session: TrainingSession) -> list[dict[str, Any
 
 @transaction.atomic
 def start_session(user, *, exam_version, selected_task_type_ids: list[int] | None = None) -> TrainingSession:
+    validated_type_ids = validate_selected_task_type_ids(
+        exam_version=exam_version,
+        selected_task_type_ids=selected_task_type_ids,
+    )
+    if not validated_type_ids:
+        defaults = build_type_filter_payload(user=user, exam_version=exam_version)
+        validated_type_ids = list(defaults.get("recommended_type_ids") or [])
+
+    available_candidates = recommend_task_candidates(
+        user,
+        limit=1,
+        log=False,
+        source_mode=RecommendationLog.SourceMode.TRAINING,
+        exam_version=exam_version,
+        task_type_ids=validated_type_ids or None,
+        exclude_recent=False,
+        exclude_solved=True,
+    )
+    if not available_candidates:
+        raise exceptions.ValidationError(
+            {
+                "selected_task_type_ids": (
+                    "Для выбранных типов нет доступных новых опубликованных задач. "
+                    "Выберите больше типов или вернитесь позже."
+                )
+            }
+        )
+
     active = (
         TrainingSession.objects.select_for_update()
         .filter(
@@ -216,14 +264,6 @@ def start_session(user, *, exam_version, selected_task_type_ids: list[int] | Non
     if active is not None:
         active.mark_abandoned()
 
-    validated_type_ids = validate_selected_task_type_ids(
-        exam_version=exam_version,
-        selected_task_type_ids=selected_task_type_ids,
-    )
-    if not validated_type_ids:
-        defaults = build_type_filter_payload(user=user, exam_version=exam_version)
-        validated_type_ids = list(defaults.get("recommended_type_ids") or [])
-
     session = TrainingSession.objects.create(
         user=user,
         exam_version=exam_version,
@@ -231,7 +271,8 @@ def start_session(user, *, exam_version, selected_task_type_ids: list[int] | Non
         last_activity_at=timezone.now(),
         selected_task_type_ids=validated_type_ids,
     )
-    _append_next_step(user, session)
+    if _append_next_step(user, session) is None:
+        session.mark_completed()
     return get_session_or_404(user, session.id)
 
 
@@ -254,7 +295,7 @@ def session_payload(session: TrainingSession) -> dict[str, Any]:
             "step_id": active_step.id,
             "order": active_step.order,
             "reason_snapshot": deepcopy(active_step.reason_snapshot or {}),
-            **deepcopy(active_step.task_snapshot or {}),
+            **_freshen_open_task_snapshot(active_step),
         }
 
     return {
@@ -365,6 +406,8 @@ def submit_step_answer(
     )
 
     next_step = _append_next_step(user, session)
+    if next_step is None:
+        session.mark_completed()
     refreshed = get_session_or_404(user, session.id)
     payload = session_payload(refreshed)
     payload["submission_result"] = {

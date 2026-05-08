@@ -29,6 +29,11 @@
     listEl.innerHTML = items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
   };
 
+  const formatScore = (value) => {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
+    return String(value);
+  };
+
   const getTypeCards = () => Array.from(blocksEl.querySelectorAll("[data-type-id]"));
 
   const getTypeMeta = (card) => ({
@@ -133,20 +138,37 @@
     }
 
     const overall = Math.round(entries.reduce((sum, entry) => sum + entry.percent, 0) / entries.length);
-    const strongest = [...entries].sort((a, b) => b.percent - a.percent).slice(0, 2);
+    const strongest = [...entries]
+      .filter((entry) => entry.percent > 0)
+      .sort((a, b) => b.percent - a.percent)
+      .slice(0, 2);
     const weakest = [...entries].sort((a, b) => a.percent - b.percent).slice(0, 2);
+    const forecast = payload?.score_forecast || null;
 
-    if (forecastValueEl) forecastValueEl.textContent = `${overall}%`;
+    if (forecastValueEl) {
+      forecastValueEl.textContent = forecast
+        ? `≈ ${formatScore(forecast.primary_score)} / ${formatScore(forecast.primary_max)}`
+        : "—";
+    }
     if (forecastNoteEl) {
-      forecastNoteEl.textContent = overall >= 70
-        ? "Хорошая база. Имеет смысл удерживать сильные типы и точечно добирать слабые."
-        : "Это черновой прогноз по покрытию типов. Лучше всего улучшать ближайшую слабую зону.";
+      if (forecast && forecast.has_scale) {
+        forecastNoteEl.textContent = `Прогноз: ${formatScore(forecast.primary_score)} первичных, ${formatScore(forecast.secondary_score)} из ${formatScore(forecast.secondary_max)} вторичных.`;
+      } else if (forecast) {
+        forecastNoteEl.textContent = `Прогноз: ${formatScore(forecast.primary_score)} первичных. Шкала вторичных баллов для экзамена не настроена.`;
+      } else {
+        forecastNoteEl.textContent = "Прогноз появится после загрузки прогресса.";
+      }
     }
     if (progressValueEl) progressValueEl.textContent = `${overall}%`;
     if (progressFillEl) progressFillEl.style.width = `${overall}%`;
     if (progressNoteEl) progressNoteEl.textContent = "Среднее покрытие по типам заданий этого экзамена.";
 
-    setList(strengthsListEl, strongest.map((entry) => `${entry.name} (${entry.percent}%)`));
+    setList(
+      strengthsListEl,
+      strongest.length
+        ? strongest.map((entry) => `${entry.name} (${entry.percent}%)`)
+        : ["Пока нет устойчивых сильных сторон", "Решите ещё несколько задач, чтобы прогноз стал точнее"]
+    );
     setList(weaknessesListEl, weakest.map((entry) => `${entry.name} (${entry.percent}%)`));
   };
 

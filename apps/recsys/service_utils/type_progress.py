@@ -6,7 +6,8 @@ from typing import Iterable
 
 from django.db.models import Count, QuerySet
 
-from apps.recsys.models import Attempt, Task, TaskTag, TaskType, TypeMastery
+from apps.recsys.models import Attempt, TagMastery, Task, TaskTag, TaskType, TypeMastery
+from apps.recsys.service_utils.publication import public_tasks_queryset
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,7 @@ class TagProgressInfo:
     solved_count: int
     total_count: int
     ratio: float
+    coverage_ratio: float
 
 
 @dataclass(frozen=True)
@@ -42,9 +44,9 @@ def build_type_progress_map(
 ) -> dict[int, TypeProgressInfo]:
     """Return progress information per task type for the given ``user``.
 
-    The ``effective_mastery`` limits the raw mastery value by the coverage of
-    required tags.  If no required tags are configured for a type, the coverage
-    is treated as 1.0.
+    ``effective_mastery`` is the visible learning progress based on tag mastery.
+    ``coverage_ratio`` remains a separate signal for how much of the published
+    task bank has been covered.
     """
 
     type_ids = list({int(type_id) for type_id in task_type_ids if type_id is not None})
@@ -67,12 +69,24 @@ def build_type_progress_map(
         tag.id for tags in required_tags_map.values() for tag in tags
     }
 
+    tag_mastery_by_id: dict[int, TagMastery] = {}
+    if required_tag_ids:
+        tag_mastery_by_id = {
+            mastery.task_tag_id: mastery
+            for mastery in TagMastery.objects.filter(
+                user=user,
+                task_tag_id__in=required_tag_ids,
+            )
+        }
+
     tasks_per_type_tag: dict[tuple[int, int], int] = {}
     if required_tag_ids:
         task_totals = (
-            Task.objects.filter(
-                type_id__in=type_ids,
-                tags__in=required_tag_ids,
+            public_tasks_queryset(
+                Task.objects.filter(
+                    type_id__in=type_ids,
+                    tags__in=required_tag_ids,
+                )
             )
             .values("type_id", "tags")
             .annotate(total=Count("id", distinct=True))
@@ -110,30 +124,37 @@ def build_type_progress_map(
             key = (type_id, tag.id)
             total_count = tasks_per_type_tag.get(key, 0)
             solved_count = solved_by_type_tag.get(key, 0)
-            ratio = 0.0
+            coverage_ratio = 0.0
             if total_count > 0:
-                ratio = min(1.0, solved_count / total_count)
-            if ratio >= 1.0 and total_count > 0:
+                coverage_ratio = min(1.0, solved_count / total_count)
+            if coverage_ratio >= 1.0 and total_count > 0:
                 covered_tag_ids.add(tag.id)
+            mastery_obj = tag_mastery_by_id.get(tag.id)
+            ratio = _tag_mastery_ratio(mastery_obj)
             tag_progress_entries.append(
                 TagProgressInfo(
                     tag=tag,
                     solved_count=solved_count,
                     total_count=total_count,
                     ratio=ratio,
+                    coverage_ratio=coverage_ratio,
                 )
             )
 
         if required_count == 0:
             coverage_ratio = 1.0
         else:
-            coverage_ratio = sum(entry.ratio for entry in tag_progress_entries) / required_count
+            coverage_ratio = (
+                sum(entry.coverage_ratio for entry in tag_progress_entries) / required_count
+            )
 
         raw_mastery = mastery_by_type.get(type_id, 0.0)
         if required_count == 0:
             effective_mastery = _clamp_mastery(raw_mastery)
         else:
-            effective_mastery = coverage_ratio
+            effective_mastery = (
+                sum(entry.ratio for entry in tag_progress_entries) / required_count
+            )
 
         covered_count = len(covered_tag_ids)
 
@@ -149,3 +170,14 @@ def build_type_progress_map(
         )
 
     return progress_map
+
+
+def _tag_mastery_ratio(mastery: TagMastery | None) -> float:
+    if mastery is None:
+        return 0.0
+    return _clamp_mastery(
+        0.55 * float(mastery.mastery or 0.0)
+        + 0.20 * float(mastery.progress or 0.0)
+        + 0.15 * float(mastery.stability or 0.0)
+        + 0.10 * float(mastery.confidence or 0.0)
+    )

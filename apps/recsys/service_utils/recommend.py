@@ -15,6 +15,7 @@ from apps.recsys.models import (
     TaskSkill,
     TypeMastery,
 )
+from apps.recsys.service_utils.publication import public_tasks_queryset
 
 __all__ = ["select_candidates", "score_task", "log_recommendations"]
 
@@ -44,7 +45,7 @@ def select_candidates(user, now) -> QuerySet[Task]:
     recent_recs = RecommendationLog.objects.filter(
         user=user, created_at__gte=now - timedelta(days=1)
     ).values_list("task_id", flat=True)
-    return Task.objects.exclude(id__in=completed).exclude(id__in=recent_recs)
+    return public_tasks_queryset().exclude(id__in=completed).exclude(id__in=recent_recs)
 
 
 def log_recommendations(user, tasks: Iterable[Task]) -> None:

@@ -47,6 +47,7 @@ class VariantBuilderViewTests(TestCase):
             exam_version=exam,
             type=task_type,
             title=title,
+            slug=f"task-{abs(hash(title))}",
             source=source_variant.source if source_variant else self.source,
             source_variant=source_variant,
         )
@@ -130,6 +131,7 @@ class VariantBuilderViewTests(TestCase):
             exam_version=self.foreign_exam,
             type=type_foreign,
             title="Другой предмет",
+            slug="foreign-task",
             source=self.other_source,
         )
 
@@ -146,4 +148,3 @@ class VariantBuilderViewTests(TestCase):
 
         filtered_ids = list(response.context["tasks"].values_list("id", flat=True))
         self.assertEqual(filtered_ids, [target.id])
-

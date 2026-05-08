@@ -7,6 +7,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from .models import Attempt, RecommendationLog, SkillMastery, TagMastery, Task
+from .service_utils.publication import public_tasks_queryset
 
 ETA_SUCCESS = 5.0
 TARGET_SUCCESS = 0.65
@@ -255,7 +256,7 @@ def _select_candidates(
     exclude_recent: bool = True,
     exclude_solved: bool = True,
 ):
-    queryset = Task.objects.all()
+    queryset = public_tasks_queryset()
     if exam_version is not None:
         queryset = queryset.filter(exam_version=exam_version)
     if task_type_ids:

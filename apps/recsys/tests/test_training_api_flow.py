@@ -66,6 +66,7 @@ class TrainingApiFlowTests(TestCase):
             correct_answer={"value": "99"},
         )
         self.foreign_task.tags.add(self.other_tag)
+        Task.objects.update(status=Task.Status.PUBLISHED)
 
     def test_training_session_start_submit_and_end(self):
         resp = self.client.get(
@@ -185,6 +186,7 @@ class TrainingApiFlowTests(TestCase):
             subject=self.subject,
             exam_version=self.exam_version,
             correct_answer={"value": "100"},
+            status=Task.Status.PUBLISHED,
         )
 
         resp = self.client.post(
@@ -201,3 +203,61 @@ class TrainingApiFlowTests(TestCase):
         payload = resp.json()
         self.assertEqual(payload["session"]["selected_task_type_ids"], [extra_type.id])
         self.assertEqual(payload["current_task"]["task_id"], extra_task.id)
+
+    def test_training_session_completes_when_selected_pool_is_exhausted(self):
+        extra_type = TaskType.objects.create(
+            name="Single Task Type",
+            subject=self.subject,
+            exam_version=self.exam_version,
+        )
+        task = Task.objects.create(
+            type=extra_type,
+            title="Only task",
+            subject=self.subject,
+            exam_version=self.exam_version,
+            correct_answer={"value": "100"},
+            status=Task.Status.PUBLISHED,
+        )
+
+        resp = self.client.post(
+            "/api/training/sessions/",
+            data=json.dumps(
+                {
+                    "exam_version_id": self.exam_version.id,
+                    "selected_task_type_ids": [extra_type.id],
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        payload = resp.json()
+        self.assertEqual(payload["current_task"]["task_id"], task.id)
+        session_id = payload["session"]["id"]
+        step_id = payload["current_task"]["step_id"]
+
+        resp = self.client.post(
+            f"/api/training/sessions/{session_id}/submit/",
+            data=json.dumps({"step_id": step_id, "answer": {"value": "100"}}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        payload = resp.json()
+        self.assertEqual(payload["session"]["status"], TrainingSession.Status.COMPLETED)
+        self.assertIsNone(payload["current_task"])
+        self.assertIsNone(payload["next_step_id"])
+        self.assertEqual(len(payload["history"]), 1)
+
+        sessions_count = TrainingSession.objects.count()
+        resp = self.client.post(
+            "/api/training/sessions/",
+            data=json.dumps(
+                {
+                    "exam_version_id": self.exam_version.id,
+                    "selected_task_type_ids": [extra_type.id],
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("selected_task_type_ids", resp.json())
+        self.assertEqual(TrainingSession.objects.count(), sessions_count)

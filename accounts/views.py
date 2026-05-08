@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db import connection, transaction
+from django.db import transaction
 from django.db.models import Prefetch
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
@@ -21,22 +21,17 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as drf_exceptions
 
 from apps.recsys.models import (
-    ExamVersion,
     Skill,
-    SkillMastery,
     Task,
     TaskSkill,
-    TaskType,
+    TrainingSession,
     VariantTemplate,
     VariantAssignment,
     VariantTask,
 )
 from apps.recsys.forms import TaskAnswerForm
 from apps.recsys.service_utils import variants as variant_services
-from apps.recsys.service_utils.type_progress import (
-    TypeProgressInfo,
-    build_type_progress_map,
-)
+from apps.recsys.service_utils.type_progress import build_type_progress_map
 from apps.recsys.presentation.tasks import build_task_statement_payload
 from subjects.models import Subject
 from courses.models import CourseGraphEdge, CourseModule, CourseModuleItem
@@ -57,9 +52,7 @@ from .forms import (
     CourseForm,
     CourseTheoryCardForm,
 )
-from .forms_exams import ExamPreferencesForm
 from .models import (
-    StudentProfile,
     StudyClass,
     ClassStudentMembership,
     ClassTeacherSubject,
@@ -148,6 +141,73 @@ def _build_assignment_context(assignment):
         "deadline_passed": deadline_passed,
     }
 
+
+def _result_label(result: str) -> str:
+    labels = {
+        "correct": _("верно"),
+        "partial": _("частично"),
+        "incorrect": _("ошибка"),
+        "unknown": _("без оценки"),
+    }
+    return labels.get(result, result or _("без оценки"))
+
+
+def _build_training_step_context(step):
+    task_snapshot = step.task_snapshot or {}
+    attempt = step.attempt
+    score = attempt.score if attempt else None
+    max_score = (attempt.max_score if attempt else None) or task_snapshot.get("max_score")
+    if score is not None and max_score:
+        score_label = f"{score} / {max_score}"
+    elif score is not None:
+        score_label = str(score)
+    else:
+        score_label = "—"
+    return {
+        "step": step,
+        "task_title": task_snapshot.get("title") or (step.task.title if step.task else _("Задача")),
+        "task_type_name": task_snapshot.get("task_type_name") or (step.task.type.name if step.task and step.task.type_id else ""),
+        "result_label": _result_label(step.result),
+        "response": _stringify_response((step.response_snapshot or {}).get("answer")),
+        "score_label": score_label,
+    }
+
+
+def _build_training_session_context(session):
+    completed_steps = session.completed_steps or 0
+    correct_steps = session.correct_steps or 0
+    accuracy_percentage = int(round((correct_steps / completed_steps) * 100)) if completed_steps else 0
+    steps = [
+        _build_training_step_context(step)
+        for step in session.steps.all()
+        if step.status == "answered"
+    ]
+    type_names = []
+    for item in steps:
+        name = item.get("task_type_name")
+        if name and name not in type_names:
+            type_names.append(name)
+
+    status_labels = {
+        TrainingSession.Status.ACTIVE: _("в работе"),
+        TrainingSession.Status.COMPLETED: _("завершена"),
+        TrainingSession.Status.ABANDONED: _("прервана"),
+    }
+    exam = session.exam_version
+    return {
+        "session": session,
+        "exam": exam,
+        "title": _("Тренировка"),
+        "status_label": status_labels.get(session.status, session.status),
+        "steps": steps,
+        "type_names": type_names,
+        "accuracy_percentage": accuracy_percentage,
+        "progress_label": f"{correct_steps}/{completed_steps}" if completed_steps else "0/0",
+        "activity_at": session.last_activity_at or session.ended_at or session.started_at,
+        "continue_url": reverse("exam-training-page", args=[exam.slug]) if exam and exam.slug else "",
+    }
+
+
 def _get_dashboard_role(request):
     """Return the current dashboard role stored in the session."""
 
@@ -163,29 +223,6 @@ def _get_dashboard_role(request):
             role = "student"
         request.session["dashboard_role"] = role
     return role
-
-
-def _get_selected_exam_ids(
-    profile: StudentProfile | None, exams_form: ExamPreferencesForm
-) -> list[int]:
-    """Return the exam ids that should be rendered as selected."""
-
-    def _normalize(values) -> list[int]:
-        normalized: list[int] = []
-        for value in values:
-            if value is None:
-                continue
-            try:
-                normalized.append(int(value))
-            except (TypeError, ValueError):
-                continue
-        return normalized
-
-    if exams_form.is_bound:
-        return _normalize(exams_form.data.getlist("exam_versions"))
-    if profile:
-        return list(profile.exam_versions.values_list("id", flat=True))
-    return []
 
 
 def auth_entry(request, default_mode: str = "login"):
@@ -233,6 +270,20 @@ def progress(request):
     role = _get_dashboard_role(request)
     assignments = variant_services.get_assignments_for_user(request.user)
     current_assignments, past_assignments = variant_services.split_assignments(assignments)
+    training_sessions = list(
+        TrainingSession.objects.filter(
+            user=request.user,
+        )
+        .select_related("exam_version", "exam_version__subject")
+        .prefetch_related("steps", "steps__task", "steps__task__type", "steps__attempt")
+        .order_by("-last_activity_at", "-started_at", "-id")[:50]
+    )
+    active_training_sessions = [
+        session for session in training_sessions if session.status == TrainingSession.Status.ACTIVE
+    ]
+    past_training_sessions = [
+        session for session in training_sessions if session.status != TrainingSession.Status.ACTIVE
+    ]
 
     context = {
         "active_tab": "tasks",
@@ -243,6 +294,14 @@ def progress(request):
         "past_assignments": [
             _build_assignment_context(assignment) for assignment in past_assignments
         ],
+        "active_training_sessions": [
+            _build_training_session_context(session) for session in active_training_sessions
+        ],
+        "past_training_sessions": [
+            _build_training_session_context(session) for session in past_training_sessions
+        ],
+        "active_count": len(current_assignments) + len(active_training_sessions),
+        "history_count": len(past_assignments) + len(past_training_sessions),
     }
     return render(request, "accounts/dashboard.html", context)
 
@@ -721,15 +780,11 @@ def dashboard_methodist(request):
 @login_required
 def dashboard_settings(request):
     role = _get_dashboard_role(request)
-    profile, _created = StudentProfile.objects.get_or_create(user=request.user)
-    subjects_qs = Subject.objects.all().prefetch_related("exam_versions").order_by("name")
 
     if request.method == "POST":
-        form_type = request.POST.get("form_type")
         user_submit = "user_submit" in request.POST
         password_submit = "password_submit" in request.POST
         role_submit = "role_submit" in request.POST
-        exams_submit = "exams_submit" in request.POST
         action = request.POST.get("action")
 
         if action == "join_teacher_code":
@@ -764,14 +819,12 @@ def dashboard_settings(request):
         if user_submit:
             u_form = UserUpdateForm(request.POST, instance=request.user)
             p_form = PasswordChangeForm(request.user)
-            exams_form = ExamPreferencesForm(instance=profile)
             if u_form.is_valid():
                 u_form.save()
                 return redirect("accounts:dashboard-settings")
         elif password_submit:
             u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user, request.POST)
-            exams_form = ExamPreferencesForm(instance=profile)
             if p_form.is_valid():
                 user = p_form.save()
                 update_session_auth_hash(request, user)
@@ -781,77 +834,18 @@ def dashboard_settings(request):
             if new_role in {"student", "teacher", "methodist"}:
                 request.session["dashboard_role"] = new_role
             return redirect("accounts:dashboard-settings")
-        elif (
-            form_type == "exams"
-            or exams_submit
-            or not (user_submit or password_submit or role_submit)
-        ):
-            u_form = UserUpdateForm(instance=request.user)
-            p_form = PasswordChangeForm(request.user)
-            exams_form = ExamPreferencesForm(request.POST, instance=profile)
-            raw_ids = request.POST.getlist("exam_versions")
-            ids = []
-            for v in raw_ids:
-                try:
-                    ids.append(int(v))
-                except (TypeError, ValueError):
-                    continue
-            logger.debug(
-                "Received exam selection payload",
-                extra={
-                    "raw_ids": raw_ids,
-                    "normalized_ids": ids,
-                    "user_id": request.user.pk,
-                    "profile_id": profile.pk,
-                },
-            )
-            selected = ExamVersion.objects.filter(id__in=ids)
-            logger.debug(
-                "ExamVersion queryset after filtering",
-                extra={
-                    "selected_ids": list(selected.values_list("id", flat=True)),
-                    "user_id": request.user.pk,
-                    "profile_id": profile.pk,
-                },
-            )
-            profile.exam_versions.set(selected)
-            logger.debug(
-                "Profile exam versions updated",
-                extra={
-                    "stored_ids": list(profile.exam_versions.values_list("id", flat=True)),
-                    "user_id": request.user.pk,
-                    "profile_id": profile.pk,
-                },
-            )
-            messages.success(request, _("Выбор сохранён"))
-            return redirect("accounts:dashboard-settings")
         else:
             u_form = UserUpdateForm(instance=request.user)
             p_form = PasswordChangeForm(request.user)
-            exams_form = ExamPreferencesForm(instance=profile)
     else:
         u_form = UserUpdateForm(instance=request.user)
         p_form = PasswordChangeForm(request.user)
-        exams_form = ExamPreferencesForm(instance=profile)
-
-    selected_exams = (
-        profile.exam_versions.select_related("subject")
-        .order_by("subject__name", "name")
-    )
-
-    selected_exam_ids = _get_selected_exam_ids(profile, exams_form)
-    db_selected_exam_ids = list(profile.exam_versions.values_list("id", flat=True))
 
     context = {
         "u_form": u_form,
         "p_form": p_form,
-        "exams_form": exams_form,
-        "subjects": subjects_qs,
-        "selected_exam_ids": selected_exam_ids,
-        "selected_exams": selected_exams,
         "active_tab": "settings",
         "role": role,
-        # Settings: teacher/student/class relations
         "my_teacher_links": TeacherStudentLink.objects.filter(
             student=request.user, status=TeacherStudentLink.Status.ACTIVE
         ).select_related("teacher", "subject"),
@@ -859,120 +853,7 @@ def dashboard_settings(request):
             student=request.user
         ).select_related("study_class"),
     }
-    through_records = list(
-        profile.exam_versions.through.objects.filter(studentprofile=profile).values_list(
-            "id", "examversion_id"
-        )
-    )
-    logger.debug(
-        "Rendering dashboard settings: profile_id=%s user_id=%s selected_exam_ids=%s db_selected_exam_ids=%s",
-        profile.pk,
-        request.user.pk,
-        selected_exam_ids,
-        db_selected_exam_ids,
-    )
-    logger.info(
-        "Dashboard settings context: alias=%s profile_id=%s user_id=%s selected_exam_ids=%s db_selected_exam_ids=%s through_records=%s",
-        connection.alias,
-        profile.pk,
-        request.user.pk,
-        selected_exam_ids,
-        db_selected_exam_ids,
-        through_records,
-    )
     return render(request, "accounts/dashboard/settings.html", context)
-
-
-@login_required
-def dashboard_subjects(request):
-    """Subjects dashboard with collapsible subject blocks and progress."""
-
-    role = _get_dashboard_role(request)
-
-    profile, _ = StudentProfile.objects.get_or_create(user=request.user)
-
-    selected_exams = (
-        profile.exam_versions.select_related("subject")
-        .prefetch_related("skill_groups__items__skill")
-        .order_by("subject__name", "name")
-    )
-
-    skill_masteries = (
-        SkillMastery.objects.filter(user=request.user)
-        .select_related("skill", "skill__subject")
-    )
-
-    mastery_by_skill_id: dict[int, float] = {
-        sm.skill_id: float(sm.mastery) for sm in skill_masteries
-    }
-
-    exam_ids = {exam.id for exam in selected_exams}
-
-    types_by_exam: dict[int, list[TaskType]] = {}
-    if exam_ids:
-        task_types = (
-            TaskType.objects.filter(exam_version_id__in=exam_ids)
-            .select_related("subject", "exam_version")
-            .order_by("exam_version__name", "display_order", "name")
-        )
-        for task_type in task_types:
-            if task_type.exam_version_id is None:
-                continue
-            types_by_exam.setdefault(task_type.exam_version_id, []).append(task_type)
-
-    all_task_type_ids: set[int] = {
-        task_type.id for task_types in types_by_exam.values() for task_type in task_types
-    }
-    default_progress = TypeProgressInfo(
-        raw_mastery=0.0,
-        effective_mastery=0.0,
-        coverage_ratio=0.0,
-        required_count=0,
-        covered_count=0,
-        required_tags=tuple(),
-        covered_tag_ids=frozenset(),
-        tag_progress=tuple(),
-    )
-    type_progress_map = (
-        build_type_progress_map(user=request.user, task_type_ids=all_task_type_ids)
-        if all_task_type_ids
-        else {}
-    )
-
-    def get_progress_for_type(type_id: int) -> TypeProgressInfo:
-        return type_progress_map.get(type_id, default_progress)
-
-    exam_statistics = []
-    for exam in selected_exams:
-        types = types_by_exam.get(exam.id, [])
-        type_progress = {t.id: get_progress_for_type(t.id) for t in types}
-        effective_masteries = {type_id: info.effective_mastery for type_id, info in type_progress.items()}
-        exam_statistics.append(
-            {
-                "subject": exam.subject,
-                "exam_version": exam,
-                "groups": list(exam.skill_groups.all()),
-                "types": types,
-                "skill_masteries": mastery_by_skill_id,
-                "type_masteries": effective_masteries,
-                "type_progress": type_progress,
-            }
-        )
-
-    context = {
-        "active_tab": "statistics",
-        "role": role,
-        "exam_statistics": exam_statistics,
-        # Settings page additions
-        "my_teacher_links": TeacherStudentLink.objects.filter(
-            student=request.user, status=TeacherStudentLink.Status.ACTIVE
-        ).select_related("teacher", "subject"),
-        "my_class_memberships": ClassStudentMembership.objects.filter(
-            student=request.user
-        ).select_related("study_class"),
-    }
-    return render(request, "accounts/dashboard/subjects.html", context)
-
 
 @login_required
 def dashboard_courses(request):

@@ -235,6 +235,7 @@ class TypeMasterySerializer(serializers.ModelSerializer):
                 "solved_count": entry.solved_count,
                 "total_count": entry.total_count,
                 "ratio": entry.ratio,
+                "coverage_ratio": entry.coverage_ratio,
             }
             for entry in info.tag_progress
         ]

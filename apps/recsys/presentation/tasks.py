@@ -3,8 +3,70 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
+from bs4 import BeautifulSoup
+
 from apps.recsys.models import Task, TaskAttachment, resolve_media_url
 from apps.recsys.utils.rendering import render_task_body
+
+
+def _image_attachments(task: Task | None) -> list[TaskAttachment]:
+    if task is None:
+        return []
+    return [
+        attachment
+        for attachment in task.attachments.all()
+        if attachment.kind == TaskAttachment.Kind.IMAGE
+    ]
+
+
+def _attachment_url(attachment: TaskAttachment) -> str:
+    try:
+        return resolve_media_url(attachment.file.url)
+    except Exception:
+        return ""
+
+
+def _first_task_image_url(task: Task | None) -> str:
+    if task is None:
+        return ""
+    if getattr(task, "image", None):
+        try:
+            return resolve_media_url(task.image.url)
+        except Exception:
+            pass
+    for attachment in _image_attachments(task):
+        url = _attachment_url(attachment)
+        if url:
+            return url
+    return ""
+
+
+def _replace_inline_data_images(task_body_html: str, image_urls: list[str]) -> tuple[str, bool]:
+    if not task_body_html or not image_urls:
+        return task_body_html, False
+
+    soup = BeautifulSoup(task_body_html, "html.parser")
+    changed = False
+    image_index = 0
+    for image in soup.find_all("img"):
+        src = str(image.get("src") or "")
+        if not src.startswith("data:image/"):
+            continue
+        if image_index >= len(image_urls):
+            break
+        image["src"] = image_urls[image_index]
+        image_index += 1
+        changed = True
+    if not changed:
+        return task_body_html, False
+    return str(soup).strip().replace("<br/>", "<br>"), True
+
+
+def _has_inline_image(task_body_html: str) -> bool:
+    if not task_body_html:
+        return False
+    soup = BeautifulSoup(task_body_html, "html.parser")
+    return soup.find("img") is not None
 
 
 def build_task_attachments_payload(task: Task | None) -> list[dict[str, Any]]:
@@ -55,15 +117,26 @@ def build_task_statement_payload(
         source.get("rendering_strategy")
         or getattr(task, "rendering_strategy", None)
     )
-    image = source.get("image")
-    if not image and getattr(task, "image", None):
-        image = resolve_media_url(task.image.url)
+    image_attachment_urls = [
+        url
+        for url in (_attachment_url(attachment) for attachment in _image_attachments(task))
+        if url
+    ]
 
     attachments = source.get("attachments")
     if not isinstance(attachments, list):
         attachments = build_task_attachments_payload(task)
 
     task_body_html = render_task_body(description, rendering_strategy) if description else ""
+    task_body_html, _ = _replace_inline_data_images(
+        task_body_html,
+        image_attachment_urls,
+    )
+
+    image = source.get("image") or content_payload.get("image") or ""
+    if not image and not _has_inline_image(task_body_html):
+        image = _first_task_image_url(task)
+
     return {
         "title": title,
         "description": description,

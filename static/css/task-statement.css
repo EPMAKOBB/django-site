@@ -1,6 +1,22 @@
 .task-statement {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
+  padding: clamp(14px, 2vw, 22px);
+  border: 1px solid color-mix(in srgb, var(--color-border-strong) 58%, transparent);
+  border-left: 4px solid var(--color-accent-primary);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-2) 92%, var(--color-accent-primary) 8%),
+      var(--color-surface-2)
+    );
+}
+
+.task-statement__body {
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  line-height: 1.58;
 }
 
 .task-statement__body > :first-child {
@@ -87,11 +103,17 @@
   display: block;
   max-width: 100%;
   height: auto;
-  margin: 0 auto;
+  margin: var(--space-5) auto;
+  border-radius: 8px;
 }
 
 .task-statement__figure {
   margin: 0;
+}
+
+.task-statement__figure .task-statement__image {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .task-statement__attachments {

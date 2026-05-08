@@ -5,19 +5,16 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import StudentProfile
 from apps.recsys.models import (
+    Attempt,
     ExamVersion,
-    Skill,
-    SkillGroup,
-    SkillGroupItem,
-    SkillMastery,
+    TrainingSession,
+    TrainingSessionStep,
     VariantAssignment,
     VariantAttempt,
     VariantTaskAttempt,
 )
 from apps.recsys.tests import factories as variant_factories
-from subjects.models import Subject
 
 User = get_user_model()
 
@@ -67,114 +64,13 @@ class DashboardSettingsTests(TestCase):
         )
         self.assertContains(response, "Этот логин уже занят")
 
-    def test_dashboard_settings_shows_selected_exam_versions(self):
-        subject = Subject.objects.create(name="Математика", slug="matematika")
-        exam_first = ExamVersion.objects.create(subject=subject, name="Пробный вариант 1")
-        exam_second = ExamVersion.objects.create(subject=subject, name="Пробный вариант 2")
-
-        profile, _ = StudentProfile.objects.get_or_create(user=self.user)
-        profile.exam_versions.set([exam_first, exam_second])
-
+    def test_dashboard_settings_does_not_show_exam_selection(self):
         self.client.login(username="user1", password="pass")
         response = self.client.get(reverse("accounts:dashboard-settings"))
 
-        self.assertContains(
-            response,
-            f'value="{exam_first.id}" checked="checked"',
-            html=False,
-        )
-        self.assertContains(
-            response,
-            f'value="{exam_second.id}" checked="checked"',
-            html=False,
-        )
-        self.assertNotContains(response, "Ваши экзамены")
-        self.assertNotContains(response, "Математика — Пробный вариант 1")
-        self.assertNotContains(response, "Математика — Пробный вариант 2")
-        self.assertNotContains(response, "выбрать экзамены можно")
-
-    def test_exam_selection_submission_without_choices_clears_profile(self):
-        subject = Subject.objects.create(name="Математика", slug="matematika")
-        ExamVersion.objects.create(subject=subject, name="Пробный вариант 1")
-        profile, _ = StudentProfile.objects.get_or_create(user=self.user)
-        profile.exam_versions.set(list(subject.exam_versions.all()))
-
-        self.client.login(username="user1", password="pass")
-        url = reverse("accounts:dashboard-settings")
-
-        with self.assertLogs("accounts", level="DEBUG") as logs:
-            response = self.client.post(url, {"form_type": "exams"})
-
-        self.assertEqual(response.status_code, 302)
-        profile = StudentProfile.objects.get(pk=profile.pk)
-        self.assertEqual(profile.exam_versions.count(), 0)
-        self.assertTrue(
-            any("Received exam selection payload" in message for message in logs.output)
-        )
-
-    def test_exam_selection_without_submit_keys_updates_profile(self):
-        subject = Subject.objects.create(name="Математика", slug="matematika")
-        exam = ExamVersion.objects.create(subject=subject, name="Пробный вариант 1")
-
-        self.client.login(username="user1", password="pass")
-        url = reverse("accounts:dashboard-settings")
-        response = self.client.post(url, {"exam_versions": [str(exam.id)]})
-
-        self.assertRedirects(response, url)
-
-        profile = StudentProfile.objects.get(user=self.user)
-        self.assertEqual(list(profile.exam_versions.all()), [exam])
-
-
-class DashboardSubjectsTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username="student", password="pass", email="student@example.com"
-        )
-
-    def test_only_selected_exam_is_displayed(self):
-        subject = Subject.objects.create(name="Математика", slug="matematika")
-        selected_exam = ExamVersion.objects.create(
-            subject=subject, name="Вариант 1"
-        )
-        other_exam = ExamVersion.objects.create(subject=subject, name="Вариант 2")
-
-        profile, _ = StudentProfile.objects.get_or_create(user=self.user)
-        profile.exam_versions.set([selected_exam])
-
-        self.client.login(username="student", password="pass")
-
-        response = self.client.get(reverse("accounts:dashboard-subjects"))
-
-        self.assertContains(
-            response,
-            f"{subject.name} — {selected_exam.name}",
-        )
-        self.assertNotContains(response, other_exam.name)
-
-    def test_progress_bar_displays_skill_mastery_value(self):
-        subject = Subject.objects.create(name="Математика", slug="matematika")
-        exam = ExamVersion.objects.create(subject=subject, name="Вариант 1")
-        profile, _ = StudentProfile.objects.get_or_create(user=self.user)
-        profile.exam_versions.set([exam])
-
-        skill = Skill.objects.create(subject=subject, name="Линейные уравнения")
-        group = SkillGroup.objects.create(exam_version=exam, title="Алгебра")
-        SkillGroupItem.objects.create(
-            group=group,
-            skill=skill,
-            label="Уравнения",
-            order=1,
-        )
-        SkillMastery.objects.create(user=self.user, skill=skill, mastery=0.52)
-
-        self.client.login(username="student", password="pass")
-        response = self.client.get(reverse("accounts:dashboard-subjects"))
-
-        content = response.content.decode("utf-8")
-        self.assertIn("Линейные уравнения", content)
-        self.assertIn("52%", content)
-        self.assertIn('style="width: 52', content)
+        self.assertNotContains(response, "Выбор экзаменов")
+        self.assertNotContains(response, "exam_versions")
+        self.assertNotContains(response, "Сохранить выбор")
 
 
 class DashboardAssignmentsViewTests(TestCase):
@@ -270,6 +166,55 @@ class DashboardAssignmentsViewTests(TestCase):
 
         past_info = past_assignments[0]
         self.assertTrue(past_info["deadline_passed"])
+
+    def test_dashboard_shows_training_sessions(self):
+        task = variant_factories.create_task(title="Training task")
+        exam = ExamVersion.objects.create(subject=task.subject, name="Training exam", slug="training-exam")
+        task.exam_version = exam
+        task.save(update_fields=["exam_version"])
+        session = TrainingSession.objects.create(
+            user=self.user,
+            exam_version=exam,
+            status=TrainingSession.Status.COMPLETED,
+            completed_steps=1,
+            correct_steps=1,
+            steps_total=1,
+            last_activity_at=timezone.now(),
+            ended_at=timezone.now(),
+        )
+        attempt = Attempt.objects.create(
+            user=self.user,
+            task=task,
+            mode=Attempt.Mode.TRAINING,
+            is_correct=True,
+            score=1,
+            max_score=1,
+            is_valid_attempt=True,
+            checked_at=timezone.now(),
+        )
+        TrainingSessionStep.objects.create(
+            session=session,
+            order=1,
+            task=task,
+            attempt=attempt,
+            status=TrainingSessionStep.Status.ANSWERED,
+            result=TrainingSessionStep.Result.CORRECT,
+            task_snapshot={
+                "title": task.title,
+                "task_type_name": task.type.name,
+                "max_score": 1,
+            },
+            response_snapshot={"answer": "42"},
+            answered_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse("accounts:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["past_training_sessions"]), 1)
+        self.assertContains(response, "Training task")
+        self.assertContains(response, "Training exam")
+        self.assertContains(response, "1")
 
     def test_assignment_detail_permissions_and_context(self):
         assignment, _ = self._create_assignment()

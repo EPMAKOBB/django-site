@@ -18,7 +18,6 @@ urlpatterns = [
         views.assignment_result,
         name="assignment-result",
     ),
-    path("dashboard/subjects/", views.dashboard_subjects, name="dashboard-subjects"),
     path("dashboard/courses/", views.dashboard_courses, name="dashboard-courses"),
     path("dashboard/teachers/", views.dashboard_teachers, name="dashboard-teachers"),
     path("dashboard/students/", views.dashboard_students, name="dashboard-students"),

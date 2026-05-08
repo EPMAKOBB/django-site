@@ -34,6 +34,21 @@
         Проверяем, есть ли у вас активная тренировочная сессия.
       </p>
 
+      <div class="training-page__guide" aria-label="Как проходит тренировка">
+        <div class="training-page__guide-item">
+          <strong>1. Выберите типы</strong>
+          <span>Можно взять рекомендации системы или отметить конкретные номера ЕГЭ.</span>
+        </div>
+        <div class="training-page__guide-item">
+          <strong>2. Решайте по одной задаче</strong>
+          <span>После ответа тренировка сразу подберёт следующий шаг.</span>
+        </div>
+        <div class="training-page__guide-item">
+          <strong>3. Завершайте когда нужно</strong>
+          <span>История сессии сохранится в правой колонке.</span>
+        </div>
+      </div>
+
       <section id="training-type-filters" class="training-launcher__filters">
         <div class="training-launcher__filters-head">
           <div>
@@ -67,30 +82,25 @@
       <div class="training-session__workspace">
         <section class="training-task">
           <div class="training-task__header">
-            <div>
-              <p class="muted mb-8" id="training-task-meta">Следующий шаг появится после запуска.</p>
+            <div class="training-task__title-row">
+              <span class="training-task__meta muted" id="training-task-meta">Следующий шаг появится после запуска.</span>
               <h2 class="section-title mb-0" id="training-task-title">Текущая задача</h2>
             </div>
             <p class="training-task__reason muted mb-0" id="training-task-reason" hidden></p>
           </div>
 
-          <div id="training-task-body" class="task-statement__body task-content training-task__body">
+          <div id="training-task-statement" class="task-statement training-task__statement">
             <div class="training-empty-state">
               <h3 class="training-empty-state__title">Сессия ещё не начата</h3>
               <p class="muted mb-0">Начните или продолжите тренировку.</p>
             </div>
           </div>
-          <div id="training-attachments" class="task-statement__attachments mt-12" hidden></div>
 
           <section class="training-response" id="training-response" hidden>
-            <div class="training-response__header">
-              <label class="block mb-0" for="training-answer-text">Ответ</label>
-              <p class="muted mb-0" id="training-response-hint">Проверим ответ и сразу подберём следующий шаг.</p>
-            </div>
             <div id="training-answer-builder" class="training-response__builder" hidden>
               <div id="training-answer-fields"></div>
             </div>
-            <textarea id="training-answer-text" class="training-response__textarea" rows="3" placeholder="Введите ответ"></textarea>
+            <textarea id="training-answer-text" class="training-response__textarea" rows="3" placeholder="Ответ" aria-label="Ответ"></textarea>
             <div class="training-response__actions">
               <button id="training-submit" class="btn btn-primary" type="button">Проверить</button>
             </div>
@@ -134,8 +144,7 @@
             <h2 class="section-title mb-0">Сессия</h2>
           </div>
           <div class="training-session__header-actions">
-            <button id="training-end" class="btn btn-secondary" type="button">Завершить</button>
-            <button id="training-restart" class="btn" type="button">Заменить новой</button>
+            <button id="training-end" class="btn btn-secondary" type="button">Завершить тренировку</button>
           </div>
         </section>
       </div>
@@ -147,10 +156,12 @@
 {% block extra_js %}
 <script>
 (function() {
+  function initTrainingPage() {
   const app = document.getElementById("training-app");
   if (!app) return;
 
   const helper = window.FractalTaskResponse || null;
+  const statementRenderer = window.FractalTaskStatement || null;
   const examId = Number(app.dataset.examId || 0);
   const typeFiltersUrl = app.dataset.typeFiltersUrl;
   const currentUrl = app.dataset.currentUrl;
@@ -174,6 +185,8 @@
   const retryBtn = document.getElementById("training-retry");
   const startBtn = document.getElementById("training-start");
   const sessionEl = document.getElementById("training-session");
+  const taskPanelEl = sessionEl ? sessionEl.querySelector(".training-task") : null;
+  const sessionFooterEl = sessionEl ? sessionEl.querySelector(".training-session__footer") : null;
   const sessionTitleEl = document.getElementById("training-session-title");
   const sessionMetaEl = document.getElementById("training-session-meta");
   const summaryEl = document.getElementById("training-summary");
@@ -181,12 +194,10 @@
   const statAccuracyEl = document.getElementById("training-stat-accuracy");
   const statStatusEl = document.getElementById("training-stat-status");
   const endBtn = document.getElementById("training-end");
-  const restartBtn = document.getElementById("training-restart");
   const taskMetaEl = document.getElementById("training-task-meta");
   const taskTitleEl = document.getElementById("training-task-title");
   const taskReasonEl = document.getElementById("training-task-reason");
-  const taskBodyEl = document.getElementById("training-task-body");
-  const attachmentsEl = document.getElementById("training-attachments");
+  const taskStatementEl = document.getElementById("training-task-statement");
   const responseEl = document.getElementById("training-response");
   const answerBuilderEl = document.getElementById("training-answer-builder");
   const answerFieldsEl = document.getElementById("training-answer-fields");
@@ -208,13 +219,14 @@
   };
 
   const labels = {
-    activeSessionFound: "Найдена активная сессия. Её можно продолжить или заменить новой.",
+    activeSessionFound: "Найдена активная сессия. Её можно продолжить или завершить.",
     noActiveSession: "Активной сессии нет. Начните новую тренировку.",
     requestFailed: "Не удалось загрузить состояние тренировки.",
     typeFiltersFailed: "Не удалось загрузить рекомендуемые типы. Можно начать тренировку с автоматическим подбором по умолчанию.",
     statusChecking: "Проверка состояния",
     statusReady: "Готово к старту",
     statusActive: "Активная сессия",
+    statusCompleted: "Сессия завершена",
     statusError: "Ошибка загрузки",
     materials: "Материалы",
     selectedCount: "Выбрано",
@@ -236,6 +248,7 @@
     sessionFinished: "Сессия завершена или задачи закончились.",
     noActiveTask: "Нет активной задачи",
     noTaskForSession: "Для этой сессии сейчас нет активной задачи.",
+    completedSessionFound: "Задачи в выбранных типах закончились. Выберите больше типов или все типы задач и начните новую тренировку.",
     fallbackTaskTitle: "Задача",
     missingTaskBody: "Условие задания недоступно.",
     whyTask: "Почему эта задача",
@@ -249,8 +262,7 @@
     finishedBodyTitle: "Сессия завершена",
     finishedBodyText: "Можно начать новую адаптивную тренировку или вернуться к экзамену.",
     startBusy: "Запуск...",
-    startNew: "Начать новую сессию",
-    restart: "Заменить новой",
+    startNew: "Начать новую тренировку",
     continueBusy: "Загрузка...",
     continueCurrent: "Продолжить текущую",
     submitBusy: "Проверка...",
@@ -305,14 +317,29 @@
   function buildReasonText(value) {
     if (!value) return "";
     if (Array.isArray(value)) {
-      return value.filter(Boolean).join(", ");
+      return value.map((item) => buildReasonText(item)).filter(Boolean).join(", ");
     }
     if (typeof value === "object") {
+      if (value.summary && value.mode === "mvp") {
+        const weakTags = Array.isArray(value.top_weak_tags)
+          ? value.top_weak_tags
+            .map((item) => item && (item.tag_name || item.name || item.tag_slug))
+            .filter(Boolean)
+          : [];
+        return weakTags.length
+          ? `Подобрана по текущему прогрессу. Слабые темы: ${weakTags.join(", ")}.`
+          : "Подобрана по текущему прогрессу.";
+      }
+      if (value.summary && value.mode === "legacy") {
+        return "Подобрана по текущему прогрессу.";
+      }
       if (value.reason) return String(value.reason);
       if (value.label) return String(value.label);
+      if (value.tag_name) return String(value.tag_name);
+      if (value.name) return String(value.name);
       return Object.entries(value)
-        .filter(([, item]) => item !== null && item !== undefined && item !== "")
-        .map(([key, item]) => `${key}: ${item}`)
+        .filter(([key, item]) => key !== "mode" && item !== null && item !== undefined && item !== "")
+        .map(([key, item]) => `${key}: ${buildReasonText(item) || String(item)}`)
         .join(" | ");
     }
     return String(value);
@@ -323,16 +350,26 @@
     sessionEl.style.display = isVisible ? "" : "none";
   }
 
+  function setElementVisible(element, isVisible) {
+    if (!element) return;
+    element.hidden = !isVisible;
+    element.style.display = isVisible ? "" : "none";
+  }
+
   function setPageMode(mode) {
     app.dataset.mode = mode;
-    if (mode === "idle") {
+    if (mode === "idle" || mode === "completed") {
       launcherEl.hidden = false;
       launcherEl.style.display = "";
       launcherEl.classList.remove("training-page__setup--compact");
-      setWorkspaceVisible(false);
+      setWorkspaceVisible(mode === "completed");
+      setElementVisible(taskPanelEl, false);
+      setElementVisible(sessionFooterEl, false);
       return;
     }
     setWorkspaceVisible(true);
+    setElementVisible(taskPanelEl, true);
+    setElementVisible(sessionFooterEl, true);
     launcherEl.hidden = true;
     launcherEl.style.display = "none";
     launcherEl.classList.remove("training-page__setup--compact");
@@ -472,7 +509,10 @@
     typeFiltersListEl.hidden = false;
 
     if (!selectedTaskTypeIds.length && activeTypePreset === "recommended") {
-      selectedTaskTypeIds = recommendedTypeIds();
+      selectedTaskTypeIds = state && state.session && state.session.status === "completed"
+        ? allTypeIds()
+        : recommendedTypeIds();
+      activeTypePreset = state && state.session && state.session.status === "completed" ? "all" : "recommended";
     }
 
     (payload.types || []).forEach((item) => typeListEl.appendChild(renderTypeFilterCard(item)));
@@ -527,61 +567,31 @@
     button.textContent = isBusy ? busyText : idleText;
   }
 
-  function renderAttachments(attachments) {
-    if (!attachmentsEl) return;
-    if (!Array.isArray(attachments) || attachments.length === 0) {
-      attachmentsEl.hidden = true;
-      attachmentsEl.innerHTML = "";
-      return;
-    }
-    attachmentsEl.hidden = false;
-    attachmentsEl.innerHTML = "";
-    const title = document.createElement("p");
-    title.className = "task-statement__attachments-title";
-    title.textContent = labels.materials;
-    attachmentsEl.appendChild(title);
-    const list = document.createElement("ul");
-    list.className = "task-statement__attachments-list";
-    attachments.forEach((attachment) => {
-      if (!attachment || !attachment.url) return;
-      const item = document.createElement("li");
-      item.className = "task-statement__attachments-item";
-      const link = document.createElement("a");
-      link.className = "task-statement__attachments-link";
-      link.href = attachment.url;
-      link.target = "_blank";
-      link.rel = "noopener";
-      if (attachment.label) {
-        const label = document.createElement("span");
-        label.className = "task-statement__attachments-label";
-        label.textContent = attachment.label;
-        link.appendChild(label);
-      }
-      const name = document.createElement("span");
-      name.textContent = attachment.name || attachment.url;
-      link.appendChild(name);
-      item.appendChild(link);
-      list.appendChild(item);
-    });
-    attachmentsEl.appendChild(list);
-  }
-
   function renderHistory(history) {
     historyEl.innerHTML = "";
-    if (!Array.isArray(history) || !history.length) {
+    const answeredHistory = Array.isArray(history)
+      ? history.filter((item) => item && item.status === "answered")
+      : [];
+    if (!answeredHistory.length) {
       const item = document.createElement("li");
       item.className = "training-history__empty";
       item.textContent = labels.historyEmpty;
       historyEl.appendChild(item);
       return;
     }
-    history.forEach((itemData) => {
+    answeredHistory.forEach((itemData) => {
       const item = document.createElement("li");
       item.className = "training-history__item";
 
       const top = document.createElement("div");
       top.className = "training-history__top";
-      top.innerHTML = `<strong>#${itemData.order} ${itemData.task_title || ""}</strong><span class="training-history__result">${resultLabel(itemData.result)}</span>`;
+      const title = document.createElement("strong");
+      title.textContent = `#${itemData.order} ${itemData.task_title || ""}`;
+      const result = document.createElement("span");
+      result.className = "training-history__result";
+      result.textContent = resultLabel(itemData.result);
+      top.appendChild(title);
+      top.appendChild(result);
 
       const meta = document.createElement("p");
       meta.className = "muted training-history__meta";
@@ -643,7 +653,8 @@
   }
 
   function renderBodyEmptyState(title, text) {
-    taskBodyEl.innerHTML = `<div class="training-empty-state"><h3 class="training-empty-state__title">${title}</h3><p class="muted mb-0">${text}</p></div>`;
+    taskStatementEl.className = "task-statement training-task__statement";
+    taskStatementEl.innerHTML = `<div class="training-empty-state"><h3 class="training-empty-state__title">${title}</h3><p class="muted mb-0">${text}</p></div>`;
   }
 
   function renderCurrentTask(task, sessionStatus) {
@@ -657,7 +668,6 @@
         sessionStatus === "completed" ? labels.finishedBodyTitle : labels.noSessionBodyTitle,
         sessionStatus === "completed" ? labels.finishedBodyText : labels.noSessionBodyText
       );
-      renderAttachments([]);
       responseEl.hidden = true;
       answerBuilderEl.hidden = true;
       answerFieldsEl.innerHTML = "";
@@ -669,14 +679,24 @@
 
     taskMetaEl.textContent = `#${task.order} | ${task.task_type_name || ""}`;
     taskTitleEl.textContent = task.title || labels.fallbackTaskTitle;
-    taskBodyEl.innerHTML = task.task_body_html || `<p class="muted">${labels.missingTaskBody}</p>`;
-    taskBodyEl.setAttribute("data-format", task.task_rendering_strategy === "markdown" ? "markdown" : "html");
+    if (statementRenderer) {
+      statementRenderer.render(taskStatementEl, task, {
+        statementClassName: "task-statement training-task__statement",
+        bodyClassName: "task-statement__body task-content training-task__body",
+        emptyMessage: labels.missingTaskBody,
+        imageAlt: task.title ? `Иллюстрация к заданию ${task.title}` : "Иллюстрация к заданию",
+        attachmentsTitle: labels.materials,
+      });
+    } else {
+      taskStatementEl.className = "task-statement training-task__statement";
+      taskStatementEl.innerHTML = task.task_body_html || `<p class="muted">${labels.missingTaskBody}</p>`;
+    }
+    taskStatementEl.setAttribute("data-format", task.task_rendering_strategy === "markdown" ? "markdown" : "html");
 
     const reasonText = buildReasonText(task.reason_snapshot);
     taskReasonEl.hidden = !reasonText;
     taskReasonEl.textContent = reasonText ? `${labels.whyTask}: ${reasonText}` : "";
 
-    renderAttachments(task.attachments);
     currentSchema = task.answer_schema || null;
     responseEl.hidden = false;
 
@@ -724,7 +744,8 @@
     setLauncherState({
       hasActive: isActive,
       hasError: false,
-      statusText: isActive ? labels.statusActive : labels.statusReady,
+      statusText: isActive ? labels.statusActive : labels.statusCompleted,
+      message: isActive ? labels.activeSessionFound : labels.completedSessionFound,
     });
     sessionTitleEl.textContent = isActive ? labels.sessionActiveTitle : labels.sessionCompletedTitle;
     sessionMetaEl.textContent = `${labels.startedAt}: ${formatDate(session.started_at)} | ${labels.lastActivity}: ${formatDate(session.last_activity_at || session.started_at)}`;
@@ -734,18 +755,43 @@
     summaryEl.textContent = `${labels.stepsSolved}: ${session.completed_steps} | ${labels.correctSteps}: ${session.correct_steps}`;
     endBtn.hidden = !isActive;
     renderHistory(payload.history || []);
-    renderCurrentTask(payload.current_task, session.status);
-    renderFeedback(lastSubmissionResult, "");
+    if (isActive) {
+      renderCurrentTask(payload.current_task, session.status);
+      renderFeedback(lastSubmissionResult, "");
+    } else {
+      renderCurrentTask(null, session.status);
+      renderFeedback(null, "");
+      if (typeFilterPayload) {
+        selectedTaskTypeIds = allTypeIds();
+        activeTypePreset = "all";
+        renderTypeFilters(typeFilterPayload);
+      }
+    }
   }
 
   async function requestJson(url, options) {
     const response = await fetch(url, options);
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      const detail = data && typeof data === "object" ? data.detail : null;
-      throw new Error(detail || labels.requestFailed);
+      throw new Error(apiErrorMessage(data));
     }
     return data && typeof data === "object" ? data : {};
+  }
+
+  function apiErrorMessage(data) {
+    if (!data || typeof data !== "object") return labels.requestFailed;
+    if (typeof data.detail === "string") return data.detail;
+    const messages = [];
+    Object.entries(data).forEach(([field, value]) => {
+      if (Array.isArray(value)) {
+        messages.push(`${field}: ${value.join(", ")}`);
+      } else if (value && typeof value === "object") {
+        messages.push(`${field}: ${JSON.stringify(value)}`);
+      } else if (value !== null && value !== undefined) {
+        messages.push(`${field}: ${value}`);
+      }
+    });
+    return messages.join(" | ") || labels.requestFailed;
   }
 
   async function loadCurrent() {
@@ -761,7 +807,6 @@
 
   async function startSession() {
     setBusy(startBtn, true, labels.startBusy, labels.startNew);
-    setBusy(restartBtn, true, labels.startBusy, labels.restart);
     lastSubmissionResult = null;
     renderFeedback(null, "");
     try {
@@ -775,9 +820,19 @@
         }),
       });
       renderPayload(payload);
+    } catch (error) {
+      if (sessionEl.hidden || app.dataset.mode !== "active") {
+        renderIdleState(String(error.message || error || labels.requestFailed), {
+          allowContinue: !!(state && state.session && state.session.status === "active"),
+          isError: true,
+          statusText: labels.statusError,
+        });
+      } else {
+        renderFeedback(null, String(error.message || error || labels.requestFailed));
+      }
     } finally {
       setBusy(startBtn, false, labels.startBusy, labels.startNew);
-      setBusy(restartBtn, false, labels.startBusy, labels.restart);
+      updateSelectedTypeCount();
     }
   }
 
@@ -787,6 +842,12 @@
     try {
       const payload = await requestJson(endpoint(detailTemplate, state.session.id), { credentials: "same-origin" });
       renderPayload(payload);
+    } catch (error) {
+      renderIdleState(String(error.message || error || labels.requestFailed), {
+        allowContinue: false,
+        isError: true,
+        statusText: labels.statusError,
+      });
     } finally {
       setBusy(continueBtn, false, labels.continueBusy, labels.continueCurrent);
     }
@@ -824,6 +885,8 @@
         headers: { "X-CSRFToken": csrfToken() },
       });
       renderPayload(payload);
+    } catch (error) {
+      renderFeedback(null, String(error.message || error || labels.requestFailed));
     } finally {
       setBusy(endBtn, false, labels.endBusy, labels.endSession);
     }
@@ -838,7 +901,6 @@
     loadTypeFilters().catch(() => clearTypeFilters(labels.typeFiltersFailed));
     loadCurrent().catch((error) => renderIdleState(String(error.message || error || labels.requestFailed), { allowContinue: false, isError: true, statusText: labels.statusError }));
   });
-  restartBtn.addEventListener("click", startSession);
   endBtn.addEventListener("click", endSession);
   submitBtn.addEventListener("click", submitAnswer);
 
@@ -857,6 +919,13 @@
       statusText: labels.statusError,
     });
   });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initTrainingPage, { once: true });
+  } else {
+    initTrainingPage();
+  }
 })();
 </script>
 {% endblock %}

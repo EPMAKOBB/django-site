@@ -1,7 +1,15 @@
 <div class="task-statement{% if statement_class %} {{ statement_class }}{% endif %}">
-  {% if task_body_html %}
+  {% firstof image statement.image as resolved_image %}
+  {% firstof image_alt statement.image_alt as resolved_image_alt %}
+  {% firstof attachments statement.attachments as resolved_attachments %}
+
+  {% if statement.task_body_html or task_body_html %}
     <div class="task-statement__body task-content">
-      {{ task_body_html|safe }}
+      {% if statement.task_body_html %}
+        {{ statement.task_body_html|safe }}
+      {% else %}
+        {{ task_body_html|safe }}
+      {% endif %}
     </div>
   {% else %}
     <p class="task-statement__empty muted">
@@ -13,17 +21,17 @@
     </p>
   {% endif %}
 
-  {% if image %}
+  {% if resolved_image %}
     <figure class="task-statement__figure">
-      <img class="task-statement__image" src="{{ image }}" alt="{% if image_alt %}{{ image_alt }}{% else %}Иллюстрация к заданию{% endif %}">
+      <img class="task-statement__image" src="{{ resolved_image }}" alt="{% if resolved_image_alt %}{{ resolved_image_alt }}{% else %}Иллюстрация к заданию{% endif %}">
     </figure>
   {% endif %}
 
-  {% if attachments %}
+  {% if resolved_attachments %}
     <section class="task-statement__attachments" aria-label="Материалы к заданию">
       <p class="task-statement__attachments-title">Материалы</p>
       <ul class="task-statement__attachments-list">
-        {% for attachment in attachments %}
+        {% for attachment in resolved_attachments %}
           <li class="task-statement__attachments-item">
             <a class="task-statement__attachments-link" href="{{ attachment.url }}" target="_blank" rel="noopener">
               {% if attachment.label %}<span class="task-statement__attachments-label">{{ attachment.label }}</span>{% endif %}

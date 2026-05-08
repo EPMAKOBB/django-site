@@ -309,7 +309,7 @@
             <option value="">- Select task -</option>
             {% for task_item in editable_tasks %}
               <option value="{{ task_item.id }}" {% if selected_task and selected_task.id == task_item.id %}selected{% endif %}>
-                #{{ task_item.id }} · {{ task_item.slug|default:"no-slug" }} · {{ task_item.title }}
+                #{{ task_item.id }} · {{ task_item.status }} · {{ task_item.slug|default:"no-slug" }} · {{ task_item.title }}
               </option>
             {% endfor %}
           </select>
@@ -360,6 +360,11 @@
         <div class="form-field">
           <label for="{{ form.title.id_for_label }}">Заголовок</label>
           {{ form.title }}{{ form.title.errors }}
+        </div>
+        <div class="form-field">
+          <label for="{{ form.status.id_for_label }}">Статус</label>
+          {{ form.status }}{{ form.status.errors }}
+          <div class="hint">Публично доступны только задачи со статусом Published.</div>
         </div>
       </div>
 

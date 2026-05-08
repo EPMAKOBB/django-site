@@ -42,6 +42,7 @@ class RecommendationOrderTests(TestCase):
         TaskSkill.objects.create(task=self.task2, skill=self.skill2, weight=1.0)
         SkillMastery.objects.create(user=self.user, skill=self.skill1, mastery=0.8, confidence=1)
         SkillMastery.objects.create(user=self.user, skill=self.skill2, mastery=0.2, confidence=1)
+        Task.objects.update(status=Task.Status.PUBLISHED)
 
     def test_order_lowest_mastery_first(self):
         tasks = recommend_tasks(self.user)
@@ -99,6 +100,7 @@ class RecommendationOrderTests(TestCase):
             attempts_total=3,
             successes_total=3,
         )
+        Task.objects.update(status=Task.Status.PUBLISHED)
 
         tasks = recommend_tasks(self.user)
         titles = [task.title for task in tasks]
@@ -159,6 +161,7 @@ class RecommendationOrderTests(TestCase):
             score=1,
             max_score=1,
         )
+        Task.objects.update(status=Task.Status.PUBLISHED)
 
         tasks = recommend_tasks(
             self.user,
@@ -183,6 +186,8 @@ class RecommendationOrderTests(TestCase):
             subject=self.subject,
             exam_version=self.exam_version,
         )
+        task.status = Task.Status.PUBLISHED
+        task.save(update_fields=["status"])
         recommendation = RecommendationLog.objects.create(
             user=self.user,
             task=task,
@@ -202,6 +207,8 @@ class RecommendationOrderTests(TestCase):
             subject=self.subject,
             exam_version=self.exam_version,
         )
+        task.status = Task.Status.PUBLISHED
+        task.save(update_fields=["status"])
         recommendation = RecommendationLog.objects.create(
             user=self.user,
             task=task,
@@ -254,6 +261,7 @@ class RecommendationOrderTests(TestCase):
             attempts_total=2,
             successes_total=1,
         )
+        Task.objects.update(status=Task.Status.PUBLISHED)
 
         candidates = recommend_task_candidates(
             self.user,

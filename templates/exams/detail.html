@@ -32,11 +32,11 @@
 
       <div class="exam-summary-grid">
         <article class="exam-summary-card">
-          <p class="exam-summary-card__label">{% trans "Текущий прогноз" %}</p>
+          <p class="exam-summary-card__label">{% trans "Прогноз баллов" %}</p>
           <div class="exam-summary-card__value" id="exam-forecast-value">—</div>
           <p class="exam-summary-card__note" id="exam-forecast-note">
             {% if is_authenticated %}
-              {% trans "Будет рассчитан после загрузки прогресса." %}
+              {% trans "Будет рассчитан в первичных и вторичных баллах после загрузки прогресса." %}
             {% else %}
               {% trans "Войдите, чтобы увидеть персональный прогноз." %}
             {% endif %}
@@ -102,5 +102,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/exam-detail.js' %}"></script>
+  <script src="{% static 'js/exam-detail.js' %}?v=score-forecast-1"></script>
 {% endblock %}

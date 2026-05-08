@@ -40,6 +40,10 @@ from apps.recsys.models import (
     resolve_media_url,
 )
 from apps.recsys.recommendation import recommend_tasks
+from apps.recsys.service_utils.publication import (
+    public_tasks_queryset,
+    variant_template_is_public_ready,
+)
 from . import task_generation
 
 
@@ -228,16 +232,17 @@ def build_personal_assignment_from_blueprint(*, user, exam_version):
                 break
 
         if len(selected_ids) < needed:
-            fallback_qs = (
+            fallback_qs = public_tasks_queryset(
                 Task.objects.filter(type=item.task_type, exam_version=exam_version)
-                .exclude(id__in=used_task_ids)
-                .order_by("-difficulty_level", "id")
-            )
+            ).exclude(id__in=used_task_ids).order_by("-difficulty_level", "id")
             for tid in fallback_qs.values_list("id", flat=True)[: needed - len(selected_ids)]:
                 selected_ids.append(int(tid))
                 used_task_ids.add(int(tid))
 
-        task_map = {t.id: t for t in Task.objects.filter(id__in=selected_ids)}
+        task_map = {
+            t.id: t
+            for t in public_tasks_queryset(Task.objects.filter(id__in=selected_ids))
+        }
         for tid in selected_ids:
             task = task_map.get(tid)
             if task:
@@ -405,7 +410,14 @@ def _base_assignment_queryset():
 def get_assignments_for_user(user) -> List[VariantAssignment]:
     """Return all assignments for ``user`` with related data prefetched."""
 
-    return list(_base_assignment_queryset().filter(user=user))
+    assignments = list(_base_assignment_queryset().filter(user=user))
+    if getattr(user, "is_staff", False):
+        return assignments
+    return [
+        assignment
+        for assignment in assignments
+        if variant_template_is_public_ready(assignment.template)
+    ]
 
 
 def _active_attempts(assignment: VariantAssignment) -> List[VariantAttempt]:
@@ -460,6 +472,8 @@ def get_assignment_or_404(user, assignment_id: int) -> VariantAssignment:
         assignment = _base_assignment_queryset().get(user=user, pk=assignment_id)
     except VariantAssignment.DoesNotExist as exc:  # pragma: no cover - defensive
         raise exceptions.NotFound("Назначение варианта не найдено") from exc
+    if not getattr(user, "is_staff", False) and not variant_template_is_public_ready(assignment.template):
+        raise exceptions.NotFound("Assignment not found")
     return assignment
 
 
@@ -504,6 +518,9 @@ def start_new_attempt(user, assignment_id: int) -> VariantAttempt:
 
     if assignment.deadline and assignment.deadline < timezone.now():
         raise exceptions.ValidationError("Дедлайн по варианту истёк")
+
+    if not getattr(user, "is_staff", False) and not variant_template_is_public_ready(assignment.template):
+        raise exceptions.ValidationError("Variant is temporarily unavailable.")
 
     if assignment.attempts.filter(completed_at__isnull=True).exists():
         raise exceptions.ValidationError("У вас уже есть активная попытка")

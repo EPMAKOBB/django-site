@@ -20,6 +20,7 @@ from rest_framework import exceptions as drf_exceptions
 from .models import (
     ExamVersion,
     ExamBlueprint,
+    ExamScoreScale,
     Skill,
     SkillMastery,
     Source,
@@ -38,11 +39,57 @@ from .forms import TaskUploadForm
 from .presentation.tasks import build_task_statement_payload
 from accounts.models import ClassTeacherSubject, StudentProfile, TeacherStudentLink
 from apps.recsys.service_utils import variants as variant_services
+from apps.recsys.service_utils.publication import (
+    public_ready_variant_templates,
+    public_tasks_queryset,
+    variant_template_is_public_ready,
+)
 from apps.recsys.service_utils.type_progress import build_type_progress_map
 from subjects.models import Subject
 
 
 logger = logging.getLogger("recsys")
+
+
+def _build_exam_score_forecast(*, blueprint, exam, type_progress_map) -> dict:
+    primary_expected = 0.0
+    primary_max = 0
+    items = (
+        blueprint.items.select_related("task_type")
+        .order_by("order", "id")
+    )
+    for item in items:
+        task_type = item.task_type
+        item_score = int(item.score_override or task_type.max_score or 1)
+        item_count = int(item.count or 1)
+        item_max = item_score * item_count
+        progress = type_progress_map.get(task_type.id)
+        readiness = float(progress.effective_mastery if progress else 0.0)
+        primary_expected += item_max * max(0.0, min(1.0, readiness))
+        primary_max += item_max
+
+    primary_score = int(round(primary_expected))
+    scale = (
+        ExamScoreScale.objects.filter(exam_version=exam, is_active=True)
+        .order_by("-updated_at", "-id")
+        .first()
+    )
+    secondary_score = None
+    secondary_max = None
+    over_scale_limit = False
+    if scale is not None:
+        secondary_score, over_scale_limit = scale.to_secondary(primary_score)
+        secondary_max = max(scale.mapping) if scale.mapping else None
+
+    return {
+        "primary_score": primary_score,
+        "primary_expected": round(primary_expected, 1),
+        "primary_max": primary_max,
+        "secondary_score": secondary_score,
+        "secondary_max": secondary_max,
+        "has_scale": scale is not None,
+        "over_scale_limit": over_scale_limit,
+    }
 
 
 @login_required
@@ -151,10 +198,13 @@ def exam_type_page(request, exam_slug: str, type_slug: str):
     """Public page that lists tasks for a specific exam task type."""
     exam = _get_exam_by_slug(exam_slug)
     task_type = _get_exam_type_by_slug(exam, type_slug)
+    tasks_qs = Task.objects.filter(type=task_type)
+    if not request.user.is_staff:
+        tasks_qs = public_tasks_queryset(tasks_qs)
     tasks = (
-        Task.objects.filter(type=task_type)
+        tasks_qs
         .select_related("subject", "exam_version", "type")
-        .prefetch_related("skills", "attachments")
+        .prefetch_related("skills", "attachments", "tags")
         .order_by("id")
     )
     task_rows = [
@@ -168,6 +218,7 @@ def exam_type_page(request, exam_slug: str, type_slug: str):
         "exam": exam,
         "task_type": task_type,
         "task_rows": task_rows,
+        "task_count": len(task_rows),
     }
     return render(request, "exams/type_detail.html", context)
 
@@ -199,6 +250,7 @@ def exam_public_blocks(request, exam_slug: str):
         .select_related("page")
         .order_by("display_order", "name")
     )
+    static_variants = public_ready_variant_templates(static_variants)
     type_rows = []
     if blueprint:
         items = (
@@ -254,6 +306,11 @@ def exam_progress_data(request, exam_slug: str):
         user=request.user,
         task_type_ids=type_ids,
     )
+    score_forecast = _build_exam_score_forecast(
+        blueprint=blueprint,
+        exam=exam,
+        type_progress_map=type_progress_map,
+    )
     type_progress = {}
     tag_progress = {}
     for type_id, info in type_progress_map.items():
@@ -270,6 +327,7 @@ def exam_progress_data(request, exam_slug: str):
         {
             "type_progress": type_progress,
             "tag_progress": tag_progress,
+            "score_forecast": score_forecast,
         }
     )
 
@@ -287,6 +345,10 @@ def variant_page(request, slug: str):
         "template__template_tasks__task__attachments",
     )
     page = get_object_or_404(page_qs, slug=slug)
+    if page.is_public and not request.user.is_staff:
+        if not variant_template_is_public_ready(page.template):
+            raise Http404("Variant is not available.")
+
     if not page.is_public:
         if not request.user.is_authenticated:
             return redirect(f"{reverse('accounts:login')}?next={request.path}")
@@ -403,6 +465,8 @@ def tasks_list(request):
         .select_related("subject", "exam_version", "type")
         .prefetch_related("skills", "attachments")
     )
+    if not request.user.is_staff:
+        qs = public_tasks_queryset(qs)
     if selected_exam_ids:
         qs = qs.filter(exam_version_id__in=selected_exam_ids)
 
@@ -876,6 +940,7 @@ def _build_task_upload_context(
 @staff_member_required
 def task_redact(request):
     next_url = _get_safe_next(request)
+    status_filter = (request.GET.get("status") or "draft").strip()
     selected_task_id = (request.POST.get("task_id") or request.GET.get("task") or "").strip()
     selected_task = None
     if selected_task_id.isdigit():
@@ -904,10 +969,22 @@ def task_redact(request):
     else:
         form = TaskUploadForm(instance=selected_task) if selected_task else TaskUploadForm()
 
+    editable_tasks_qs = Task.objects.select_related("subject", "exam_version", "type")
+    if status_filter != "all":
+        valid_statuses = {choice[0] for choice in Task.Status.choices}
+        editable_tasks_qs = editable_tasks_qs.filter(
+            status=status_filter if status_filter in valid_statuses else Task.Status.DRAFT
+        )
     editable_tasks = list(
-        Task.objects.select_related("subject", "exam_version", "type")
-        .order_by("-id")
-        .values("id", "slug", "title", "type__name", "exam_version__name", "subject__name")
+        editable_tasks_qs.order_by("-id").values(
+            "id",
+            "slug",
+            "title",
+            "status",
+            "type__name",
+            "exam_version__name",
+            "subject__name",
+        )
     )
     context = _build_task_upload_context(
         form=form,

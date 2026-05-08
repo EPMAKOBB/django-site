@@ -571,3 +571,36 @@ Use this structure for each update:
 - Review the type-filter launcher UI in the browser and refine spacing/copy/interaction states.
 - Surface the selected task-type summary more explicitly when continuing or reviewing a session.
 - Add per-step review/detail behavior for session history.
+
+## 2026-05-06
+
+### Done
+- Clarified current training recommendation behavior: successfully solved tasks are excluded from training recommendations for now.
+
+### Dropped / Postponed
+- Spaced repetition for successfully solved tasks is intentionally postponed. Future training logic should allow solved tasks to re-enter recommendations after an interval or when related mastery decays, instead of excluding them forever.
+
+### Decisions
+- Do not implement spaced repetition in the current pass.
+- Keep the current strict solved-task exclusion until there is a deliberate review/repetition model.
+
+### Next
+- Design a spaced-repetition policy for training, including revisit intervals, decay conditions, and a possible "repeat solved tasks" mode.
+
+## 2026-05-06
+
+### Done
+- Consolidated task statement presentation around a canonical backend payload from `build_task_statement_payload()`.
+- Added backend normalization of rendered task HTML so form controls and empty wrapper blocks are removed before `task_body_html` reaches any UI surface.
+- Preserved meaningful empty table cells and line breaks during normalization.
+- Added `static/js/task-statement-renderer.js` for client-rendered surfaces such as training mode.
+- Updated the reusable server partial `templates/recsys/components/task_statement.html` to accept a full `statement` payload.
+- Updated type detail, public variant detail, task list, and training mode to render task statements through the same payload/structure.
+
+### Decisions
+- `build_task_statement_payload()` is the source of truth for task statement data: body HTML, image, attachments, and rendering strategy.
+- Surface-specific templates and scripts should render the canonical payload, not rebuild or reinterpret task statement pieces locally.
+- Client-side cleanup may remain as defensive handling for old snapshots, but canonical cleanup belongs on the backend.
+
+### Next
+- Avoid adding new task-statement render paths; new surfaces should use the existing partial or `FractalTaskStatement.render()`.

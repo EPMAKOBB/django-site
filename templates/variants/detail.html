@@ -51,7 +51,7 @@
 
             <div class="variant-page__task-content">
               <div class="variant-page__task-description">
-                {% include "recsys/components/task_statement.html" with task_body_html=item.statement.task_body_html image=item.statement.image attachments=item.statement.attachments empty_message="Условие задания недоступно." %}
+                {% include "recsys/components/task_statement.html" with statement=item.statement empty_message="Условие задания недоступно." %}
               </div>
             </div>
           </article>

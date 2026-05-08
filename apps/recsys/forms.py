@@ -425,6 +425,7 @@ class TaskUploadForm(forms.ModelForm):
             "type",
             "source",
             "source_variant",
+            "status",
             "slug",
             "title",
             "description",
@@ -505,6 +506,8 @@ class TaskUploadForm(forms.ModelForm):
             self.fields["skills"].queryset = Skill.objects.select_related("subject").order_by(
                 "subject__name", "name"
             )
+        if "status" in self.fields:
+            self.fields["status"].required = False
 
     def clean_slug(self):
         value = self.cleaned_data.get("slug") or self.cleaned_data.get("title")
@@ -512,6 +515,9 @@ class TaskUploadForm(forms.ModelForm):
         if not value:
             raise forms.ValidationError("Slug обязателен.")
         return value
+
+    def clean_status(self):
+        return self.cleaned_data.get("status") or getattr(self.instance, "status", None) or Task.Status.DRAFT
 
     def clean_correct_answer(self):
         raw_from_inputs = self.cleaned_data.get("answer_inputs")

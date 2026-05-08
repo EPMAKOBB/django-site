@@ -1,25 +1,86 @@
 {% extends 'accounts/dashboard/base.html' %}
 {% load i18n %}
 
-{% block dashboard_title %}{% trans "Задания" %}{% endblock %}
+{% block dashboard_title %}{% trans "История" %}{% endblock %}
 
 {% block dashboard_content %}
-  <div class="mb-16">
-    <a href="{% url 'tasks_list' %}" class="btn">{% trans "смотреть все задачи" %}</a>
-  </div>
-  <section class="assignments-group" aria-labelledby="current-assignments-title">
-    <div class="assignments-group__header">
-      <h2 id="current-assignments-title">{% trans "Текущие задания" %}</h2>
-      <p class="assignments-group__hint">
-        {% trans "Начните новую попытку или продолжите активную работу над вариантом." %}
+  <header class="history-dashboard__header">
+    <div>
+      <h1 class="history-dashboard__title">{% trans "История работы" %}</h1>
+      <p class="history-dashboard__lead">
+        {% trans "Здесь собраны активные варианты и завершённые попытки. Активное можно продолжить, а по прошлым работам быстро открыть результаты." %}
       </p>
     </div>
-    {% if current_assignments %}
-      <div class="assignment-cards">
+    <div class="history-dashboard__summary" aria-label="{% trans 'Сводка по работам' %}">
+      <div class="history-dashboard__summary-item">
+        <span class="history-dashboard__summary-value">{{ active_count }}</span>
+        <span class="history-dashboard__summary-label">{% trans "активно" %}</span>
+      </div>
+      <div class="history-dashboard__summary-item">
+        <span class="history-dashboard__summary-value">{{ history_count }}</span>
+        <span class="history-dashboard__summary-label">{% trans "в истории" %}</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="assignments-group" aria-labelledby="active-history-title">
+    <div class="assignments-group__header">
+      <h2 id="active-history-title">{% trans "Активные" %}</h2>
+      <p class="assignments-group__hint">
+        {% trans "Тренировки, варианты и задания, которые ещё можно начать или продолжить." %}
+      </p>
+    </div>
+    {% if current_assignments or active_training_sessions %}
+      <div class="assignment-cards assignment-cards--active">
+        {% for item in active_training_sessions %}
+          <article class="assignment-card">
+            <header class="assignment-card__header">
+              <div>
+                <h3 class="assignment-card__title">{{ item.title }}</h3>
+                <p class="assignment-card__status">Тренировка в работе</p>
+              </div>
+              <p class="assignment-card__deadline">{{ item.activity_at|date:"d E Y H:i" }}</p>
+            </header>
+            <div class="assignment-card__progress" role="group" aria-label="Прогресс по тренировке">
+              <div class="assignment-card__progress-bar" aria-hidden="true">
+                <span class="assignment-card__progress-value" style="width: {{ item.accuracy_percentage }}%"></span>
+              </div>
+              <p class="assignment-card__progress-text">
+                Решено {{ item.session.completed_steps }} из {{ item.session.steps_total }} · верно {{ item.progress_label }}
+              </p>
+            </div>
+            <dl class="assignment-card__meta">
+              <div class="assignment-card__meta-item">
+                <dt>Экзамен</dt>
+                <dd>{{ item.exam.name }}</dd>
+              </div>
+              {% if item.type_names %}
+                <div class="assignment-card__meta-item">
+                  <dt>Типы</dt>
+                  <dd>{{ item.type_names|join:", " }}</dd>
+                </div>
+              {% endif %}
+            </dl>
+            <footer class="assignment-card__actions">
+              {% if item.continue_url %}
+                <a class="btn btn-primary" href="{{ item.continue_url }}">Продолжить</a>
+              {% endif %}
+            </footer>
+          </article>
+        {% endfor %}
         {% for item in current_assignments %}
           <article class="assignment-card{% if item.deadline_passed %} assignment-card--overdue{% endif %}">
             <header class="assignment-card__header">
-              <h3 class="assignment-card__title">{{ item.assignment.template.name }}</h3>
+              <div>
+                <h3 class="assignment-card__title">{{ item.assignment.template.name }}</h3>
+                {% if item.active_attempt %}
+                  <p class="assignment-card__status">{% blocktrans with number=item.active_attempt.attempt_number %}Попытка #{{ number }} в работе{% endblocktrans %}</p>
+                {% elif item.can_start %}
+                  <p class="assignment-card__status">{% trans "Можно начать" %}</p>
+                {% else %}
+                  <p class="assignment-card__status assignment-card__status--muted">{% trans "Новые попытки недоступны" %}</p>
+                {% endif %}
+              </div>
               {% if item.deadline %}
                 <p class="assignment-card__deadline">
                   {% blocktrans with deadline=item.deadline|date:"d E Y H:i" %}Дедлайн: {{ deadline }}{% endblocktrans %}
@@ -29,7 +90,8 @@
                 </p>
               {% endif %}
             </header>
-            <div class="assignment-card__progress" role="group" aria-label="{% trans 'Прогресс по заданию' %}">
+
+            <div class="assignment-card__progress" role="group" aria-label="{% trans 'Прогресс по варианту' %}">
               <div class="assignment-card__progress-bar" aria-hidden="true">
                 <span class="assignment-card__progress-value" style="width: {{ item.progress_percentage }}%"></span>
               </div>
@@ -39,31 +101,27 @@
                 {% endblocktrans %}
               </p>
             </div>
+
             <dl class="assignment-card__meta">
               <div class="assignment-card__meta-item">
                 <dt>{% trans "Попытки" %}</dt>
                 <dd>
                   {% if item.attempts_total %}
                     {% blocktrans with used=item.attempts_used total=item.attempts_total %}
-                      Использовано {{ used }} из {{ total }}
+                      {{ used }} из {{ total }}
                     {% endblocktrans %}
                     {% if item.attempts_left is not None %}
                       <span class="assignment-card__meta-note">
-                        {% blocktrans with remaining=item.attempts_left %}Осталось {{ remaining }}{% endblocktrans %}
+                        {% blocktrans with remaining=item.attempts_left %}осталось {{ remaining }}{% endblocktrans %}
                       </span>
                     {% endif %}
                   {% else %}
-                    {% trans "Без ограничений" %}
+                    {% trans "без ограничений" %}
                   {% endif %}
                 </dd>
               </div>
-              {% if item.active_attempt %}
-                <div class="assignment-card__meta-item">
-                  <dt>{% trans "Активная попытка" %}</dt>
-                  <dd>#{{ item.active_attempt.attempt_number }}</dd>
-                </div>
-              {% endif %}
             </dl>
+
             <footer class="assignment-card__actions">
               {% if item.active_attempt %}
                 <a class="btn btn-primary" href="{% url 'accounts:assignment-detail' item.assignment.id %}">{% trans "Продолжить" %}</a>
@@ -71,55 +129,117 @@
                 <form method="post" action="{% url 'accounts:assignment-detail' item.assignment.id %}">
                   {% csrf_token %}
                   <input type="hidden" name="start_attempt" value="1">
-                  <button type="submit" class="btn btn-primary">{% trans "Начать попытку" %}</button>
+                  <button type="submit" class="btn btn-primary">{% trans "Начать" %}</button>
                 </form>
-              {% else %}
-                <span class="assignment-card__meta-note assignment-card__meta-note--warning">{% trans "Новые попытки недоступны" %}</span>
               {% endif %}
-              <a class="btn btn-secondary" href="{% url 'accounts:assignment-detail' item.assignment.id %}">{% trans "Подробнее" %}</a>
-              <a class="btn btn-link" href="{% url 'accounts:assignment-result' item.assignment.id %}">{% trans "История" %}</a>
+              <a class="btn btn-secondary" href="{% url 'accounts:assignment-detail' item.assignment.id %}">{% trans "О варианте" %}</a>
+              <a class="btn btn-link" href="{% url 'accounts:assignment-result' item.assignment.id %}">{% trans "История попыток" %}</a>
             </footer>
           </article>
         {% endfor %}
       </div>
     {% else %}
-      <p class="assignments-group__empty">{% trans "У вас пока нет активных заданий." %}</p>
+      <div class="history-dashboard__empty">
+        <h3>{% trans "Активных работ нет" %}</h3>
+        <p>{% trans "Когда появятся тренировки, назначенные варианты или незавершённые попытки, они будут здесь." %}</p>
+      </div>
     {% endif %}
   </section>
 
-  <section class="assignments-group" aria-labelledby="past-assignments-title">
+  <section class="assignments-group" aria-labelledby="history-list-title">
     <div class="assignments-group__header">
-      <h2 id="past-assignments-title">{% trans "Прошлые задания" %}</h2>
-      <p class="assignments-group__hint">{% trans "Здесь собраны завершённые или недоступные варианты." %}</p>
+      <h2 id="history-list-title">{% trans "История" %}</h2>
+      <p class="assignments-group__hint">{% trans "Завершённые тренировки, пробники, варианты и задания." %}</p>
     </div>
-    {% if past_assignments %}
-      <div class="assignment-cards">
-        {% for item in past_assignments %}
-          <article class="assignment-card assignment-card--compact">
-            <header class="assignment-card__header">
-              <h3 class="assignment-card__title">{{ item.assignment.template.name }}</h3>
-              {% if item.deadline %}
-                <p class="assignment-card__deadline">
-                  {% blocktrans with deadline=item.deadline|date:"d E Y H:i" %}Дедлайн: {{ deadline }}{% endblocktrans %}
-                </p>
+    {% if past_assignments or past_training_sessions %}
+      <div class="history-list">
+        {% for item in past_training_sessions %}
+          <details class="history-session">
+            <summary class="history-list__item history-list__item--summary">
+              <div class="history-list__main">
+                <h3 class="history-list__title">{{ item.title }}</h3>
+                <div class="history-list__meta">
+                  <span>{{ item.exam.name }}</span>
+                  <span>{{ item.status_label }}</span>
+                  {% if item.type_names %}<span>типы: {{ item.type_names|join:", " }}</span>{% endif %}
+                  <span>{{ item.activity_at|date:"d E Y H:i" }}</span>
+                </div>
+              </div>
+              <div class="history-list__progress" aria-label="Прогресс тренировки">
+                <span>{{ item.accuracy_percentage }}%</span>
+                <div class="assignment-card__progress-text">верно {{ item.progress_label }}</div>
+              </div>
+              <div class="history-list__actions">
+                <span class="btn btn-secondary">Подробнее</span>
+              </div>
+            </summary>
+            <div class="history-session__body">
+              <div class="history-session__stats">
+                <span>Решено: {{ item.session.completed_steps }} из {{ item.session.steps_total }}</span>
+                <span>Верных: {{ item.session.correct_steps }}</span>
+                <span>Точность: {{ item.accuracy_percentage }}%</span>
+              </div>
+              {% if item.steps %}
+                <ol class="history-session__steps">
+                  {% for step in item.steps %}
+                    <li class="history-session__step">
+                      <div>
+                        <strong>#{{ step.step.order }} {{ step.task_title }}</strong>
+                        <p class="history-list__meta">
+                          {% if step.task_type_name %}<span>тип {{ step.task_type_name }}</span>{% endif %}
+                          <span>{{ step.result_label }}</span>
+                          <span>score: {{ step.score_label }}</span>
+                          {% if step.step.answered_at %}<span>{{ step.step.answered_at|date:"d E Y H:i" }}</span>{% endif %}
+                        </p>
+                      </div>
+                      {% if step.response %}
+                        <p class="history-session__answer">Ответ: {{ step.response }}</p>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ol>
+              {% else %}
+                <p class="history-session__empty">В этой сессии пока нет проверенных ответов.</p>
               {% endif %}
-            </header>
-            <div class="assignment-card__progress assignment-card__progress--inline">
-              <p class="assignment-card__progress-text">
-                {% blocktrans with solved=item.progress.solved_tasks total=item.progress.total_tasks %}
-                  Решено {{ solved }} из {{ total }}
-                {% endblocktrans %}
-              </p>
             </div>
-            <footer class="assignment-card__actions">
-              <a class="btn btn-secondary" href="{% url 'accounts:assignment-detail' item.assignment.id %}">{% trans "Подробнее" %}</a>
-              <a class="btn btn-link" href="{% url 'accounts:assignment-result' item.assignment.id %}">{% trans "История" %}</a>
-            </footer>
+          </details>
+        {% endfor %}
+        {% for item in past_assignments %}
+          <article class="history-list__item">
+            <div class="history-list__main">
+              <h3 class="history-list__title">{{ item.assignment.template.name }}</h3>
+              <div class="history-list__meta">
+                <span>
+                  {% blocktrans with solved=item.progress.solved_tasks total=item.progress.total_tasks %}
+                    Решено {{ solved }} из {{ total }}
+                  {% endblocktrans %}
+                </span>
+                <span>
+                  {% blocktrans with used=item.attempts_used %}Попыток: {{ used }}{% endblocktrans %}
+                </span>
+                {% if item.deadline %}
+                  <span>{% blocktrans with deadline=item.deadline|date:"d E Y H:i" %}Дедлайн: {{ deadline }}{% endblocktrans %}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="history-list__progress" aria-label="{% trans 'Прогресс' %}">
+              <span>{{ item.progress_percentage }}%</span>
+              <div class="assignment-card__progress-bar" aria-hidden="true">
+                <span class="assignment-card__progress-value" style="width: {{ item.progress_percentage }}%"></span>
+              </div>
+            </div>
+            <div class="history-list__actions">
+              <a class="btn btn-primary" href="{% url 'accounts:assignment-result' item.assignment.id %}">{% trans "Открыть историю" %}</a>
+              <a class="btn btn-secondary" href="{% url 'accounts:assignment-detail' item.assignment.id %}">{% trans "Детали" %}</a>
+            </div>
           </article>
         {% endfor %}
       </div>
     {% else %}
-      <p class="assignments-group__empty">{% trans "Завершённых заданий пока нет." %}</p>
+      <div class="history-dashboard__empty">
+        <h3>{% trans "История пока пуста" %}</h3>
+        <p>{% trans "После завершения вариантов здесь появятся результаты и попытки." %}</p>
+      </div>
     {% endif %}
   </section>
 {% endblock %}
