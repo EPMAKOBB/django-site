@@ -497,6 +497,23 @@ class TrainingSessionSubmitView(APIView):
         return Response(payload, status=status.HTTP_201_CREATED)
 
 
+class TrainingSessionNextView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    class InputSerializer(serializers.Serializer):
+        step_id = serializers.IntegerField(min_value=1)
+
+    def post(self, request, session_id: int, *args, **kwargs):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = training_service.advance_to_next_step(
+            request.user,
+            session_id=session_id,
+            step_id=serializer.validated_data["step_id"],
+        )
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
 class TrainingSessionEndView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

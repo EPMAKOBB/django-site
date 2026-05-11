@@ -4,7 +4,7 @@
   {% firstof attachments statement.attachments as resolved_attachments %}
 
   {% if statement.task_body_html or task_body_html %}
-    <div class="task-statement__body task-content">
+    <div class="task-statement__body task-content" data-format="html">
       {% if statement.task_body_html %}
         {{ statement.task_body_html|safe }}
       {% else %}

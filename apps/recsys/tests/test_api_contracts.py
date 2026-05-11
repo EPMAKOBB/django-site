@@ -90,20 +90,14 @@ class ApiContractsTests(TestCase):
         self.assertEqual(len(type_masteries), 1)
         type_entry = type_masteries[0]
         self.assertAlmostEqual(type_entry["mastery"], 0.8)
-        expected_tag_ratio = (
-            0.55 * 0.15
-            + 0.20 * 0.10
-            + 0.15 * 0.08
-            + 0.10 * (1 - 2.718281828459045 ** (-1 / 5))
-        )
-        self.assertAlmostEqual(type_entry["effective_mastery"], expected_tag_ratio)
+        self.assertAlmostEqual(type_entry["effective_mastery"], 1.0)
         self.assertEqual(len(type_entry["tag_progress"]), 1)
         tag_entry = type_entry["tag_progress"][0]
         self.assertEqual(tag_entry["tag_id"], self.tag.id)
         self.assertEqual(tag_entry["tag_name"], self.tag.name)
         self.assertEqual(tag_entry["total_count"], 1)
         self.assertEqual(tag_entry["solved_count"], 1)
-        self.assertAlmostEqual(tag_entry["ratio"], expected_tag_ratio)
+        self.assertAlmostEqual(tag_entry["ratio"], 1.0)
         self.assertAlmostEqual(tag_entry["coverage_ratio"], 1.0)
         self.assertEqual(type_entry["required_count"], 1)
         self.assertEqual(type_entry["covered_count"], 1)

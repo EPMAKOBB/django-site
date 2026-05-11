@@ -16,6 +16,7 @@ from .views import (
     TrainingTypeFilterView,
     TrainingSessionDetailView,
     TrainingSessionEndView,
+    TrainingSessionNextView,
     TrainingSessionStartView,
     TrainingSessionSubmitView,
     VariantAssignmentHistoryView,
@@ -43,6 +44,7 @@ urlpatterns = [
     path("api/training/sessions/", TrainingSessionStartView.as_view(), name="training-session-start"),
     path("api/training/sessions/<int:session_id>/", TrainingSessionDetailView.as_view(), name="training-session-detail"),
     path("api/training/sessions/<int:session_id>/submit/", TrainingSessionSubmitView.as_view(), name="training-session-submit"),
+    path("api/training/sessions/<int:session_id>/next/", TrainingSessionNextView.as_view(), name="training-session-next"),
     path("api/training/sessions/<int:session_id>/end/", TrainingSessionEndView.as_view(), name="training-session-end"),
     path(
         "api/exam-versions/<int:exam_version_id>/skill-groups/",

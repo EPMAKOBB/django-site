@@ -63,6 +63,8 @@ def _serialize_step(step: TrainingSessionStep) -> dict[str, Any]:
         "order": step.order,
         "status": step.status,
         "result": step.result,
+        "score": step.attempt.score if step.attempt else None,
+        "max_score": step.attempt.max_score if step.attempt else task_snapshot.get("max_score"),
         "shown_at": step.shown_at,
         "answered_at": step.answered_at,
         "task_id": step.task_id,
@@ -283,6 +285,12 @@ def _active_step(session: TrainingSession) -> TrainingSessionStep | None:
             TrainingSessionStep.Status.OPENED,
         }:
             return step
+    if session.status == TrainingSession.Status.ACTIVE:
+        steps = list(session.steps.all())
+        if steps:
+            latest_step = steps[-1]
+            if latest_step.status == TrainingSessionStep.Status.ANSWERED:
+                return latest_step
     return None
 
 
@@ -293,6 +301,8 @@ def session_payload(session: TrainingSession) -> dict[str, Any]:
     if active_step is not None:
         current_task = {
             "step_id": active_step.id,
+            "step_status": active_step.status,
+            "result": active_step.result,
             "order": active_step.order,
             "reason_snapshot": deepcopy(active_step.reason_snapshot or {}),
             **_freshen_open_task_snapshot(active_step),
@@ -377,7 +387,11 @@ def submit_step_answer(
         result = TrainingSessionStep.Result.INCORRECT
 
     step.attempt = attempt
-    step.status = TrainingSessionStep.Status.ANSWERED
+    step.status = (
+        TrainingSessionStep.Status.ANSWERED
+        if result == TrainingSessionStep.Result.CORRECT
+        else TrainingSessionStep.Status.OPENED
+    )
     step.result = result
     step.response_snapshot = {"answer": deepcopy(answer)}
     step.answered_at = checked_at
@@ -392,22 +406,17 @@ def submit_step_answer(
         ]
     )
 
-    session.completed_steps += 1
+    update_fields = [
+        "last_activity_at",
+        "updated_at",
+    ]
     if result == TrainingSessionStep.Result.CORRECT:
+        session.completed_steps += 1
         session.correct_steps += 1
+        update_fields.extend(["completed_steps", "correct_steps"])
     session.last_activity_at = checked_at
-    session.save(
-        update_fields=[
-            "completed_steps",
-            "correct_steps",
-            "last_activity_at",
-            "updated_at",
-        ]
-    )
+    session.save(update_fields=update_fields)
 
-    next_step = _append_next_step(user, session)
-    if next_step is None:
-        session.mark_completed()
     refreshed = get_session_or_404(user, session.id)
     payload = session_payload(refreshed)
     payload["submission_result"] = {
@@ -421,6 +430,59 @@ def submit_step_answer(
         "correct_answer": correct_answer,
         "answered_at": checked_at,
     }
+    payload["next_step_id"] = None
+    return payload
+
+
+def _latest_session_step(session: TrainingSession) -> TrainingSessionStep | None:
+    steps = list(session.steps.all())
+    return steps[-1] if steps else None
+
+
+@transaction.atomic
+def advance_to_next_step(user, *, session_id: int, step_id: int) -> dict[str, Any]:
+    session = (
+        TrainingSession.objects.select_for_update()
+        .filter(user=user)
+        .prefetch_related("steps__task", "steps__recommendation_log", "steps__attempt")
+        .get(pk=session_id)
+    )
+    if session.status != TrainingSession.Status.ACTIVE:
+        raise exceptions.ValidationError("Training session is not active.")
+
+    try:
+        step = next(item for item in session.steps.all() if item.id == step_id)
+    except StopIteration as exc:
+        raise exceptions.ValidationError("Training step not found in this session.") from exc
+
+    latest_step = _latest_session_step(session)
+    if latest_step is None or latest_step.id != step.id:
+        raise exceptions.ValidationError("Only the current training step can be advanced.")
+    if step.attempt_id is None:
+        raise exceptions.ValidationError("Check an answer before requesting the next task.")
+
+    if step.status != TrainingSessionStep.Status.ANSWERED:
+        step.status = TrainingSessionStep.Status.ANSWERED
+        step.save(update_fields=["status", "updated_at"])
+        session.completed_steps += 1
+        if step.result == TrainingSessionStep.Result.CORRECT:
+            session.correct_steps += 1
+        session.last_activity_at = timezone.now()
+        session.save(
+            update_fields=[
+                "completed_steps",
+                "correct_steps",
+                "last_activity_at",
+                "updated_at",
+            ]
+        )
+
+    next_step = _append_next_step(user, session)
+    if next_step is None:
+        session.mark_completed()
+
+    refreshed = get_session_or_404(user, session.id)
+    payload = session_payload(refreshed)
     payload["next_step_id"] = next_step.id if next_step else None
     return payload
 

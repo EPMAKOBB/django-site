@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterable
 
 from django.db.models import Count, QuerySet
 
-from apps.recsys.models import Attempt, TagMastery, Task, TaskTag, TaskType, TypeMastery
+from apps.recsys.models import Attempt, Task, TaskTag, TaskType, TypeMastery
 from apps.recsys.service_utils.publication import public_tasks_queryset
 
 
@@ -44,9 +43,10 @@ def build_type_progress_map(
 ) -> dict[int, TypeProgressInfo]:
     """Return progress information per task type for the given ``user``.
 
-    ``effective_mastery`` is the visible learning progress based on tag mastery.
-    ``coverage_ratio`` remains a separate signal for how much of the published
-    task bank has been covered.
+    ``effective_mastery`` is the visible learning progress by required tags.
+    For small tag banks, progress follows actual coverage. For larger banks,
+    five correctly solved distinct tasks are enough to close the tag.
+    ``coverage_ratio`` remains the raw published-bank coverage signal.
     """
 
     type_ids = list({int(type_id) for type_id in task_type_ids if type_id is not None})
@@ -68,16 +68,6 @@ def build_type_progress_map(
     required_tag_ids: set[int] = {
         tag.id for tags in required_tags_map.values() for tag in tags
     }
-
-    tag_mastery_by_id: dict[int, TagMastery] = {}
-    if required_tag_ids:
-        tag_mastery_by_id = {
-            mastery.task_tag_id: mastery
-            for mastery in TagMastery.objects.filter(
-                user=user,
-                task_tag_id__in=required_tag_ids,
-            )
-        }
 
     tasks_per_type_tag: dict[tuple[int, int], int] = {}
     if required_tag_ids:
@@ -129,8 +119,10 @@ def build_type_progress_map(
                 coverage_ratio = min(1.0, solved_count / total_count)
             if coverage_ratio >= 1.0 and total_count > 0:
                 covered_tag_ids.add(tag.id)
-            mastery_obj = tag_mastery_by_id.get(tag.id)
-            ratio = _tag_mastery_ratio(mastery_obj)
+            ratio = _visible_tag_progress_ratio(
+                solved_count=solved_count,
+                total_count=total_count,
+            )
             tag_progress_entries.append(
                 TagProgressInfo(
                     tag=tag,
@@ -172,12 +164,9 @@ def build_type_progress_map(
     return progress_map
 
 
-def _tag_mastery_ratio(mastery: TagMastery | None) -> float:
-    if mastery is None:
+def _visible_tag_progress_ratio(*, solved_count: int, total_count: int) -> float:
+    if total_count <= 0:
         return 0.0
-    return _clamp_mastery(
-        0.55 * float(mastery.mastery or 0.0)
-        + 0.20 * float(mastery.progress or 0.0)
-        + 0.15 * float(mastery.stability or 0.0)
-        + 0.10 * float(mastery.confidence or 0.0)
-    )
+    if total_count <= 5:
+        return _clamp_mastery(solved_count / total_count)
+    return _clamp_mastery(solved_count / 5)

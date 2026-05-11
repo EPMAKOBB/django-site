@@ -19,6 +19,7 @@
     data-start-url="{% url 'training-session-start' %}"
     data-detail-template="/api/training/sessions/__ID__/"
     data-submit-template="/api/training/sessions/__ID__/submit/"
+    data-next-template="/api/training/sessions/__ID__/next/"
     data-end-template="/api/training/sessions/__ID__/end/"
   >
     <section id="training-launcher" class="training-page__setup">
@@ -86,6 +87,7 @@
               <span class="training-task__meta muted" id="training-task-meta">Следующий шаг появится после запуска.</span>
               <h2 class="section-title mb-0" id="training-task-title">Текущая задача</h2>
             </div>
+            <p class="training-task__status mb-0" id="training-task-status" hidden></p>
             <p class="training-task__reason muted mb-0" id="training-task-reason" hidden></p>
           </div>
 
@@ -114,18 +116,18 @@
             <p class="training-feedback__reason muted mb-0" id="training-feedback-reason" hidden></p>
             <div id="training-feedback-fields" class="training-response__builder" hidden></div>
             <pre id="training-feedback-correct" class="solver__answer solver__answer--readonly"></pre>
+            <div class="training-feedback__actions">
+              <button id="training-retry-answer" class="btn btn-secondary" type="button" hidden>Попробовать ещё раз</button>
+              <button id="training-next-task" class="btn btn-primary" type="button" hidden>Подобрать следующую</button>
+            </div>
           </section>
         </section>
 
         <aside class="training-session__aside">
           <section class="training-session__header training-session__panel">
             <h2 class="training-session__title section-title mb-0" id="training-session-title">Текущая сессия</h2>
+            <span class="training-session__status" id="training-session-status">ожидание</span>
             <p class="muted mb-0" id="training-session-meta">Сессия ещё не загружена.</p>
-            <p class="training-session__summary mb-0">
-              Шаги: <strong id="training-stat-steps">0/0</strong> |
-              Точность: <strong id="training-stat-accuracy">0%</strong> |
-              Статус: <strong id="training-stat-status">ожидание</strong>
-            </p>
           </section>
 
           <section class="training-history training-session__panel">
@@ -168,6 +170,7 @@
   const startUrl = app.dataset.startUrl;
   const detailTemplate = app.dataset.detailTemplate;
   const submitTemplate = app.dataset.submitTemplate;
+  const nextTemplate = app.dataset.nextTemplate;
   const endTemplate = app.dataset.endTemplate;
 
   const launcherEl = document.getElementById("training-launcher");
@@ -188,14 +191,13 @@
   const taskPanelEl = sessionEl ? sessionEl.querySelector(".training-task") : null;
   const sessionFooterEl = sessionEl ? sessionEl.querySelector(".training-session__footer") : null;
   const sessionTitleEl = document.getElementById("training-session-title");
+  const sessionStatusEl = document.getElementById("training-session-status");
   const sessionMetaEl = document.getElementById("training-session-meta");
   const summaryEl = document.getElementById("training-summary");
-  const statStepsEl = document.getElementById("training-stat-steps");
-  const statAccuracyEl = document.getElementById("training-stat-accuracy");
-  const statStatusEl = document.getElementById("training-stat-status");
   const endBtn = document.getElementById("training-end");
   const taskMetaEl = document.getElementById("training-task-meta");
   const taskTitleEl = document.getElementById("training-task-title");
+  const taskStatusEl = document.getElementById("training-task-status");
   const taskReasonEl = document.getElementById("training-task-reason");
   const taskStatementEl = document.getElementById("training-task-statement");
   const responseEl = document.getElementById("training-response");
@@ -209,6 +211,8 @@
   const feedbackReasonEl = document.getElementById("training-feedback-reason");
   const feedbackFieldsEl = document.getElementById("training-feedback-fields");
   const feedbackCorrectEl = document.getElementById("training-feedback-correct");
+  const retryAnswerBtn = document.getElementById("training-retry-answer");
+  const nextTaskBtn = document.getElementById("training-next-task");
   const historyEl = document.getElementById("training-history");
 
   const inputOptions = {
@@ -242,6 +246,13 @@
     resultUnknown: "без оценки",
     feedbackCorrect: "Ответ верный",
     feedbackMismatch: "Ответ не совпал",
+    previousFeedbackCorrect: "Предыдущий ответ верный",
+    previousFeedbackMismatch: "Предыдущий ответ не совпал",
+    nextTaskReady: "Следующая задача уже открыта.",
+    completedAfterAnswer: "Ответ принят. В выбранных типах больше нет новых задач.",
+    retryAnswer: "Попробовать ещё раз",
+    nextTask: "Подобрать следующую",
+    nextBusy: "Подбор...",
     nextFocus: "Следующий фокус",
     sessionActiveTitle: "Текущая сессия",
     sessionCompletedTitle: "Последняя сессия",
@@ -252,8 +263,9 @@
     fallbackTaskTitle: "Задача",
     missingTaskBody: "Условие задания недоступно.",
     whyTask: "Почему эта задача",
-    stepsSolved: "Шагов решено",
-    correctSteps: "Правильных",
+    solved: "Решено",
+    correct: "Верно",
+    accuracy: "Точность",
     startedAt: "Начата",
     lastActivity: "Последняя активность",
     noTaskYet: "Следующий шаг появится после запуска сессии.",
@@ -613,6 +625,11 @@
   }
 
   function renderFeedback(result, errorText) {
+    feedbackEl.classList.remove("training-feedback--correct", "training-feedback--incorrect");
+    taskPanelEl?.classList.remove("training-task--correct", "training-task--incorrect");
+    if (retryAnswerBtn) retryAnswerBtn.hidden = true;
+    if (nextTaskBtn) nextTaskBtn.hidden = true;
+
     if (errorText) {
       feedbackEl.hidden = false;
       feedbackTitleEl.textContent = errorText;
@@ -623,21 +640,43 @@
       feedbackFieldsEl.hidden = true;
       feedbackCorrectEl.hidden = false;
       feedbackCorrectEl.textContent = "";
+      responseEl.hidden = false;
+      submitBtn.disabled = false;
       return;
     }
 
     if (!result) {
       feedbackEl.hidden = true;
+      responseEl.hidden = !state || !state.current_task;
+      submitBtn.disabled = false;
       return;
     }
 
+    const currentStepId = state && state.current_task ? Number(state.current_task.step_id) : null;
+    const resultStepId = result.step_id !== null && result.step_id !== undefined ? Number(result.step_id) : null;
+    const isPreviousStep = currentStepId !== null && resultStepId !== null && currentStepId !== resultStepId;
+
     feedbackEl.hidden = false;
-    feedbackTitleEl.textContent = result.is_correct ? labels.feedbackCorrect : labels.feedbackMismatch;
+    responseEl.hidden = true;
+    submitBtn.disabled = true;
+    feedbackEl.classList.add(result.is_correct ? "training-feedback--correct" : "training-feedback--incorrect");
+    taskPanelEl?.classList.add(result.is_correct ? "training-task--correct" : "training-task--incorrect");
+    if (isPreviousStep) {
+      feedbackTitleEl.textContent = result.is_correct ? labels.previousFeedbackCorrect : labels.previousFeedbackMismatch;
+    } else {
+      feedbackTitleEl.textContent = result.is_correct ? labels.feedbackCorrect : labels.feedbackMismatch;
+    }
+
+    taskStatusEl.hidden = false;
+    taskStatusEl.textContent = result.is_correct ? labels.feedbackCorrect : labels.feedbackMismatch;
+    taskStatusEl.classList.toggle("training-task__status--correct", !!result.is_correct);
+    taskStatusEl.classList.toggle("training-task__status--incorrect", !result.is_correct);
     feedbackScoreEl.textContent = `score: ${result.score ?? "-"} / ${result.max_score ?? "-"}`;
 
     const reasonText = buildReasonText(result.next_reason_snapshot || result.reason_snapshot);
-    feedbackReasonEl.hidden = !reasonText;
-    feedbackReasonEl.textContent = reasonText ? `${labels.nextFocus}: ${reasonText}` : "";
+    const transitionText = isPreviousStep ? labels.nextTaskReady : "";
+    feedbackReasonEl.hidden = !(transitionText || reasonText);
+    feedbackReasonEl.textContent = transitionText || (reasonText ? `${labels.nextFocus}: ${reasonText}` : "");
 
     if (currentSchema && helper && result.correct_answer !== null && result.correct_answer !== undefined) {
       helper.buildReadOnlyInputs(feedbackFieldsEl, currentSchema, result.correct_answer, inputOptions);
@@ -650,6 +689,26 @@
       feedbackCorrectEl.hidden = false;
       feedbackCorrectEl.textContent = jsonOrText(result.correct_answer);
     }
+
+    if (retryAnswerBtn) retryAnswerBtn.hidden = !!result.is_correct;
+    if (nextTaskBtn) nextTaskBtn.hidden = false;
+  }
+
+  function resultFromCurrentStep(payload) {
+    if (!payload || !payload.current_task || !payload.current_step) return null;
+    const step = payload.current_step;
+    const hasAnswer = step.response_snapshot && Object.prototype.hasOwnProperty.call(step.response_snapshot, "answer");
+    if (payload.current_task.step_status !== "answered" && !hasAnswer) return null;
+    return {
+      step_id: step.id,
+      is_correct: step.result === "correct",
+      score: step.score,
+      max_score: step.max_score || payload.current_task.max_score,
+      result: step.result,
+      answer: step.response_snapshot ? step.response_snapshot.answer : null,
+      correct_answer: payload.current_task.correct_answer,
+      answered_at: step.answered_at,
+    };
   }
 
   function renderBodyEmptyState(title, text) {
@@ -658,10 +717,14 @@
   }
 
   function renderCurrentTask(task, sessionStatus) {
+    taskPanelEl?.classList.remove("training-task--correct", "training-task--incorrect");
+    taskStatusEl.classList.remove("training-task__status--correct", "training-task__status--incorrect");
     if (!task) {
       currentSchema = null;
       taskMetaEl.textContent = sessionStatus === "completed" ? labels.sessionFinished : labels.noTaskYet;
       taskTitleEl.textContent = sessionStatus === "completed" ? labels.noActiveTask : labels.fallbackTaskTitle;
+      taskStatusEl.hidden = !(lastSubmissionResult && sessionStatus === "completed");
+      taskStatusEl.textContent = lastSubmissionResult && sessionStatus === "completed" ? labels.completedAfterAnswer : "";
       taskReasonEl.hidden = true;
       taskReasonEl.textContent = "";
       renderBodyEmptyState(
@@ -679,6 +742,8 @@
 
     taskMetaEl.textContent = `#${task.order} | ${task.task_type_name || ""}`;
     taskTitleEl.textContent = task.title || labels.fallbackTaskTitle;
+    taskStatusEl.hidden = true;
+    taskStatusEl.textContent = "";
     if (statementRenderer) {
       statementRenderer.render(taskStatementEl, task, {
         statementClassName: "task-statement training-task__statement",
@@ -748,16 +813,16 @@
       message: isActive ? labels.activeSessionFound : labels.completedSessionFound,
     });
     sessionTitleEl.textContent = isActive ? labels.sessionActiveTitle : labels.sessionCompletedTitle;
+    sessionStatusEl.textContent = formatStatus(session.status);
+    sessionStatusEl.classList.toggle("training-session__status--active", isActive);
+    sessionStatusEl.classList.toggle("training-session__status--completed", !isActive);
     sessionMetaEl.textContent = `${labels.startedAt}: ${formatDate(session.started_at)} | ${labels.lastActivity}: ${formatDate(session.last_activity_at || session.started_at)}`;
-    statStepsEl.textContent = `${session.completed_steps}/${session.steps_total}`;
-    statAccuracyEl.textContent = `${Math.round((session.accuracy || 0) * 100)}%`;
-    statStatusEl.textContent = formatStatus(session.status);
-    summaryEl.textContent = `${labels.stepsSolved}: ${session.completed_steps} | ${labels.correctSteps}: ${session.correct_steps}`;
+    summaryEl.textContent = `${labels.solved}: ${session.completed_steps} | ${labels.correct}: ${session.correct_steps} | ${labels.accuracy}: ${Math.round((session.accuracy || 0) * 100)}%`;
     endBtn.hidden = !isActive;
     renderHistory(payload.history || []);
     if (isActive) {
       renderCurrentTask(payload.current_task, session.status);
-      renderFeedback(lastSubmissionResult, "");
+      renderFeedback(lastSubmissionResult || resultFromCurrentStep(payload), "");
     } else {
       renderCurrentTask(null, session.status);
       renderFeedback(null, "");
@@ -875,6 +940,48 @@
     }
   }
 
+  function retryCurrentTask() {
+    if (!state || !state.current_task) return;
+    lastSubmissionResult = null;
+    renderFeedback(null, "");
+    taskStatusEl.hidden = true;
+    taskStatusEl.textContent = "";
+    taskStatusEl.classList.remove("training-task__status--correct", "training-task__status--incorrect");
+    taskPanelEl?.classList.remove("training-task--correct", "training-task--incorrect");
+    responseEl.hidden = false;
+    submitBtn.disabled = false;
+    if (currentSchema && helper) {
+      helper.buildInputs(answerFieldsEl, currentSchema, null, inputOptions);
+    } else {
+      answerTextEl.value = "";
+      answerTextEl.focus();
+    }
+  }
+
+  async function advanceTrainingTask() {
+    if (!state || !state.session || !state.current_task) return;
+    setBusy(nextTaskBtn, true, labels.nextBusy, labels.nextTask);
+    try {
+      const payload = await requestJson(endpoint(nextTemplate, state.session.id), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+        body: JSON.stringify({ step_id: state.current_task.step_id }),
+      });
+      lastSubmissionResult = null;
+      renderPayload(payload);
+      window.setTimeout(() => {
+        if (answerTextEl && !answerTextEl.hidden) {
+          answerTextEl.focus();
+        }
+      }, 0);
+    } catch (error) {
+      renderFeedback(null, String(error.message || error || labels.requestFailed));
+    } finally {
+      setBusy(nextTaskBtn, false, labels.nextBusy, labels.nextTask);
+    }
+  }
+
   async function endSession() {
     if (!state || !state.session) return;
     setBusy(endBtn, true, labels.endBusy, labels.endSession);
@@ -903,6 +1010,8 @@
   });
   endBtn.addEventListener("click", endSession);
   submitBtn.addEventListener("click", submitAnswer);
+  retryAnswerBtn.addEventListener("click", retryCurrentTask);
+  nextTaskBtn.addEventListener("click", advanceTrainingTask);
 
   renderIdleState("Проверяем, есть ли у вас активная тренировочная сессия.", {
     allowContinue: false,

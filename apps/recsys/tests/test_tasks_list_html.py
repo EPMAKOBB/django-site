@@ -22,6 +22,8 @@ class TasksListHTMLRenderingTests(TestCase):
         response = self.client.get(reverse("tasks_list"))
 
         content = response.content.decode("utf-8")
-        self.assertIn(svg_html, content)
+        self.assertIn('<div class="diagram"><svg', content)
+        self.assertIn("<rect", content)
+        self.assertIn('fill="red"', content)
         self.assertIn('data-format="html"', content)
         self.assertNotIn("&lt;svg", content)

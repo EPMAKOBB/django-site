@@ -33,6 +33,16 @@ _ALLOWED_TAGS = [
     "td",
     "div",
     "span",
+    "svg",
+    "g",
+    "path",
+    "rect",
+    "circle",
+    "ellipse",
+    "line",
+    "polyline",
+    "polygon",
+    "text",
 ]
 
 _ALLOWED_ATTRS = {
@@ -42,6 +52,16 @@ _ALLOWED_ATTRS = {
     "td": ["colspan", "rowspan"],
     "div": ["class"],
     "span": ["class"],
+    "svg": ["xmlns", "viewBox", "width", "height", "class", "aria-label", "role"],
+    "g": ["class", "transform", "fill", "stroke", "stroke-width"],
+    "path": ["class", "d", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin"],
+    "rect": ["class", "x", "y", "width", "height", "rx", "ry", "fill", "stroke", "stroke-width"],
+    "circle": ["class", "cx", "cy", "r", "fill", "stroke", "stroke-width"],
+    "ellipse": ["class", "cx", "cy", "rx", "ry", "fill", "stroke", "stroke-width"],
+    "line": ["class", "x1", "y1", "x2", "y2", "fill", "stroke", "stroke-width"],
+    "polyline": ["class", "points", "fill", "stroke", "stroke-width"],
+    "polygon": ["class", "points", "fill", "stroke", "stroke-width"],
+    "text": ["class", "x", "y", "dx", "dy", "fill", "font-size", "text-anchor"],
 }
 
 _ALLOWED_PROTOCOLS = ["http", "https", "mailto", "data"]

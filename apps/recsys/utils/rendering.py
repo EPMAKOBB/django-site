@@ -17,7 +17,24 @@ _MARKDOWN_EXTENSIONS = [
 ]
 
 _FORM_TAGS = {"button", "form", "input", "select", "textarea"}
-_CONTENT_TAGS = {"audio", "br", "canvas", "iframe", "img", "svg", "table", "video"}
+_CONTENT_TAGS = {
+    "audio",
+    "br",
+    "canvas",
+    "circle",
+    "ellipse",
+    "iframe",
+    "img",
+    "line",
+    "path",
+    "polygon",
+    "polyline",
+    "rect",
+    "svg",
+    "table",
+    "text",
+    "video",
+}
 _HTML_HINT_TAGS = {
     "a",
     "blockquote",

@@ -18,14 +18,6 @@ from courses.models import Course, CourseModule, CourseEnrollment
 from courses.services import get_base_module_mastery_percent
 
 
-FIRST_SUCCESS_TAG_RATIO = (
-    0.55 * 0.15
-    + 0.20 * 0.10
-    + 0.15 * 0.08
-    + 0.10 * (1 - 2.718281828459045 ** (-1 / 5))
-)
-
-
 class TypeProgressServiceTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="student")
@@ -54,7 +46,7 @@ class TypeProgressServiceTests(TestCase):
         self.task_two.tags.add(self.tag_masks)
         Task.objects.update(status=Task.Status.PUBLISHED)
 
-    def test_effective_mastery_uses_tag_mastery_and_keeps_bank_coverage(self):
+    def test_effective_mastery_uses_small_bank_coverage_and_keeps_raw_coverage(self):
         TypeMastery.objects.create(user=self.user, task_type=self.task_type, mastery=1.0)
 
         Attempt.objects.create(user=self.user, task=self.task_one, is_correct=True)
@@ -63,7 +55,7 @@ class TypeProgressServiceTests(TestCase):
         info = progress_map[self.task_type.id]
 
         self.assertAlmostEqual(info.coverage_ratio, 0.5)
-        self.assertAlmostEqual(info.effective_mastery, FIRST_SUCCESS_TAG_RATIO / 2)
+        self.assertAlmostEqual(info.effective_mastery, 0.5)
         self.assertEqual(info.required_count, 2)
         self.assertEqual(info.covered_count, 1)
         self.assertSetEqual(info.covered_tag_ids, {self.tag_divisors.id})
@@ -73,7 +65,7 @@ class TypeProgressServiceTests(TestCase):
         self.assertEqual(divisors_entry.total_count, 1)
         self.assertEqual(divisors_entry.solved_count, 1)
         self.assertAlmostEqual(divisors_entry.coverage_ratio, 1.0)
-        self.assertAlmostEqual(divisors_entry.ratio, FIRST_SUCCESS_TAG_RATIO)
+        self.assertAlmostEqual(divisors_entry.ratio, 1.0)
         self.assertEqual(masks_entry.total_count, 1)
         self.assertEqual(masks_entry.solved_count, 0)
         self.assertAlmostEqual(masks_entry.coverage_ratio, 0.0)
@@ -84,13 +76,55 @@ class TypeProgressServiceTests(TestCase):
         info = progress_map[self.task_type.id]
 
         self.assertAlmostEqual(info.coverage_ratio, 1.0)
-        self.assertAlmostEqual(info.effective_mastery, FIRST_SUCCESS_TAG_RATIO)
+        self.assertAlmostEqual(info.effective_mastery, 1.0)
         self.assertSetEqual(info.covered_tag_ids, {self.tag_divisors.id, self.tag_masks.id})
         for entry in info.tag_progress:
             self.assertAlmostEqual(entry.coverage_ratio, 1.0)
-            self.assertAlmostEqual(entry.ratio, FIRST_SUCCESS_TAG_RATIO)
+            self.assertAlmostEqual(entry.ratio, 1.0)
             self.assertEqual(entry.total_count, 1)
             self.assertEqual(entry.solved_count, 1)
+
+    def test_large_tag_bank_closes_by_five_correct_distinct_tasks(self):
+        large_tag = TaskTag.objects.create(subject=self.subject, name="large")
+        large_type = TaskType.objects.create(
+            name="Large bank type",
+            subject=self.subject,
+            exam_version=self.exam_version,
+        )
+        large_type.required_tags.add(large_tag)
+        tasks = []
+        for index in range(6):
+            task = Task.objects.create(
+                subject=self.subject,
+                exam_version=self.exam_version,
+                type=large_type,
+                title=f"Large #{index}",
+                status=Task.Status.PUBLISHED,
+            )
+            task.tags.add(large_tag)
+            tasks.append(task)
+
+        Attempt.objects.create(user=self.user, task=tasks[0], is_correct=True)
+        progress_map = build_type_progress_map(user=self.user, task_type_ids=[large_type.id])
+        info = progress_map[large_type.id]
+        tag_entry = info.tag_progress[0]
+
+        self.assertAlmostEqual(tag_entry.coverage_ratio, 1 / 6)
+        self.assertAlmostEqual(tag_entry.ratio, 1 / 5)
+        self.assertAlmostEqual(info.coverage_ratio, 1 / 6)
+        self.assertAlmostEqual(info.effective_mastery, 1 / 5)
+
+        for task in tasks[1:5]:
+            Attempt.objects.create(user=self.user, task=task, is_correct=True)
+
+        progress_map = build_type_progress_map(user=self.user, task_type_ids=[large_type.id])
+        info = progress_map[large_type.id]
+        tag_entry = info.tag_progress[0]
+
+        self.assertAlmostEqual(tag_entry.coverage_ratio, 5 / 6)
+        self.assertAlmostEqual(tag_entry.ratio, 1.0)
+        self.assertAlmostEqual(info.coverage_ratio, 5 / 6)
+        self.assertAlmostEqual(info.effective_mastery, 1.0)
 
     def test_missing_mastery_defaults_to_zero(self):
         progress_map = build_type_progress_map(user=self.user, task_type_ids=[self.task_type.id])
@@ -152,10 +186,10 @@ class TypeProgressServiceTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         forecast = response.json()["score_forecast"]
-        self.assertEqual(forecast["primary_score"], 0)
-        self.assertEqual(forecast["primary_expected"], 0.1)
+        self.assertEqual(forecast["primary_score"], 1)
+        self.assertEqual(forecast["primary_expected"], 1.0)
         self.assertEqual(forecast["primary_max"], 5)
-        self.assertEqual(forecast["secondary_score"], 0)
+        self.assertEqual(forecast["secondary_score"], 10)
         self.assertEqual(forecast["secondary_max"], 50)
 
     def test_course_module_progress_uses_effective_mastery(self):
@@ -179,7 +213,7 @@ class TypeProgressServiceTests(TestCase):
             enrollment,
             type_progress_map=progress_map,
         )
-        self.assertAlmostEqual(percent, (FIRST_SUCCESS_TAG_RATIO / 2) * 100)
+        self.assertAlmostEqual(percent, 50.0)
 
         Attempt.objects.create(user=self.user, task=self.task_two, is_correct=True)
         progress_map = build_type_progress_map(user=self.user, task_type_ids=[self.task_type.id])
@@ -189,4 +223,4 @@ class TypeProgressServiceTests(TestCase):
             enrollment,
             type_progress_map=progress_map,
         )
-        self.assertAlmostEqual(percent, FIRST_SUCCESS_TAG_RATIO * 100)
+        self.assertAlmostEqual(percent, 100.0)

@@ -3,7 +3,7 @@ import json
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from apps.recsys.models import ExamVersion, Subject, Task, TaskTag, TaskType, TrainingSession
+from apps.recsys.models import Attempt, ExamVersion, Subject, Task, TaskTag, TaskType, TrainingSession
 
 
 class TrainingApiFlowTests(TestCase):
@@ -96,6 +96,7 @@ class TrainingApiFlowTests(TestCase):
         self.assertEqual(len(payload["history"]), 1)
         session_id = payload["session"]["id"]
         step_id = current_task["step_id"]
+        correct_value = "42" if current_task["task_id"] == self.task1.id else "43"
 
         resp = self.client.get(
             "/api/training/sessions/current/",
@@ -106,16 +107,29 @@ class TrainingApiFlowTests(TestCase):
 
         resp = self.client.post(
             f"/api/training/sessions/{session_id}/submit/",
-            data=json.dumps({"step_id": step_id, "answer": {"value": "42"}}),
+            data=json.dumps({"step_id": step_id, "answer": {"value": correct_value}}),
             content_type="application/json",
         )
         self.assertEqual(resp.status_code, 201)
         submit_payload = resp.json()
         self.assertEqual(submit_payload["submission_result"]["step_id"], step_id)
+        self.assertTrue(submit_payload["submission_result"]["is_correct"])
         self.assertEqual(submit_payload["session"]["completed_steps"], 1)
-        self.assertEqual(len(submit_payload["history"]), 2)
+        self.assertEqual(len(submit_payload["history"]), 1)
+        self.assertEqual(submit_payload["current_task"]["step_id"], step_id)
         answered_step = next(item for item in submit_payload["history"] if item["id"] == step_id)
         self.assertEqual(answered_step["status"], "answered")
+
+        resp = self.client.post(
+            f"/api/training/sessions/{session_id}/next/",
+            data=json.dumps({"step_id": step_id}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        next_payload = resp.json()
+        self.assertEqual(next_payload["session"]["steps_total"], 2)
+        self.assertIsNotNone(next_payload["current_task"])
+        self.assertNotEqual(next_payload["current_task"]["step_id"], step_id)
 
         resp = self.client.post(f"/api/training/sessions/{session_id}/end/")
         self.assertEqual(resp.status_code, 200)
@@ -138,9 +152,16 @@ class TrainingApiFlowTests(TestCase):
 
         session_id = payload["session"]["id"]
         step_id = current_task["step_id"]
+        correct_value = "42" if current_task["task_id"] == self.task1.id else "43"
         resp = self.client.post(
             f"/api/training/sessions/{session_id}/submit/",
-            data=json.dumps({"step_id": step_id, "answer": {"value": "42"}}),
+            data=json.dumps({"step_id": step_id, "answer": {"value": correct_value}}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        resp = self.client.post(
+            f"/api/training/sessions/{session_id}/next/",
+            data=json.dumps({"step_id": step_id}),
             content_type="application/json",
         )
         self.assertEqual(resp.status_code, 201)
@@ -242,6 +263,18 @@ class TrainingApiFlowTests(TestCase):
         )
         self.assertEqual(resp.status_code, 201)
         payload = resp.json()
+        self.assertEqual(payload["session"]["status"], TrainingSession.Status.ACTIVE)
+        self.assertEqual(payload["current_task"]["step_id"], step_id)
+        self.assertIsNone(payload["next_step_id"])
+        self.assertEqual(len(payload["history"]), 1)
+
+        resp = self.client.post(
+            f"/api/training/sessions/{session_id}/next/",
+            data=json.dumps({"step_id": step_id}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        payload = resp.json()
         self.assertEqual(payload["session"]["status"], TrainingSession.Status.COMPLETED)
         self.assertIsNone(payload["current_task"])
         self.assertIsNone(payload["next_step_id"])
@@ -261,3 +294,44 @@ class TrainingApiFlowTests(TestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertIn("selected_task_type_ids", resp.json())
         self.assertEqual(TrainingSession.objects.count(), sessions_count)
+
+    def test_training_session_allows_retry_before_next_task(self):
+        resp = self.client.post(
+            "/api/training/sessions/",
+            data=json.dumps({"exam_version_id": self.exam_version.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        payload = resp.json()
+        session_id = payload["session"]["id"]
+        current_task = payload["current_task"]
+        step_id = current_task["step_id"]
+        correct_value = "42" if current_task["task_id"] == self.task1.id else "43"
+
+        resp = self.client.post(
+            f"/api/training/sessions/{session_id}/submit/",
+            data=json.dumps({"step_id": step_id, "answer": {"value": "wrong"}}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        first_payload = resp.json()
+        self.assertFalse(first_payload["submission_result"]["is_correct"])
+        self.assertEqual(first_payload["session"]["completed_steps"], 0)
+        self.assertEqual(first_payload["current_task"]["step_id"], step_id)
+        self.assertEqual(
+            next(item for item in first_payload["history"] if item["id"] == step_id)["status"],
+            "opened",
+        )
+
+        resp = self.client.post(
+            f"/api/training/sessions/{session_id}/submit/",
+            data=json.dumps({"step_id": step_id, "answer": {"value": correct_value}}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        second_payload = resp.json()
+        self.assertTrue(second_payload["submission_result"]["is_correct"])
+        self.assertEqual(second_payload["session"]["completed_steps"], 1)
+        self.assertEqual(second_payload["session"]["correct_steps"], 1)
+        self.assertEqual(Attempt.objects.filter(user=self.user, task_id=current_task["task_id"]).count(), 2)
+        self.assertEqual(Attempt.objects.filter(user=self.user, task_id=current_task["task_id"]).order_by("attempt_number").last().attempt_number, 2)

@@ -33,6 +33,7 @@
     if (cleanedHtml) {
       const body = document.createElement("div");
       body.className = bodyClassName || "task-statement__body task-content";
+      body.dataset.format = "html";
       body.innerHTML = cleanedHtml;
       container.appendChild(body);
       return true;

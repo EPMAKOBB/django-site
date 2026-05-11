@@ -277,19 +277,30 @@
   font-size: 24px;
 }
 
+.training-session__status {
+  justify-self: start;
+  padding: 4px 9px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.training-session__status--active {
+  border-color: color-mix(in srgb, var(--color-accent-primary) 55%, var(--color-border-subtle));
+  color: var(--color-accent-primary);
+}
+
+.training-session__status--completed {
+  border-color: color-mix(in srgb, var(--color-success) 45%, var(--color-border-subtle));
+  color: var(--color-success);
+}
+
 .training-session__header .muted {
   line-height: 1.3;
-}
-
-.training-session__summary {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  line-height: 1.35;
-}
-
-.training-session__summary strong {
-  color: var(--color-text-primary);
-  font-weight: 700;
 }
 
 .training-session__footer {
@@ -329,8 +340,17 @@
   display: grid;
   gap: 16px;
   padding: 18px;
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
   background: var(--color-surface-1);
+}
+
+.training-task--correct {
+  border-color: color-mix(in srgb, var(--color-success) 60%, var(--color-border-subtle));
+}
+
+.training-task--incorrect {
+  border-color: color-mix(in srgb, var(--color-danger) 60%, var(--color-border-subtle));
 }
 
 .training-task__header {
@@ -356,6 +376,7 @@
 }
 
 .training-task__reason,
+.training-task__status,
 .training-feedback__reason,
 .training-history__reason {
   margin: 0;
@@ -363,6 +384,19 @@
   border-left: 3px solid var(--color-accent-primary);
   border-radius: var(--radius-sm);
   background: var(--color-surface-2);
+}
+
+.training-task__status {
+  border-left-color: var(--color-success);
+  color: var(--color-text-primary);
+}
+
+.training-task__status--correct {
+  border-left-color: var(--color-success);
+}
+
+.training-task__status--incorrect {
+  border-left-color: var(--color-danger);
 }
 
 .training-task__statement {
@@ -461,6 +495,16 @@
   background: var(--color-surface-2);
 }
 
+.training-feedback--correct {
+  border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-border-subtle));
+  background: color-mix(in srgb, var(--color-success) 11%, var(--color-surface-2));
+}
+
+.training-feedback--incorrect {
+  border-color: color-mix(in srgb, var(--color-danger) 55%, var(--color-border-subtle));
+  background: color-mix(in srgb, var(--color-danger) 11%, var(--color-surface-2));
+}
+
 .training-feedback pre {
   margin: 0;
   padding: 10px 12px;
@@ -478,6 +522,12 @@
   justify-content: space-between;
   gap: 12px;
   align-items: baseline;
+}
+
+.training-feedback__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .training-history {
