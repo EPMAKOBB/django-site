@@ -604,3 +604,33 @@ Use this structure for each update:
 
 ### Next
 - Avoid adding new task-statement render paths; new surfaces should use the existing partial or `FractalTaskStatement.render()`.
+
+## 2026-05-11
+
+### Done
+- Reworked training answer flow so `Проверить` no longer automatically advances to the next task.
+- Added explicit training actions after answer checking:
+- correct answer: green feedback and `Подобрать следующую`;
+- incorrect answer: red feedback, `Попробовать ещё раз`, and `Подобрать следующую`.
+- Added backend `next` action for training sessions so a step is advanced only after an explicit user action.
+- Preserved repeated attempts on the same training step; each retry creates a new `Attempt`, allowing existing attempt-number weighting to reduce repeated-attempt impact.
+- Simplified training session summary: removed confusing `Шаги: completed/issued` display and kept session statistics in the history block as `Решено | Верно | Точность`.
+- Adjusted visible tag progress to use a capped task-count model:
+- for tags with up to 5 published tasks, progress equals correct solved distinct tasks divided by published tasks;
+- for tags with more than 5 published tasks, five correct distinct tasks close the tag.
+- Fixed task statement math rendering on type pages by restoring `data-format="html"` on the shared task-statement body.
+- Restored safe inline SVG rendering for task statements by extending sanitizer and normalization rules.
+- Removed a local debug task accidentally created during SVG-render testing.
+- Verified training API flow after database connectivity was restored.
+
+### Blocked
+- None currently recorded for the new training interaction flow.
+
+### Decisions
+- Training should wait for explicit user intent before advancing to the next recommendation.
+- A wrong answer keeps the current task open so the student can retry, while `Подобрать следующую` closes the step as a solved/attempted training item.
+- Do not add a separate `Не знаю` action yet; students can submit any answer if they want the system to count the attempt before moving on.
+
+### Next
+- Browser-review the new training states for clarity: initial answer form, correct feedback, incorrect feedback, retry, and exhausted-task completion.
+- Consider adding a compact per-step review drawer in history once the main training loop is stable.

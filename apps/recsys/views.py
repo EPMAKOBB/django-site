@@ -216,6 +216,7 @@ def exam_type_page(request, exam_slug: str, type_slug: str):
     ]
     context = {
         "exam": exam,
+        "exam_slug": exam.slug or exam_slug,
         "task_type": task_type,
         "task_rows": task_rows,
         "task_count": len(task_rows),

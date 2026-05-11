@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load static i18n %}
 
 {% block title %}{{ exam.subject.name }} - {{ exam.name }} - {% trans "Тип" %} {{ task_type.name }}{% endblock %}
 {% block meta_description %}{{ exam.subject.name }} - {{ exam.name }}. {% trans "Задания типа" %} {{ task_type.name }}.{% endblock %}
@@ -10,29 +10,33 @@
 {% block twitter_title %}{{ exam.subject.name }} - {{ exam.name }} - {% trans "Тип" %} {{ task_type.name }} | Фрактал{% endblock %}
 {% block twitter_description %}{{ exam.subject.name }} - {{ exam.name }}. {% trans "Задания типа" %} {{ task_type.name }}.{% endblock %}
 
-{% block content %}
-<section class="section">
-  <div class="container">
-    <h1 class="section-title">{{ exam.subject.name }} - {{ exam.name }}</h1>
-    <p class="muted">{% trans "Тип" %} {{ task_type.name }} — {% trans "все задания этого типа" %}; найдено {{ task_count }} заданий.</p>
-  </div>
-</section>
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'css/exam-detail.css' %}">
+{% endblock %}
 
-<section class="section">
-  <div class="container">
-    <div class="grid tasks-grid">
+{% block content %}
+<a id="top"></a>
+<section class="section exam-type-detail">
+  <div class="container exam-type-detail__container">
+    <header class="exam-type-detail__header">
+      <a class="exam-type-detail__back" href="{% url 'exam-page' exam_slug %}">&larr; {{ exam.subject.name }} {{ exam.name }}</a>
+      <h1 class="exam-type-detail__title">{{ exam.subject.name }} - {{ exam.name }}</h1>
+      <p class="exam-type-detail__meta muted">{% trans "Тип" %} {{ task_type.name }} — {% trans "все задания этого типа" %}; найдено {{ task_count }} заданий.</p>
+    </header>
+
+    <div class="exam-type-detail__tasks">
       {% for row in task_rows %}
         {% with task=row.task statement=row.statement %}
-          <article class="card task-card">
+          <article class="card task-card exam-type-detail__task">
             {% if request.user.is_authenticated and request.user.teacherprofile %}
               <div class="task-card__add">
                 {% include "accounts/includes/add_to_variant_button.html" with task_id=task.id %}
               </div>
             {% endif %}
-            <div class="section-title">{{ task.title }}</div>
+            <h2 class="exam-type-detail__task-title">{{ task.title }}</h2>
             {% with tags=task.tags.all %}
               {% if tags %}
-                <div class="mt-8">
+                <div class="exam-type-detail__tags">
                   {% for tag in tags %}
                     <span class="chip">{{ tag.name }}</span>
                   {% endfor %}
@@ -48,6 +52,20 @@
         <p class="hint">{% trans "Задания этого типа пока не добавлены." %}</p>
       {% endfor %}
     </div>
+
+    <div class="exam-type-detail__footer">
+      <button type="button" class="btn btn-link exam-type-detail__to-top" data-scroll-top="true">{% trans "Наверх" %} ↑</button>
+    </div>
   </div>
 </section>
+
+<script>
+  (function () {
+    var btn = document.querySelector("[data-scroll-top]");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  })();
+</script>
 {% endblock %}

@@ -3,7 +3,6 @@
   gap: var(--space-5);
   padding: clamp(14px, 2vw, 22px);
   border: 1px solid color-mix(in srgb, var(--color-border-strong) 58%, transparent);
-  border-left: 4px solid var(--color-accent-primary);
   border-radius: var(--radius-sm);
   background:
     linear-gradient(

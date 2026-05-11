@@ -77,8 +77,16 @@
             data-type-url="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}"
           >
             <div class="exam-type-card__header">
-              <div>
+              <div class="exam-type-card__heading">
                 <h3 class="exam-type-card__title">{{ row.type.name }}</h3>
+                <span class="exam-type-card__separator" aria-hidden="true">:</span>
+                <p class="exam-type-card__description">
+                  {% if row.type.description %}
+                    {{ row.type.description }}
+                  {% else %}
+                    {% trans "Описание для этого типа пока не добавлено." %}
+                  {% endif %}
+                </p>
               </div>
               <div class="exam-type-card__score">
                 {% if is_authenticated %}
@@ -88,14 +96,6 @@
                 {% endif %}
               </div>
             </div>
-
-            <p class="exam-type-card__description">
-              {% if row.type.description %}
-                {{ row.type.description }}
-              {% else %}
-                {% trans "Описание для этого типа пока не добавлено." %}
-              {% endif %}
-            </p>
 
             <div class="progress-bar">
               <span class="fill" style="width:0%;"></span>
