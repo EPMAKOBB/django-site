@@ -684,12 +684,20 @@ def task_variant_map(request):
         def _build_filled_cell(task_items: list[Task], task_type: TaskType) -> dict:
             task = task_items[0]
             redact_url = f"{reverse('tasks_redact')}?{urlencode({'task': task.id, 'next': map_next})}"
+            extra_tasks = [
+                {
+                    "task": extra_task,
+                    "url": f"{reverse('tasks_redact')}?{urlencode({'task': extra_task.id, 'next': map_next})}",
+                }
+                for extra_task in task_items[1:]
+            ]
             return {
                 "is_filled": True,
                 "task": task,
                 "task_type": task_type,
                 "url": redact_url,
                 "extra_count": max(len(task_items) - 1, 0),
+                "extra_tasks": extra_tasks,
             }
 
         def _build_empty_cell(

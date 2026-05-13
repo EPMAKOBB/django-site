@@ -100,6 +100,19 @@
     border-style: dashed;
     color: #cbd5e1;
   }
+  .task-cell-duplicates {
+    display: grid;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .task-cell-duplicate-link {
+    display: block;
+    color: #ecfeff;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
   .task-cell-meta {
     display: block;
     margin-top: 4px;
@@ -181,6 +194,15 @@
                             <span class="task-cell-meta">+{{ cell.extra_count }} дубль(ей)</span>
                           {% endif %}
                         </a>
+                        {% if cell.extra_tasks %}
+                          <div class="task-cell-duplicates">
+                            {% for extra in cell.extra_tasks %}
+                              <a class="task-cell-duplicate-link" href="{{ extra.url }}">
+                                #{{ extra.task.id }} · {{ extra.task.slug }}
+                              </a>
+                            {% endfor %}
+                          </div>
+                        {% endif %}
                       {% else %}
                         <a class="task-cell-link empty" href="{{ cell.url }}">
                           {{ cell.task_type.name }}
@@ -226,6 +248,15 @@
                           <span class="task-cell-meta">+{{ cell.extra_count }} дубль(ей)</span>
                         {% endif %}
                       </a>
+                      {% if cell.extra_tasks %}
+                        <div class="task-cell-duplicates">
+                          {% for extra in cell.extra_tasks %}
+                            <a class="task-cell-duplicate-link" href="{{ extra.url }}">
+                              #{{ extra.task.id }} · {{ extra.task.slug }}
+                            </a>
+                          {% endfor %}
+                        </div>
+                      {% endif %}
                     {% else %}
                       <a class="task-cell-link empty" href="{{ cell.url }}">
                         {{ cell.task_type.name }}

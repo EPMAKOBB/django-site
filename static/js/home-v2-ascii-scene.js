@@ -4,9 +4,8 @@
   function initAsciiScene() {
     const scene = document.getElementById("hero-ascii-scene");
     const canvas = document.getElementById("hero-ascii-canvas");
-    const fallback = document.getElementById("hero-ascii-fallback");
     const hero = scene ? scene.closest(".hero") : null;
-    if (!scene || !canvas || !fallback || !hero) return;
+    if (!scene || !canvas || !hero) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -330,7 +329,6 @@
     }
 
     setCanvasSize();
-    fallback.hidden = true;
     hero.addEventListener("pointerdown", handlePointerDown, { passive: true });
     hero.addEventListener("pointermove", handlePointerMove, { passive: true });
     hero.addEventListener("pointerleave", handlePointerLeave, { passive: true });

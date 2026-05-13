@@ -41,6 +41,16 @@ class TaskVariantMapViewTests(TestCase):
             title="Task For Map",
             correct_answer={},
         )
+        self.duplicate_task = Task.objects.create(
+            subject=self.subject,
+            exam_version=self.exam,
+            type=self.task_type,
+            source=self.source,
+            source_variant=self.source_variant,
+            slug="map-task-duplicate",
+            title="Duplicate Task For Map",
+            correct_answer={},
+        )
         self.url = reverse("tasks_variant_map")
 
     def test_variant_map_renders_filled_and_empty_cells(self):
@@ -50,7 +60,9 @@ class TaskVariantMapViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
+        self.assertContains(response, f"{reverse('tasks_redact')}?task={self.duplicate_task.id}")
         self.assertContains(response, f"{reverse('tasks_redact')}?task={self.task.id}")
+        self.assertContains(response, "+1 дубль")
         self.assertContains(
             response,
             f"{reverse('tasks_upload')}?subject={self.subject.id}&amp;exam_version={self.exam.id}&amp;type={self.task_type.id}",

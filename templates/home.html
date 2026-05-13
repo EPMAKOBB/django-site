@@ -16,19 +16,6 @@
     data-enabled="true"
   >
     <canvas class="home-hero__ascii-canvas" id="hero-ascii-canvas"></canvas>
-    <pre class="home-hero__ascii-fallback" id="hero-ascii-fallback" aria-hidden="true">
-..................       ..................       ..................
-      :: :: :: :: :: :: :: :: :: :: :: :: :: ::
-
-                    [          Ф          ]
-              . . . . . . . . . . . . . . . . . .
-
-         ~~~~~~~~          ~~~~~~~~          ~~~~~~~~
-    ..........        ..................        ..........
-            //// //// //// //// //// //// //// ////
-
-      quiet surface / abstract wave / soft field / forward drift
-    </pre>
   </div>
 
   <div class="home-hero__center">
@@ -189,5 +176,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/home-v2-ascii-scene.js' %}" defer></script>
+  <script src="{% static 'js/home-v2-ascii-scene.js' %}?v=ascii-no-fallback-1" defer></script>
 {% endblock %}

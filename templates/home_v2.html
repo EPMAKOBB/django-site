@@ -315,26 +315,6 @@
       height: 100%;
     }
 
-    .hero__ascii-fallback {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      margin: 0;
-      padding: 28px;
-      color: rgba(183, 215, 255, 0.54);
-      font-size: clamp(9px, 1vw, 13px);
-      line-height: 1.18;
-      letter-spacing: 0.02em;
-      white-space: pre-wrap;
-      overflow: hidden;
-      user-select: none;
-      pointer-events: none;
-    }
-
-    body[data-theme="day"] .hero__ascii-fallback {
-      color: rgba(84, 116, 184, 0.34);
-    }
-
     .hero__center {
       position: relative;
       z-index: 2;
@@ -889,11 +869,6 @@
         flex: 1 1 auto;
       }
 
-      .hero__ascii-fallback {
-        padding: 20px;
-        font-size: 9px;
-      }
-
       .hero-card {
         padding: 20px;
       }
@@ -925,19 +900,6 @@
         data-enabled="true"
       >
         <canvas class="hero__ascii-canvas" id="hero-ascii-canvas"></canvas>
-        <pre class="hero__ascii-fallback" id="hero-ascii-fallback" aria-hidden="true">
-..................       ..................       ..................
-      :: :: :: :: :: :: :: :: :: :: :: :: :: ::
-
-                    [          Ф          ]
-              . . . . . . . . . . . . . . . . . .
-
-         ~~~~~~~~          ~~~~~~~~          ~~~~~~~~
-    ..........        ..................        ..........
-            //// //// //// //// //// //// //// ////
-
-      quiet surface / abstract wave / soft field / forward drift
-        </pre>
       </div>
 
       <div class="hero__center">
@@ -1072,6 +1034,6 @@
     })();
 
   </script>
-  <script src="{% static 'js/home-v2-ascii-scene.js' %}" defer></script>
+  <script src="{% static 'js/home-v2-ascii-scene.js' %}?v=ascii-no-fallback-1" defer></script>
 </body>
 </html>
