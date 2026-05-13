@@ -16,8 +16,8 @@
       changed = false;
       Array.from(wrapper.querySelectorAll("*")).forEach((node) => {
         if (node.closest("table")) return;
-        if (node.matches("img, svg, iframe, canvas, video, audio")) return;
-        if (node.querySelector("img, svg, table, iframe, canvas, video, audio")) return;
+        if (node.matches("br, hr, img, svg, iframe, canvas, video, audio")) return;
+        if (node.querySelector("br, hr, img, svg, table, iframe, canvas, video, audio")) return;
         const text = (node.textContent || "").trim();
         if (node.children.length === 0 && !text) {
           node.remove();

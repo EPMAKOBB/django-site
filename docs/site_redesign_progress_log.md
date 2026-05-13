@@ -622,6 +622,11 @@ Use this structure for each update:
 - Restored safe inline SVG rendering for task statements by extending sanitizer and normalization rules.
 - Removed a local debug task accidentally created during SVG-render testing.
 - Verified training API flow after database connectivity was restored.
+- Polished exam task-type detail pages: added a back link to the exam, a bottom `Наверх` control, reduced vertical spacing, and made task cards more compact.
+- Removed the left accent strip from the shared task statement component so task statements render consistently across training, variants, type pages, and other surfaces.
+- Refined the exam page task-type cards: restored the standard subtle card fill, compacted the title/description line, tightened status/tag spacing, and made required tags read as small progress-bar chips.
+- Strengthened the visual fill of the two primary exam action cards (`Тренировочный режим` and `Собрать персональный вариант`) so they stand out from the four summary cards.
+- Removed the duplicated top answer-status block from training tasks; answer result is now shown only in the lower feedback panel with score and next actions.
 
 ### Blocked
 - None currently recorded for the new training interaction flow.

@@ -87,7 +87,6 @@
               <span class="training-task__meta muted" id="training-task-meta">Следующий шаг появится после запуска.</span>
               <h2 class="section-title mb-0" id="training-task-title">Текущая задача</h2>
             </div>
-            <p class="training-task__status mb-0" id="training-task-status" hidden></p>
             <p class="training-task__reason muted mb-0" id="training-task-reason" hidden></p>
           </div>
 
@@ -128,6 +127,9 @@
             <h2 class="training-session__title section-title mb-0" id="training-session-title">Текущая сессия</h2>
             <span class="training-session__status" id="training-session-status">ожидание</span>
             <p class="muted mb-0" id="training-session-meta">Сессия ещё не загружена.</p>
+            <div class="training-session__header-actions">
+              <button id="training-end" class="btn btn-secondary" type="button">Завершить тренировку</button>
+            </div>
           </section>
 
           <section class="training-history training-session__panel">
@@ -140,16 +142,6 @@
         </aside>
       </div>
 
-      <div class="training-session__footer">
-        <section class="training-session__panel training-session__panel--actions">
-          <div class="training-session__panel-head">
-            <h2 class="section-title mb-0">Сессия</h2>
-          </div>
-          <div class="training-session__header-actions">
-            <button id="training-end" class="btn btn-secondary" type="button">Завершить тренировку</button>
-          </div>
-        </section>
-      </div>
     </div>
   </div>
 </section>
@@ -189,7 +181,6 @@
   const startBtn = document.getElementById("training-start");
   const sessionEl = document.getElementById("training-session");
   const taskPanelEl = sessionEl ? sessionEl.querySelector(".training-task") : null;
-  const sessionFooterEl = sessionEl ? sessionEl.querySelector(".training-session__footer") : null;
   const sessionTitleEl = document.getElementById("training-session-title");
   const sessionStatusEl = document.getElementById("training-session-status");
   const sessionMetaEl = document.getElementById("training-session-meta");
@@ -197,7 +188,6 @@
   const endBtn = document.getElementById("training-end");
   const taskMetaEl = document.getElementById("training-task-meta");
   const taskTitleEl = document.getElementById("training-task-title");
-  const taskStatusEl = document.getElementById("training-task-status");
   const taskReasonEl = document.getElementById("training-task-reason");
   const taskStatementEl = document.getElementById("training-task-statement");
   const responseEl = document.getElementById("training-response");
@@ -376,12 +366,10 @@
       launcherEl.classList.remove("training-page__setup--compact");
       setWorkspaceVisible(mode === "completed");
       setElementVisible(taskPanelEl, false);
-      setElementVisible(sessionFooterEl, false);
       return;
     }
     setWorkspaceVisible(true);
     setElementVisible(taskPanelEl, true);
-    setElementVisible(sessionFooterEl, true);
     launcherEl.hidden = true;
     launcherEl.style.display = "none";
     launcherEl.classList.remove("training-page__setup--compact");
@@ -667,10 +655,6 @@
       feedbackTitleEl.textContent = result.is_correct ? labels.feedbackCorrect : labels.feedbackMismatch;
     }
 
-    taskStatusEl.hidden = false;
-    taskStatusEl.textContent = result.is_correct ? labels.feedbackCorrect : labels.feedbackMismatch;
-    taskStatusEl.classList.toggle("training-task__status--correct", !!result.is_correct);
-    taskStatusEl.classList.toggle("training-task__status--incorrect", !result.is_correct);
     feedbackScoreEl.textContent = `score: ${result.score ?? "-"} / ${result.max_score ?? "-"}`;
 
     const reasonText = buildReasonText(result.next_reason_snapshot || result.reason_snapshot);
@@ -678,16 +662,25 @@
     feedbackReasonEl.hidden = !(transitionText || reasonText);
     feedbackReasonEl.textContent = transitionText || (reasonText ? `${labels.nextFocus}: ${reasonText}` : "");
 
-    if (currentSchema && helper && result.correct_answer !== null && result.correct_answer !== undefined) {
+    const shouldShowCorrectAnswer = !!result.is_correct
+      && result.correct_answer !== null
+      && result.correct_answer !== undefined;
+
+    if (currentSchema && helper && shouldShowCorrectAnswer) {
       helper.buildReadOnlyInputs(feedbackFieldsEl, currentSchema, result.correct_answer, inputOptions);
       feedbackFieldsEl.hidden = false;
       feedbackCorrectEl.hidden = true;
       feedbackCorrectEl.textContent = "";
-    } else {
+    } else if (shouldShowCorrectAnswer) {
       feedbackFieldsEl.innerHTML = "";
       feedbackFieldsEl.hidden = true;
       feedbackCorrectEl.hidden = false;
       feedbackCorrectEl.textContent = jsonOrText(result.correct_answer);
+    } else {
+      feedbackFieldsEl.innerHTML = "";
+      feedbackFieldsEl.hidden = true;
+      feedbackCorrectEl.hidden = true;
+      feedbackCorrectEl.textContent = "";
     }
 
     if (retryAnswerBtn) retryAnswerBtn.hidden = !!result.is_correct;
@@ -718,13 +711,10 @@
 
   function renderCurrentTask(task, sessionStatus) {
     taskPanelEl?.classList.remove("training-task--correct", "training-task--incorrect");
-    taskStatusEl.classList.remove("training-task__status--correct", "training-task__status--incorrect");
     if (!task) {
       currentSchema = null;
       taskMetaEl.textContent = sessionStatus === "completed" ? labels.sessionFinished : labels.noTaskYet;
       taskTitleEl.textContent = sessionStatus === "completed" ? labels.noActiveTask : labels.fallbackTaskTitle;
-      taskStatusEl.hidden = !(lastSubmissionResult && sessionStatus === "completed");
-      taskStatusEl.textContent = lastSubmissionResult && sessionStatus === "completed" ? labels.completedAfterAnswer : "";
       taskReasonEl.hidden = true;
       taskReasonEl.textContent = "";
       renderBodyEmptyState(
@@ -742,8 +732,6 @@
 
     taskMetaEl.textContent = `#${task.order} | ${task.task_type_name || ""}`;
     taskTitleEl.textContent = task.title || labels.fallbackTaskTitle;
-    taskStatusEl.hidden = true;
-    taskStatusEl.textContent = "";
     if (statementRenderer) {
       statementRenderer.render(taskStatementEl, task, {
         statementClassName: "task-statement training-task__statement",
@@ -944,9 +932,6 @@
     if (!state || !state.current_task) return;
     lastSubmissionResult = null;
     renderFeedback(null, "");
-    taskStatusEl.hidden = true;
-    taskStatusEl.textContent = "";
-    taskStatusEl.classList.remove("training-task__status--correct", "training-task__status--incorrect");
     taskPanelEl?.classList.remove("training-task--correct", "training-task--incorrect");
     responseEl.hidden = false;
     submitBtn.disabled = false;

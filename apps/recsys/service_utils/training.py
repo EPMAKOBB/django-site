@@ -299,13 +299,16 @@ def session_payload(session: TrainingSession) -> dict[str, Any]:
     active_step = _active_step(session)
     current_task = None
     if active_step is not None:
+        current_snapshot = _freshen_open_task_snapshot(active_step)
+        if active_step.status != TrainingSessionStep.Status.ANSWERED:
+            current_snapshot.pop("correct_answer", None)
         current_task = {
             "step_id": active_step.id,
             "step_status": active_step.status,
             "result": active_step.result,
             "order": active_step.order,
             "reason_snapshot": deepcopy(active_step.reason_snapshot or {}),
-            **_freshen_open_task_snapshot(active_step),
+            **current_snapshot,
         }
 
     return {
@@ -427,7 +430,7 @@ def submit_step_answer(
         "max_score": max_score,
         "result": result,
         "answer": deepcopy(answer),
-        "correct_answer": correct_answer,
+        "correct_answer": correct_answer if result == TrainingSessionStep.Result.CORRECT else None,
         "answered_at": checked_at,
     }
     payload["next_step_id"] = None

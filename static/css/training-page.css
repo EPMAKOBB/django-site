@@ -303,11 +303,6 @@
   line-height: 1.3;
 }
 
-.training-session__footer {
-  display: grid;
-  gap: 14px;
-}
-
 .training-session__workspace {
   display: grid;
   gap: 14px;
@@ -376,7 +371,6 @@
 }
 
 .training-task__reason,
-.training-task__status,
 .training-feedback__reason,
 .training-history__reason {
   margin: 0;
@@ -384,19 +378,6 @@
   border-left: 3px solid var(--color-accent-primary);
   border-radius: var(--radius-sm);
   background: var(--color-surface-2);
-}
-
-.training-task__status {
-  border-left-color: var(--color-success);
-  color: var(--color-text-primary);
-}
-
-.training-task__status--correct {
-  border-left-color: var(--color-success);
-}
-
-.training-task__status--incorrect {
-  border-left-color: var(--color-danger);
 }
 
 .training-task__statement {
@@ -590,8 +571,7 @@
   display: none;
 }
 
-[data-mode="completed"] .training-task,
-[data-mode="completed"] .training-session__footer {
+[data-mode="completed"] .training-task {
   display: none;
 }
 

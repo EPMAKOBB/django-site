@@ -316,8 +316,10 @@ class TrainingApiFlowTests(TestCase):
         self.assertEqual(resp.status_code, 201)
         first_payload = resp.json()
         self.assertFalse(first_payload["submission_result"]["is_correct"])
+        self.assertIsNone(first_payload["submission_result"]["correct_answer"])
         self.assertEqual(first_payload["session"]["completed_steps"], 0)
         self.assertEqual(first_payload["current_task"]["step_id"], step_id)
+        self.assertNotIn("correct_answer", first_payload["current_task"])
         self.assertEqual(
             next(item for item in first_payload["history"] if item["id"] == step_id)["status"],
             "opened",
@@ -331,6 +333,7 @@ class TrainingApiFlowTests(TestCase):
         self.assertEqual(resp.status_code, 201)
         second_payload = resp.json()
         self.assertTrue(second_payload["submission_result"]["is_correct"])
+        self.assertEqual(second_payload["submission_result"]["correct_answer"], {"value": correct_value})
         self.assertEqual(second_payload["session"]["completed_steps"], 1)
         self.assertEqual(second_payload["session"]["correct_steps"], 1)
         self.assertEqual(Attempt.objects.filter(user=self.user, task_id=current_task["task_id"]).count(), 2)
