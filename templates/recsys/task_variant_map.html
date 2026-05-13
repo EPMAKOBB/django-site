@@ -91,9 +91,21 @@
     min-height: 42px;
   }
   .task-cell-link.filled {
+    background: #1f2937;
+    border-color: #475569;
+    color: #ecfeff;
+  }
+  .task-cell-link.status-published {
     background: #065f46;
     border-color: #10b981;
-    color: #ecfeff;
+  }
+  .task-cell-link.status-draft {
+    background: #78350f;
+    border-color: #f59e0b;
+  }
+  .task-cell-link.status-archived {
+    background: #334155;
+    border-color: #64748b;
   }
   .task-cell-link.empty {
     background: #1e293b;
@@ -106,12 +118,36 @@
     margin-top: 6px;
   }
   .task-cell-duplicate-link {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
     color: #ecfeff;
     font-size: 0.78rem;
     line-height: 1.25;
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+  .task-status-badge {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 1px 6px;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .task-status-badge.status-published {
+    background: #bbf7d0;
+    color: #14532d;
+  }
+  .task-status-badge.status-draft {
+    background: #fde68a;
+    color: #713f12;
+  }
+  .task-status-badge.status-archived {
+    background: #cbd5e1;
+    color: #1e293b;
   }
   .task-cell-meta {
     display: block;
@@ -183,13 +219,17 @@
                   <td class="row-title">
                     {{ row.title }}
                     <div class="task-cell-meta">Заполнено: {{ row.filled_count }}/{{ task_types|length }}</div>
+                    <div class="task-cell-meta">Опубликовано: {{ row.published_task_count }}/{{ row.total_task_count }}</div>
                   </td>
                   {% for cell in row.cells %}
                     <td>
                       {% if cell.is_filled %}
-                        <a class="task-cell-link filled" href="{{ cell.url }}">
+                        <a class="task-cell-link filled status-{{ cell.task.status }}" href="{{ cell.url }}">
                           {{ cell.task.title|default:cell.task.slug }}
-                          <span class="task-cell-meta">#{{ cell.task.id }} · {{ cell.task.slug }}</span>
+                          <span class="task-cell-meta">
+                            #{{ cell.task.id }} · {{ cell.task.slug }}
+                            <span class="task-status-badge status-{{ cell.task.status }}">{{ cell.task.status }}</span>
+                          </span>
                           {% if cell.extra_count %}
                             <span class="task-cell-meta">+{{ cell.extra_count }} дубль(ей)</span>
                           {% endif %}
@@ -199,6 +239,7 @@
                             {% for extra in cell.extra_tasks %}
                               <a class="task-cell-duplicate-link" href="{{ extra.url }}">
                                 #{{ extra.task.id }} · {{ extra.task.slug }}
+                                <span class="task-status-badge status-{{ extra.task.status }}">{{ extra.task.status }}</span>
                               </a>
                             {% endfor %}
                           </div>
@@ -237,13 +278,17 @@
                 <td class="row-title">
                   {{ no_source_row.title }}
                   <div class="task-cell-meta">Заполнено: {{ no_source_row.filled_count }}/{{ task_types|length }}</div>
+                  <div class="task-cell-meta">Опубликовано: {{ no_source_row.published_task_count }}/{{ no_source_row.total_task_count }}</div>
                 </td>
                 {% for cell in no_source_row.cells %}
                   <td>
                     {% if cell.is_filled %}
-                      <a class="task-cell-link filled" href="{{ cell.url }}">
+                      <a class="task-cell-link filled status-{{ cell.task.status }}" href="{{ cell.url }}">
                         {{ cell.task.title|default:cell.task.slug }}
-                        <span class="task-cell-meta">#{{ cell.task.id }} · {{ cell.task.slug }}</span>
+                        <span class="task-cell-meta">
+                          #{{ cell.task.id }} · {{ cell.task.slug }}
+                          <span class="task-status-badge status-{{ cell.task.status }}">{{ cell.task.status }}</span>
+                        </span>
                         {% if cell.extra_count %}
                           <span class="task-cell-meta">+{{ cell.extra_count }} дубль(ей)</span>
                         {% endif %}
@@ -253,6 +298,7 @@
                           {% for extra in cell.extra_tasks %}
                             <a class="task-cell-duplicate-link" href="{{ extra.url }}">
                               #{{ extra.task.id }} · {{ extra.task.slug }}
+                              <span class="task-status-badge status-{{ extra.task.status }}">{{ extra.task.status }}</span>
                             </a>
                           {% endfor %}
                         </div>

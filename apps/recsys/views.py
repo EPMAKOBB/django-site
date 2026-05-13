@@ -698,6 +698,7 @@ def task_variant_map(request):
                 "url": redact_url,
                 "extra_count": max(len(task_items) - 1, 0),
                 "extra_tasks": extra_tasks,
+                "all_published": all(item.status == Task.Status.PUBLISHED for item in task_items),
             }
 
         def _build_empty_cell(
@@ -740,11 +741,17 @@ def task_variant_map(request):
             for variant in variants_by_source.get(source.id, []):
                 cells = []
                 filled_count = 0
+                total_task_count = 0
+                published_task_count = 0
                 for task_type in task_types:
                     items = by_source_variant_type.get((source.id, variant.id, task_type.id), [])
                     if items:
                         cell = _build_filled_cell(items, task_type)
                         filled_count += 1
+                        total_task_count += len(items)
+                        published_task_count += sum(
+                            item.status == Task.Status.PUBLISHED for item in items
+                        )
                     else:
                         cell = _build_empty_cell(
                             task_type,
@@ -758,16 +765,24 @@ def task_variant_map(request):
                         "is_without_variant": False,
                         "cells": cells,
                         "filled_count": filled_count,
+                        "total_task_count": total_task_count,
+                        "published_task_count": published_task_count,
                     }
                 )
 
             without_variant_cells = []
             without_variant_filled = 0
+            without_variant_total_tasks = 0
+            without_variant_published_tasks = 0
             for task_type in task_types:
                 items = by_source_without_variant_type.get((source.id, task_type.id), [])
                 if items:
                     cell = _build_filled_cell(items, task_type)
                     without_variant_filled += 1
+                    without_variant_total_tasks += len(items)
+                    without_variant_published_tasks += sum(
+                        item.status == Task.Status.PUBLISHED for item in items
+                    )
                 else:
                     cell = _build_empty_cell(
                         task_type,
@@ -783,6 +798,8 @@ def task_variant_map(request):
                         "is_without_variant": True,
                         "cells": without_variant_cells,
                         "filled_count": without_variant_filled,
+                        "total_task_count": without_variant_total_tasks,
+                        "published_task_count": without_variant_published_tasks,
                     }
                 )
                 source_sections.append(
@@ -794,11 +811,17 @@ def task_variant_map(request):
 
         no_source_cells = []
         no_source_filled = 0
+        no_source_total_tasks = 0
+        no_source_published_tasks = 0
         for task_type in task_types:
             items = by_no_source_type.get(task_type.id, [])
             if items:
                 cell = _build_filled_cell(items, task_type)
                 no_source_filled += 1
+                no_source_total_tasks += len(items)
+                no_source_published_tasks += sum(
+                    item.status == Task.Status.PUBLISHED for item in items
+                )
             else:
                 cell = _build_empty_cell(
                     task_type,
@@ -810,6 +833,8 @@ def task_variant_map(request):
             "title": "Без источника",
             "cells": no_source_cells,
             "filled_count": no_source_filled,
+            "total_task_count": no_source_total_tasks,
+            "published_task_count": no_source_published_tasks,
         }
 
     context = {

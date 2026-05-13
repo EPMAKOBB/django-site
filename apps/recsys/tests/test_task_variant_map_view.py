@@ -39,6 +39,7 @@ class TaskVariantMapViewTests(TestCase):
             source_variant=self.source_variant,
             slug="map-task-1",
             title="Task For Map",
+            status=Task.Status.PUBLISHED,
             correct_answer={},
         )
         self.duplicate_task = Task.objects.create(
@@ -63,6 +64,9 @@ class TaskVariantMapViewTests(TestCase):
         self.assertContains(response, f"{reverse('tasks_redact')}?task={self.duplicate_task.id}")
         self.assertContains(response, f"{reverse('tasks_redact')}?task={self.task.id}")
         self.assertContains(response, "+1 дубль")
+        self.assertContains(response, "Опубликовано: 1/2")
+        self.assertContains(response, "status-published")
+        self.assertContains(response, "status-draft")
         self.assertContains(
             response,
             f"{reverse('tasks_upload')}?subject={self.subject.id}&amp;exam_version={self.exam.id}&amp;type={self.task_type.id}",
