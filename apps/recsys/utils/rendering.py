@@ -55,6 +55,8 @@ _HTML_HINT_TAGS = {
     "p",
     "pre",
     "span",
+    "sub",
+    "sup",
     "table",
     "tbody",
     "td",

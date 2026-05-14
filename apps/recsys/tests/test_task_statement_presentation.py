@@ -156,3 +156,20 @@ class TaskStatementPresentationTests(TestCase):
         self.assertIn("<p>Before</p>", payload["task_body_html"])
         self.assertIn('<img src="/media/tasks/exam/images/schema.png"/>', payload["task_body_html"])
         self.assertNotIn("&lt;p&gt;", payload["task_body_html"])
+
+    def test_statement_payload_preserves_subscript_and_superscript(self):
+        task = Task.objects.create(
+            subject=self.subject,
+            exam_version=self.exam_version,
+            type=self.task_type,
+            title="Number systems",
+            rendering_strategy=Task.RenderingStrategy.HTML,
+            description="<p>8<sub>10</sub> = 22<sub>3</sub>, x<sup>2</sup></p>",
+            status=Task.Status.PUBLISHED,
+        )
+
+        payload = build_task_statement_payload(task=task)
+
+        self.assertIn("8<sub>10</sub>", payload["task_body_html"])
+        self.assertIn("22<sub>3</sub>", payload["task_body_html"])
+        self.assertIn("x<sup>2</sup>", payload["task_body_html"])

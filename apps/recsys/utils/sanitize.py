@@ -33,6 +33,8 @@ _ALLOWED_TAGS = [
     "td",
     "div",
     "span",
+    "sub",
+    "sup",
     "svg",
     "g",
     "path",
