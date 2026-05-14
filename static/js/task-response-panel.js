@@ -61,17 +61,36 @@
     }
   }
 
-  function setupPasteFill(container, rows, cols, inputSelector) {
+  function setupPasteFill(container, schema, inputSelector) {
     const inputs = Array.from(container.querySelectorAll(inputSelector));
+    const cfg = getSchemaConfig(schema);
+    const { rows, cols } = getGridSize(schema);
+    const inputType = cfg.input_type || "string";
     const total = Math.max(1, rows * cols);
     if (total <= 1 || !inputs.length) return;
 
-    const tokenize = (text) => text
-      .replace(/\r\n/g, "\n")
-      .replace(/\t/g, " ")
-      .split(/[\s,;]+/)
-      .map((value) => value.trim())
-      .filter((value) => value.length);
+    const tokenize = (text) => {
+      const raw = String(text || "").trim();
+      if (!raw) return [];
+      if (inputType === "int") {
+        return raw.match(/-?\d+/g) || [];
+      }
+      if (inputType === "uint" || inputType === "number") {
+        return raw.match(/\d+/g) || [];
+      }
+      if (inputType === "float") {
+        return raw
+          .split(/[\s;|/\\]+/)
+          .map((value) => value.trim())
+          .filter((value) => /^-?\d+(?:[.,]\d+)?$/.test(value));
+      }
+      return raw
+        .replace(/\r\n/g, "\n")
+        .replace(/\t/g, " ")
+        .split(/[\s,;|/\\]+/)
+        .map((value) => value.trim())
+        .filter((value) => value.length);
+    };
 
     inputs.forEach((input, index) => {
       input.addEventListener("paste", (event) => {
@@ -82,7 +101,11 @@
         let cursor = index;
         tokens.forEach((token) => {
           if (cursor >= total) return;
-          if (inputs[cursor]) inputs[cursor].value = token;
+          if (inputs[cursor]) {
+            inputs[cursor].value = token;
+            inputs[cursor].dispatchEvent(new Event("input", { bubbles: true }));
+            inputs[cursor].dispatchEvent(new Event("change", { bubbles: true }));
+          }
           cursor += 1;
         });
       });
@@ -162,7 +185,7 @@
       setupAutoAdvance(container, schema, inputSelector);
     }
     if (!opts.readOnly && opts.pasteFill) {
-      setupPasteFill(container, rows, cols, inputSelector);
+      setupPasteFill(container, schema, inputSelector);
     }
     setInputsFromPayload(container, schema, savedValue);
   }
