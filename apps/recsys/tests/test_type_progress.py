@@ -189,8 +189,15 @@ class TypeProgressServiceTests(TestCase):
         self.assertEqual(forecast["primary_score"], 1)
         self.assertEqual(forecast["primary_expected"], 1.0)
         self.assertEqual(forecast["primary_max"], 5)
+        self.assertEqual(forecast["primary_range_min"], 0)
+        self.assertEqual(forecast["primary_range_max"], 3)
+        self.assertEqual(forecast["primary_range_label"], "0-3")
         self.assertEqual(forecast["secondary_score"], 10)
         self.assertEqual(forecast["secondary_max"], 50)
+        self.assertEqual(forecast["secondary_values"], [0, 10, 20, 30])
+        self.assertEqual(forecast["secondary_range_min"], 0)
+        self.assertEqual(forecast["secondary_range_max"], 30)
+        self.assertEqual(forecast["secondary_range_label"], "0-30")
 
     def test_course_module_progress_uses_effective_mastery(self):
         course = Course.objects.create(slug="course-1", title="Course")

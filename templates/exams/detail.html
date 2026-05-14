@@ -11,7 +11,7 @@
 {% block twitter_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к экзамену.{% endblock %}
 
 {% block extra_head %}
-  <link rel="stylesheet" href="{% static 'css/exam-detail.css' %}">
+  <link rel="stylesheet" href="{% static 'css/exam-detail.css' %}?v=type-cards-wide-1">
 {% endblock %}
 
 {% block content %}
@@ -32,7 +32,7 @@
 
       <div class="exam-summary-grid">
         <article class="exam-summary-card">
-          <p class="exam-summary-card__label">{% trans "Прогноз баллов" %}</p>
+          <p class="exam-summary-card__label">{% trans "Прогноз баллов на экзамене" %}</p>
           <div class="exam-summary-card__value" id="exam-forecast-value">—</div>
           <p class="exam-summary-card__note" id="exam-forecast-note">
             {% if is_authenticated %}
@@ -102,5 +102,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/exam-detail.js' %}?v=score-forecast-1"></script>
+  <script src="{% static 'js/exam-detail.js' %}?v=score-forecast-range-1"></script>
 {% endblock %}

@@ -51,6 +51,15 @@ from subjects.models import Subject
 logger = logging.getLogger("recsys")
 
 
+FORECAST_PRIMARY_MARGIN = 2
+
+
+def _format_score_range(low: int, high: int) -> str:
+    if low == high:
+        return str(low)
+    return f"{low}-{high}"
+
+
 def _build_exam_score_forecast(*, blueprint, exam, type_progress_map) -> dict:
     primary_expected = 0.0
     primary_max = 0
@@ -69,6 +78,8 @@ def _build_exam_score_forecast(*, blueprint, exam, type_progress_map) -> dict:
         primary_max += item_max
 
     primary_score = int(round(primary_expected))
+    primary_range_min = max(0, primary_score - FORECAST_PRIMARY_MARGIN)
+    primary_range_max = min(primary_max, primary_score + FORECAST_PRIMARY_MARGIN)
     scale = (
         ExamScoreScale.objects.filter(exam_version=exam, is_active=True)
         .order_by("-updated_at", "-id")
@@ -76,17 +87,44 @@ def _build_exam_score_forecast(*, blueprint, exam, type_progress_map) -> dict:
     )
     secondary_score = None
     secondary_max = None
+    secondary_values = []
+    secondary_range_min = None
+    secondary_range_max = None
     over_scale_limit = False
     if scale is not None:
         secondary_score, over_scale_limit = scale.to_secondary(primary_score)
         secondary_max = max(scale.mapping) if scale.mapping else None
+        mapped_primary_max = min(primary_range_max, int(scale.max_primary))
+        if primary_range_min <= mapped_primary_max:
+            secondary_values = sorted(
+                {
+                    int(scale.mapping[primary])
+                    for primary in range(primary_range_min, mapped_primary_max + 1)
+                }
+            )
+            if secondary_values:
+                secondary_range_min = secondary_values[0]
+                secondary_range_max = secondary_values[-1]
+        if primary_range_max > int(scale.max_primary):
+            over_scale_limit = True
 
     return {
         "primary_score": primary_score,
         "primary_expected": round(primary_expected, 1),
         "primary_max": primary_max,
+        "primary_range_min": primary_range_min,
+        "primary_range_max": primary_range_max,
+        "primary_range_label": _format_score_range(primary_range_min, primary_range_max),
         "secondary_score": secondary_score,
         "secondary_max": secondary_max,
+        "secondary_values": secondary_values,
+        "secondary_range_min": secondary_range_min,
+        "secondary_range_max": secondary_range_max,
+        "secondary_range_label": (
+            _format_score_range(secondary_range_min, secondary_range_max)
+            if secondary_range_min is not None and secondary_range_max is not None
+            else None
+        ),
         "has_scale": scale is not None,
         "over_scale_limit": over_scale_limit,
     }

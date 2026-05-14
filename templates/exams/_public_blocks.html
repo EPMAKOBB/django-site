@@ -88,28 +88,20 @@
                   {% endif %}
                 </p>
               </div>
-              <div class="exam-type-card__score">
-                {% if is_authenticated %}
-                  <span class="exam-type-card__score-value">0%</span>
-                {% else %}
-                  <span class="exam-type-card__score-muted">—</span>
-                {% endif %}
+              <div class="exam-type-card__meta">
+                <span class="badge exam-type-card__status" data-type-status>{% trans "Ждем данные" %}</span>
+                <div class="exam-type-card__score">
+                  {% if is_authenticated %}
+                    <span class="exam-type-card__score-value">0%</span>
+                  {% else %}
+                    <span class="exam-type-card__score-muted">—</span>
+                  {% endif %}
+                </div>
               </div>
             </div>
 
             <div class="progress-bar">
               <span class="fill" style="width:0%;"></span>
-            </div>
-
-            <div class="exam-type-card__status-row">
-              <span class="badge exam-type-card__status" data-type-status>{% trans "Ждем данные" %}</span>
-              <span class="muted exam-type-card__status-text" data-type-status-text>
-                {% if is_authenticated %}
-                  {% trans "После загрузки появится оценка сильной или слабой зоны." %}
-                {% else %}
-                  {% trans "Войдите, чтобы увидеть ваш статус по типу." %}
-                {% endif %}
-              </span>
             </div>
 
             {% if row.required_tags %}

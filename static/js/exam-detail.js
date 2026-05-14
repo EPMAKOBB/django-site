@@ -34,6 +34,14 @@
     return String(value);
   };
 
+  const formatRange = (fallbackLow, fallbackHigh, label) => {
+    if (label) return String(label);
+    const low = formatScore(fallbackLow);
+    const high = formatScore(fallbackHigh);
+    if (low === "—" || high === "—") return "—";
+    return low === high ? low : `${low}-${high}`;
+  };
+
   const getTypeCards = () => Array.from(blocksEl.querySelectorAll("[data-type-id]"));
 
   const getTypeMeta = (card) => ({
@@ -63,20 +71,17 @@
     if (percent >= 70) {
       return {
         label: "Сильная зона",
-        description: "Можно использовать как опору и поддерживать регулярной практикой.",
         className: "is-strong",
       };
     }
     if (percent >= 40) {
       return {
         label: "Нужна практика",
-        description: "Есть база, но здесь еще можно быстро нарастить результат.",
         className: "is-medium",
       };
     }
     return {
       label: "Слабая зона",
-      description: "Лучше начать отсюда или вернуться сюда в ближайшее время.",
       className: "is-weak",
     };
   };
@@ -104,7 +109,6 @@
       const pctEl = card.querySelector(".exam-type-card__score-value");
       const fillEl = card.querySelector(".progress-bar .fill");
       const statusBadgeEl = card.querySelector("[data-type-status]");
-      const statusTextEl = card.querySelector("[data-type-status-text]");
 
       if (pctEl) pctEl.textContent = `${percent}%`;
       if (fillEl) fillEl.style.width = `${percent}%`;
@@ -115,7 +119,6 @@
         statusBadgeEl.classList.remove("is-strong", "is-medium", "is-weak");
         statusBadgeEl.classList.add(status.className);
       }
-      if (statusTextEl) statusTextEl.textContent = status.description;
 
       const tags = tagProgress[typeId] || {};
       Object.keys(tags).forEach((tagId) => {
@@ -146,15 +149,31 @@
     const forecast = payload?.score_forecast || null;
 
     if (forecastValueEl) {
-      forecastValueEl.textContent = forecast
-        ? `≈ ${formatScore(forecast.primary_score)} / ${formatScore(forecast.primary_max)}`
-        : "—";
+      if (forecast && forecast.has_scale && forecast.secondary_range_label) {
+        forecastValueEl.textContent = forecast.secondary_range_label;
+      } else if (forecast) {
+        forecastValueEl.textContent = formatRange(
+          forecast.primary_range_min,
+          forecast.primary_range_max,
+          forecast.primary_range_label
+        );
+      } else {
+        forecastValueEl.textContent = "—";
+      }
     }
     if (forecastNoteEl) {
       if (forecast && forecast.has_scale) {
-        forecastNoteEl.textContent = `Прогноз: ${formatScore(forecast.primary_score)} первичных, ${formatScore(forecast.secondary_score)} из ${formatScore(forecast.secondary_max)} вторичных.`;
+        forecastNoteEl.textContent = `${formatRange(
+          forecast.primary_range_min,
+          forecast.primary_range_max,
+          forecast.primary_range_label
+        )} первичных из ${formatScore(forecast.primary_max)}.`;
       } else if (forecast) {
-        forecastNoteEl.textContent = `Прогноз: ${formatScore(forecast.primary_score)} первичных. Шкала вторичных баллов для экзамена не настроена.`;
+        forecastNoteEl.textContent = `${formatRange(
+          forecast.primary_range_min,
+          forecast.primary_range_max,
+          forecast.primary_range_label
+        )} первичных из ${formatScore(forecast.primary_max)}. Шкала вторичных баллов для экзамена не настроена.`;
       } else {
         forecastNoteEl.textContent = "Прогноз появится после загрузки прогресса.";
       }

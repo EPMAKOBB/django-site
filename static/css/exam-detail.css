@@ -176,14 +176,14 @@
 .exam-types-grid {
   display: grid;
   gap: var(--space-3);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .exam-type-card {
   color: inherit;
   background: var(--color-surface-1);
-  gap: 9px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 16px;
   text-decoration: none;
   transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
 }
@@ -195,10 +195,10 @@
 }
 
 .exam-type-card__header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .exam-type-card__heading {
@@ -224,7 +224,15 @@
 }
 
 .exam-type-card__score {
-  flex: 0 0 auto;
+  justify-self: end;
+}
+
+.exam-type-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  min-width: max-content;
 }
 
 .exam-type-card__score-value {
@@ -246,11 +254,14 @@
   font-weight: 700;
 }
 
-.exam-type-card__status-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
+.exam-type-card__status {
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 2px 9px;
+  gap: 0;
+  font-size: 12px;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .exam-type-card__status.is-strong {
@@ -266,13 +277,6 @@
 .exam-type-card__status.is-weak {
   border-color: color-mix(in srgb, var(--color-danger) 55%, var(--color-border-subtle));
   color: var(--color-danger);
-}
-
-.exam-type-card__status-text {
-  flex: 1 1 220px;
-  min-width: 0;
-  font-size: 13px;
-  line-height: 1.35;
 }
 
 .exam-type-card__tags {
@@ -295,10 +299,13 @@
 }
 
 .exam-type-card__tags .type-tag::before {
-  border-right: 1px solid color-mix(in srgb, var(--color-accent-primary) 52%, transparent);
+  background: color-mix(in srgb, var(--color-accent-primary) 52%, transparent);
+  opacity: 0.42;
 }
 
 .exam-type-card__tags .type-tag__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -461,6 +468,16 @@
   }
 }
 
+@media (max-width: 860px) {
+  .exam-type-card__header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .exam-type-card__score {
+    justify-self: end;
+  }
+}
+
 @media (max-width: 640px) {
   .exam-page {
     padding-top: var(--space-4);
@@ -482,8 +499,7 @@
     min-height: auto;
   }
 
-  .exam-type-card__header,
-  .exam-type-card__status-row {
+  .exam-type-card__header {
     align-items: start;
   }
 }
