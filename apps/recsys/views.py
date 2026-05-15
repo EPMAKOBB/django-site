@@ -401,22 +401,56 @@ def variant_page(request, slug: str):
     template_tasks = list(
         template.template_tasks.select_related("task__subject", "task__type", "task").order_by("order")
     )
+    assignment = None
+    active_attempt = None
+    if request.user.is_authenticated:
+        assignment = VariantAssignment.objects.filter(template=template, user=request.user).first()
+        if assignment:
+            active_attempt = (
+                assignment.attempts.filter(completed_at__isnull=True).order_by("attempt_number").first()
+            )
+    template_ready_for_start = request.user.is_staff or variant_template_is_public_ready(template)
+    can_start_attempt = bool(active_attempt or template_ready_for_start)
+    can_rebuild_personal = bool(
+        request.user.is_authenticated
+        and assignment
+        and template.kind == VariantTemplate.Kind.PERSONAL
+        and template.exam_version_id
+    )
+
+    if request.method == "POST" and request.POST.get("action") == "rebuild_personal":
+        if not request.user.is_authenticated:
+            return redirect(f"{reverse('accounts:login')}?next={request.path}")
+        if not can_rebuild_personal:
+            raise Http404("Variant is not available.")
+        try:
+            new_assignment = variant_services.rebuild_personal_assignment_from_assignment(
+                user=request.user,
+                assignment=assignment,
+            )
+        except drf_exceptions.ValidationError as exc:
+            logger.info("Personal assignment rebuild validation error", extra={"template_id": template.id}, exc_info=exc)
+            messages.error(request, _("Не удалось собрать новый вариант."))
+        except drf_exceptions.APIException as exc:
+            logger.warning("Personal assignment rebuild API error", extra={"template_id": template.id}, exc_info=exc)
+            messages.error(request, _("Не удалось собрать новый вариант."))
+        else:
+            page = variant_services.ensure_variant_page(new_assignment.template, is_public=False)
+            return redirect("variant-page", slug=page.slug)
 
     if request.method == "POST" and request.POST.get("action") == "start":
         if not request.user.is_authenticated:
             return redirect(f"{reverse('accounts:login')}?next={request.path}")
-        assignment, _ = VariantAssignment.objects.get_or_create(
-            template=template,
-            user=request.user,
-        )
-        active_attempt = (
-            assignment.attempts.filter(completed_at__isnull=True).order_by("attempt_number").first()
-        )
+        if assignment is None:
+            assignment, _created = VariantAssignment.objects.get_or_create(
+                template=template,
+                user=request.user,
+            )
         try:
             attempt = active_attempt or variant_services.start_new_attempt(request.user, assignment.id)
         except drf_exceptions.ValidationError as exc:
             logger.info("Variant start validation error", extra={"template_id": template.id}, exc_info=exc)
-            messages.error(request, _("Не удалось начать попытку."))
+            messages.error(request, _("Вариант временно недоступен для решения."))
         except drf_exceptions.APIException as exc:
             logger.warning("Variant start API error", extra={"template_id": template.id}, exc_info=exc)
             messages.error(request, _("Не удалось начать попытку."))
@@ -450,6 +484,9 @@ def variant_page(request, slug: str):
         "page_title": page.title or template.name,
         "page_description": page.description or template.description,
         "tasks": tasks,
+        "active_attempt": active_attempt,
+        "can_start_attempt": can_start_attempt,
+        "can_rebuild_personal": can_rebuild_personal,
     }
     return render(request, "variants/detail.html", context)
 

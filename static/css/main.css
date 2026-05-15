@@ -990,8 +990,9 @@ header a:hover {
 }
 
 .solver__task-button.is-saved {
-  background: linear-gradient(145deg, rgba(123,255,183,0.18), rgba(18,36,28,0.9));
-  border-color: color-mix(in srgb, var(--accent-2) 70%, transparent);
+  background: linear-gradient(145deg, rgba(167,139,250,0.22), rgba(30,24,52,0.92));
+  border-color: color-mix(in srgb, #a78bfa 70%, transparent);
+  color: #ede9fe;
 }
 
 .solver__task-button--wide {

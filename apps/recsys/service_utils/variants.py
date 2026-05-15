@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 import hashlib
 from typing import Any, Iterable, List, Optional, Mapping
+from uuid import uuid4
 
 from django.db import transaction
 from django.db.models import Prefetch, Sum
@@ -199,7 +200,13 @@ def calculate_attempt_primary_summary(attempt: VariantAttempt) -> dict:
         "success_percent": success_percent,
     }
 
-def build_personal_assignment_from_blueprint(*, user, exam_version):
+def build_personal_assignment_from_blueprint(
+    *,
+    user,
+    exam_version,
+    force_new: bool = False,
+    exclude_task_ids: Iterable[int] | None = None,
+):
     """Create a personal assignment based on the active exam blueprint."""
 
     blueprint = _get_active_blueprint(exam_version)
@@ -212,6 +219,7 @@ def build_personal_assignment_from_blueprint(*, user, exam_version):
 
     recommended = recommend_tasks(user)
     recommended_by_type: dict[int, list[int]] = {}
+    excluded_task_ids = {int(task_id) for task_id in (exclude_task_ids or [])}
     for task in recommended:
         if task.exam_version_id != exam_version.id or task.type_id is None:
             continue
@@ -224,7 +232,7 @@ def build_personal_assignment_from_blueprint(*, user, exam_version):
         selected_ids: list[int] = []
 
         for tid in recommended_by_type.get(int(item.task_type_id), []):
-            if tid in used_task_ids:
+            if tid in used_task_ids or tid in excluded_task_ids:
                 continue
             selected_ids.append(tid)
             used_task_ids.add(tid)
@@ -234,7 +242,7 @@ def build_personal_assignment_from_blueprint(*, user, exam_version):
         if len(selected_ids) < needed:
             fallback_qs = public_tasks_queryset(
                 Task.objects.filter(type=item.task_type, exam_version=exam_version)
-            ).exclude(id__in=used_task_ids).order_by("-difficulty_level", "id")
+            ).exclude(id__in=used_task_ids | excluded_task_ids).order_by("-difficulty_level", "id")
             for tid in fallback_qs.values_list("id", flat=True)[: needed - len(selected_ids)]:
                 selected_ids.append(int(tid))
                 used_task_ids.add(int(tid))
@@ -262,19 +270,21 @@ def build_personal_assignment_from_blueprint(*, user, exam_version):
         .prefetch_related(ATTEMPTS_PREFETCH)
         .order_by("-created_at")
     )
-    for assignment in existing_assignments:
-        if assignment.deadline and assignment.deadline < now:
-            continue
-        if _active_attempts(assignment):
-            ensure_variant_page(assignment.template, is_public=False)
-            return assignment
-        attempts_left = _attempts_left(assignment)
-        if attempts_left is None or attempts_left > 0:
-            ensure_variant_page(assignment.template, is_public=False)
-            return assignment
+    if not force_new:
+        for assignment in existing_assignments:
+            if assignment.deadline and assignment.deadline < now:
+                continue
+            if _active_attempts(assignment):
+                ensure_variant_page(assignment.template, is_public=False)
+                return assignment
+            attempts_left = _attempts_left(assignment)
+            if attempts_left is None or attempts_left > 0:
+                ensure_variant_page(assignment.template, is_public=False)
+                return assignment
 
     timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
-    variant_name = f"Персональный вариант {exam_version.name} {user.id}-{timestamp}"
+    unique_suffix = uuid4().hex[:6]
+    variant_name = f"Персональный вариант {exam_version.name} {user.id}-{timestamp}-{unique_suffix}"
     with transaction.atomic():
         template = VariantTemplate.objects.create(
             name=variant_name,
@@ -299,6 +309,39 @@ def build_personal_assignment_from_blueprint(*, user, exam_version):
         )
         ensure_variant_page(template, is_public=False)
     return assignment
+
+
+@transaction.atomic
+def rebuild_personal_assignment_from_assignment(*, user, assignment: VariantAssignment) -> VariantAssignment:
+    """Abandon a personal assignment and build a replacement for the same exam."""
+
+    assignment = (
+        VariantAssignment.objects.select_for_update()
+        .get(pk=assignment.pk, user=user)
+    )
+    template = (
+        VariantTemplate.objects.select_related("exam_version")
+        .prefetch_related("template_tasks")
+        .get(pk=assignment.template_id)
+    )
+    if template.kind != VariantTemplate.Kind.PERSONAL or template.exam_version_id is None:
+        raise exceptions.ValidationError("Only personal variants can be rebuilt.")
+
+    now = timezone.now()
+    active_attempts = list(assignment.attempts.select_for_update().filter(completed_at__isnull=True))
+    for attempt in active_attempts:
+        attempt.mark_completed()
+    if assignment.deadline is None or assignment.deadline > now:
+        assignment.deadline = now
+        assignment.save(update_fields=["deadline", "updated_at"])
+
+    excluded_task_ids = list(template.template_tasks.values_list("task_id", flat=True))
+    return build_personal_assignment_from_blueprint(
+        user=user,
+        exam_version=template.exam_version,
+        force_new=True,
+        exclude_task_ids=excluded_task_ids,
+    )
 
 
 def _as_list(value):

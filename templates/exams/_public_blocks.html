@@ -7,7 +7,7 @@
         <div class="exam-action-card__body">
           <h3 class="exam-action-card__title">{% trans "Тренировочный режим" %}</h3>
           <p class="exam-action-card__text">
-            {% trans "Запускает адаптивную сессию: после каждого ответа система подбирает следующую задачу." %}
+            {% trans "Решать рекомендованные задачи по одной" %}
           </p>
         </div>
         <a class="btn btn-primary exam-action-card__button" href="{% url 'exam-training-page' exam.slug %}">
@@ -19,7 +19,7 @@
         <div class="exam-action-card__body">
           <h3 class="exam-action-card__title">{% trans "Собрать персональный вариант" %}</h3>
           <p class="exam-action-card__text">
-            {% trans "Соберем вариант на основе вашего текущих успехов по этому экзамену." %}
+            {% trans "Решать вариант в режиме экзамена" %}
           </p>
         </div>
 

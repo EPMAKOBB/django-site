@@ -78,7 +78,9 @@
   const answerEl = document.getElementById("solver-answer");
   const answerBuilderEl = document.getElementById("solver-answer-builder");
   const answerFieldsEl = document.getElementById("solver-answer-fields");
-  const taskResponseHelper = window.FractalTaskResponse || null;
+  function getTaskResponseHelper() {
+    return window.FractalTaskResponse || null;
+  }
   const footerEl = document.querySelector(".solver__footer");
   const attachmentsEl = document.getElementById("solver-attachments");
   const correctAnswerFieldsEl = document.getElementById("solver-correct-answer-fields");
@@ -488,6 +490,7 @@
   }
 
   function buildInputs(schema, savedValue) {
+    const taskResponseHelper = getTaskResponseHelper();
     if (!answerFieldsEl || !schema || !taskResponseHelper) return;
     taskResponseHelper.buildInputs(answerFieldsEl, schema, savedValue, {
       gridClassName: "answer-grid",
@@ -500,6 +503,7 @@
   }
 
   function buildReadOnlyInputs(schema, payload) {
+    const taskResponseHelper = getTaskResponseHelper();
     if (!correctAnswerFieldsEl || !schema || !taskResponseHelper) return;
     taskResponseHelper.buildReadOnlyInputs(correctAnswerFieldsEl, schema, payload, {
       gridClassName: "answer-grid",
@@ -510,6 +514,7 @@
   }
 
   function collectPayload(schema) {
+    const taskResponseHelper = getTaskResponseHelper();
     if (!answerFieldsEl || !schema || !taskResponseHelper) return null;
     const payload = taskResponseHelper.collectPayload(answerFieldsEl, schema);
     if (!schema || !schema.config || !schema.config.allow_blank_rows || !Array.isArray(payload)) {
@@ -697,17 +702,22 @@
       }
     }
     if (task.task_body_html) {
+      delete bodyEl.dataset.mathRendered;
       bodyEl.innerHTML = task.task_body_html;
       if (task.task_rendering_strategy === "markdown") {
         bodyEl.setAttribute("data-format", "markdown");
         bodyEl.classList.add("markdown-content");
       } else {
-        bodyEl.removeAttribute("data-format");
+        bodyEl.setAttribute("data-format", "html");
         bodyEl.classList.remove("markdown-content");
+      }
+      if (typeof window.renderMathBlocks === "function") {
+        window.renderMathBlocks();
       }
     } else {
       bodyEl.innerHTML = "<p class='muted'>{% trans 'Описание не найдено' %}</p>";
       bodyEl.removeAttribute("data-format");
+      delete bodyEl.dataset.mathRendered;
       bodyEl.classList.remove("markdown-content");
     }
 
@@ -717,7 +727,7 @@
     isEditing = false;
     currentSchema = task.answer_schema || null;
 
-    if (currentSchema && answerBuilderEl && answerFieldsEl) {
+    if (currentSchema && answerBuilderEl && answerFieldsEl && getTaskResponseHelper()) {
       answerBuilderEl.hidden = false;
       answerEl.style.display = "none";
       buildInputs(currentSchema, task.saved_response);

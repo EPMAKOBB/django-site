@@ -2,7 +2,16 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from apps.recsys.models import ExamVersion, Task, TaskType, VariantTemplate
+from apps.recsys.models import (
+    ExamBlueprint,
+    ExamBlueprintItem,
+    ExamVersion,
+    Task,
+    TaskType,
+    VariantAssignment,
+    VariantAttempt,
+    VariantTemplate,
+)
 from apps.recsys.recommendation import recommend_tasks
 from apps.recsys.service_utils import variants as variant_service
 from subjects.models import Subject
@@ -83,3 +92,99 @@ class PublicationFiltersTests(TestCase):
         response = self.client.get(reverse("variant-page", kwargs={"slug": page.slug}))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_private_assigned_variant_with_draft_task_start_does_not_500(self):
+        draft = self._task("Draft task", Task.Status.DRAFT)
+        self._task("Replacement task", Task.Status.PUBLISHED)
+        blueprint = ExamBlueprint.objects.create(
+            subject=self.subject,
+            exam_version=self.exam,
+            title="Blueprint",
+            is_active=True,
+        )
+        ExamBlueprintItem.objects.create(
+            blueprint=blueprint,
+            task_type=self.task_type,
+            count=1,
+            order=1,
+        )
+        template = VariantTemplate.objects.create(
+            name="Assigned blocked variant",
+            exam_version=self.exam,
+            kind=VariantTemplate.Kind.PERSONAL,
+            is_public=False,
+        )
+        page = variant_service.ensure_variant_page(template, is_public=False)
+        template.template_tasks.create(task=draft, order=1)
+        assignment = VariantAssignment.objects.create(template=template, user=self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("variant-page", kwargs={"slug": page.slug}))
+
+        self.assertContains(response, "Вариант временно недоступен")
+        self.assertContains(response, "Собрать новый")
+        self.assertContains(response, "disabled")
+        self.assertNotContains(response, 'id="variant-start-form"')
+
+        response = self.client.post(
+            reverse("variant-page", kwargs={"slug": page.slug}),
+            {"action": "start"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Вариант временно недоступен")
+        self.assertFalse(VariantAttempt.objects.exists())
+
+        response = self.client.post(
+            reverse("variant-page", kwargs={"slug": page.slug}),
+            {"action": "rebuild_personal"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        assignment.refresh_from_db()
+        self.assertIsNotNone(assignment.deadline)
+        self.assertEqual(VariantAssignment.objects.filter(user=self.user).count(), 2)
+
+    def test_started_personal_variant_can_be_abandoned_and_rebuilt(self):
+        task = self._task("Started task", Task.Status.PUBLISHED)
+        self._task("Replacement task", Task.Status.PUBLISHED)
+        blueprint = ExamBlueprint.objects.create(
+            subject=self.subject,
+            exam_version=self.exam,
+            title="Blueprint",
+            is_active=True,
+        )
+        ExamBlueprintItem.objects.create(
+            blueprint=blueprint,
+            task_type=self.task_type,
+            count=1,
+            order=1,
+        )
+        template = VariantTemplate.objects.create(
+            name="Started personal variant",
+            exam_version=self.exam,
+            kind=VariantTemplate.Kind.PERSONAL,
+            is_public=False,
+        )
+        page = variant_service.ensure_variant_page(template, is_public=False)
+        template.template_tasks.create(task=task, order=1)
+        assignment = VariantAssignment.objects.create(template=template, user=self.user)
+        attempt = VariantAttempt.objects.create(assignment=assignment, attempt_number=1)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("variant-page", kwargs={"slug": page.slug}))
+
+        self.assertContains(response, "Продолжить решение варианта")
+        self.assertContains(response, "Отказаться от решения и собрать новый")
+
+        response = self.client.post(
+            reverse("variant-page", kwargs={"slug": page.slug}),
+            {"action": "rebuild_personal"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        attempt.refresh_from_db()
+        assignment.refresh_from_db()
+        self.assertIsNotNone(attempt.completed_at)
+        self.assertIsNotNone(assignment.deadline)
+        self.assertEqual(VariantAssignment.objects.filter(user=self.user).count(), 2)

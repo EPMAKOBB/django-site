@@ -25,11 +25,34 @@
       {% endif %}
       <div class="variant-page__actions">
         {% if request.user.is_authenticated %}
-          <form id="variant-start-form" method="post" target="_blank">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="start">
-            <button type="submit" class="btn btn-primary btn-large">{% trans "Приступить к решению варианта" %}</button>
-          </form>
+          {% if can_start_attempt %}
+            <form id="variant-start-form" method="post" target="_blank">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="start">
+              <button type="submit" class="btn btn-primary btn-large">
+                {% if active_attempt %}
+                  {% trans "Продолжить решение варианта" %}
+                {% else %}
+                  {% trans "Приступить к решению варианта" %}
+                {% endif %}
+              </button>
+            </form>
+          {% else %}
+            <button type="button" class="btn btn-primary btn-large" disabled>{% trans "Вариант временно недоступен" %}</button>
+          {% endif %}
+          {% if can_rebuild_personal %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="rebuild_personal">
+              <button type="submit" class="btn btn-secondary btn-large">
+                {% if active_attempt %}
+                  {% trans "Отказаться от решения и собрать новый" %}
+                {% else %}
+                  {% trans "Собрать новый" %}
+                {% endif %}
+              </button>
+            </form>
+          {% endif %}
         {% else %}
           <a class="btn btn-primary btn-large" target="_blank" rel="noopener" href="{% url 'accounts:login' %}?next={{ request.path }}">{% trans "Войти и приступить" %}</a>
         {% endif %}
