@@ -43,3 +43,8 @@ htmlcov/
 # Misc
 *.swp
 *.bak
+*.dump
+*.sql
+*.sqlite3.bak
+tmp_*
+test/

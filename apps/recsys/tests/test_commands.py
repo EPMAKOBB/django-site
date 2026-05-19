@@ -129,8 +129,18 @@ class RecomputeRecsysStateCommandTest(TestCase):
         self.assertAlmostEqual(type_mastery.progress, tag_mastery.progress)
 
     def test_recompute_recsys_state_updates_task_difficulty(self):
+        for index in range(10):
+            Attempt.objects.create(
+                user=self.user,
+                task=self.task,
+                is_correct=index < 2,
+                time_spent=timedelta(seconds=60 + index),
+            )
+
         call_command("recompute_recsys_state", tasks_only=True)
 
         self.task.refresh_from_db()
         self.assertAlmostEqual(self.task.difficulty_empirical, 0.8)
         self.assertEqual(self.task.difficulty_level, 61)
+        self.assertEqual(self.task.time_spent_count, 10)
+        self.assertAlmostEqual(self.task.time_spent_avg_seconds, 64.5)

@@ -1,26 +1,28 @@
 :root {
-  --color-bg-app: #061727;
-  --color-bg-app-soft: #0b2239;
-  --color-surface-1: rgba(15, 39, 68, 0.94);
-  --color-surface-2: rgba(23, 52, 88, 0.98);
-  --color-surface-2-hover: rgba(33, 68, 111, 0.98);
-  --color-surface-overlay: rgba(6, 23, 39, 0.72);
-  --color-border-subtle: rgba(69, 109, 149, 0.42);
-  --color-border-strong: rgba(69, 109, 149, 0.9);
-  --color-focus-ring: #a6c8ff;
+  --color-bg-app: #02050a;
+  --color-bg-app-soft: #050b14;
+  --color-surface-1: rgba(8, 20, 36, 0.94);
+  --color-surface-2: rgba(13, 31, 54, 0.98);
+  --color-surface-2-hover: rgba(18, 43, 74, 0.98);
+  --color-surface-overlay: rgba(2, 5, 10, 0.76);
+  --color-border-subtle: rgba(83, 215, 255, 0.28);
+  --color-border-strong: rgba(83, 215, 255, 0.58);
+  --color-focus-ring: #53d7ff;
   --color-text-primary: #f2f7ff;
-  --color-text-secondary: #d8e6f6;
-  --color-text-muted: #b7c9df;
-  --color-text-on-accent: #061727;
-  --color-accent-primary: #78a9ff;
-  --color-accent-primary-hover: #5c97ff;
-  --color-accent-soft: rgba(120, 169, 255, 0.18);
-  --color-success: #68d391;
+  --color-text-secondary: #d7e9fb;
+  --color-text-muted: #9eb7cf;
+  --color-text-on-accent: #02050a;
+  --color-accent-primary: #53d7ff;
+  --color-accent-primary-hover: #7ee5ff;
+  --color-accent-soft: rgba(83, 215, 255, 0.16);
+  --color-accent-violet: #9f7bff;
+  --color-accent-green: #5cffb1;
+  --color-success: #5cffb1;
   --color-danger: #ff8ca8;
   --color-warning: #f7d17a;
-  --shadow-panel: 0 24px 72px rgba(0, 6, 20, 0.28);
-  --shadow-elevated: 0 18px 44px rgba(0, 10, 24, 0.2);
-  --shadow-overlay: 0 18px 36px rgba(0, 10, 24, 0.18);
+  --shadow-panel: 0 24px 72px rgba(0, 0, 0, 0.34), 0 0 36px rgba(83, 215, 255, 0.08);
+  --shadow-elevated: 0 18px 44px rgba(0, 0, 0, 0.28), 0 0 24px rgba(83, 215, 255, 0.06);
+  --shadow-overlay: 0 18px 36px rgba(0, 0, 0, 0.24);
   --radius-sm: 12px;
   --radius-md: 16px;
   --radius-lg: 28px;
@@ -40,6 +42,8 @@
   --space-8: 64px;
   --font-ui: "Segoe UI", "Inter", "Noto Sans", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", "Inter", "Noto Sans", Arial, sans-serif;
+  --font-data: "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
   color-scheme: dark;
 }
 
@@ -60,6 +64,8 @@ body[data-theme="day"] {
   --color-accent-primary: #4f8cff;
   --color-accent-primary-hover: #3d79e8;
   --color-accent-soft: rgba(79, 140, 255, 0.12);
+  --color-accent-violet: #7c5cff;
+  --color-accent-green: #14b8a6;
   --color-success: #2f855a;
   --color-danger: #d64a73;
   --color-warning: #b7791f;
@@ -82,9 +88,7 @@ body {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(89, 132, 204, 0.18), transparent 32%),
-    linear-gradient(180deg, var(--color-bg-app) 0%, var(--color-bg-app-soft) 100%);
+  background: var(--color-bg-app);
   color: var(--color-text-primary);
   font-family: var(--font-ui);
   font-size: 16px;
@@ -156,7 +160,7 @@ pre,
   top: 0;
   z-index: 50;
   backdrop-filter: blur(10px);
-  background: color-mix(in srgb, var(--color-bg-app) 88%, transparent);
+  background: color-mix(in srgb, var(--color-bg-app) 86%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--color-border-subtle) 90%, transparent);
 }
 
@@ -363,8 +367,10 @@ body[data-theme="day"] .theme-toggle::after {
 .section-title {
   margin: 0 0 var(--space-4);
   font-size: clamp(24px, 3vw, 34px);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 760;
   color: var(--color-text-primary);
+  line-height: 1.12;
 }
 
 .lead {
@@ -389,8 +395,10 @@ body[data-theme="day"] .theme-toggle::after {
 .dashboard-content form,
 .auth-form,
 .task-card:not(.card) {
-  background: var(--color-surface-1);
-  border: 1px solid var(--color-border-subtle);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-accent-violet) 6%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-1) 96%, transparent), var(--color-surface-1));
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 28%, var(--color-border-subtle));
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-elevated);
 }
@@ -413,8 +421,9 @@ body[data-theme="day"] .theme-toggle::after {
 }
 
 .block--futuristic {
-  background: var(--color-surface-1);
-  border-color: var(--color-border-subtle);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-accent-primary) 11%, var(--color-surface-1)), color-mix(in srgb, var(--color-accent-violet) 7%, var(--color-surface-1)));
+  border-color: color-mix(in srgb, var(--color-accent-primary) 46%, var(--color-border-subtle));
   box-shadow: var(--shadow-panel);
 }
 
@@ -645,11 +654,13 @@ body[data-theme="day"] .theme-toggle::after {
   padding: 0 var(--control-padding-x);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border-strong);
-  background: var(--color-surface-2);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-accent-primary) 9%, var(--color-surface-2)), color-mix(in srgb, var(--color-accent-violet) 5%, var(--color-surface-2)));
   color: var(--color-text-primary);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 8%, transparent);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
 
 .btn:hover,
@@ -659,20 +670,23 @@ body[data-theme="day"] .theme-toggle::after {
   background: var(--color-surface-2-hover);
   border-color: var(--color-focus-ring);
   color: var(--color-text-primary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 10%, transparent),
+    0 10px 24px color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
 }
 
 .btn-primary,
 .btn.accent,
 .btn-large.btn-primary {
-  background: var(--color-accent-primary);
-  border-color: var(--color-accent-primary);
+  background: linear-gradient(90deg, var(--color-accent-primary) 0%, var(--color-accent-green) 56%, var(--color-accent-violet) 100%);
+  border-color: color-mix(in srgb, var(--color-accent-primary) 70%, var(--color-border-strong));
   color: var(--color-text-on-accent);
 }
 
 .btn-primary:hover,
 .btn.accent:hover,
 .btn-large.btn-primary:hover {
-  background: var(--color-accent-primary-hover);
+  background: linear-gradient(90deg, var(--color-accent-primary-hover) 0%, color-mix(in srgb, var(--color-accent-green) 86%, #ffffff) 56%, var(--color-accent-violet) 100%);
   border-color: var(--color-accent-primary-hover);
   color: var(--color-text-on-accent);
 }
@@ -695,9 +709,10 @@ body[data-theme="day"] .theme-toggle::after {
   min-height: 36px;
   padding: 6px 12px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--color-border-subtle);
-  background: color-mix(in srgb, var(--color-surface-2) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 26%, var(--color-border-subtle));
+  background: color-mix(in srgb, var(--color-surface-2) 78%, transparent);
   color: var(--color-text-secondary);
+  font-family: var(--font-data);
   font-size: 13px;
   line-height: 1.2;
 }
@@ -791,8 +806,11 @@ textarea:focus-visible,
   height: 10px;
   border-radius: var(--radius-pill);
   overflow: hidden;
-  background: color-mix(in srgb, var(--color-accent-primary) 12%, var(--color-surface-2));
-  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 88%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-bg-app) 70%, transparent), color-mix(in srgb, var(--color-surface-2) 84%, transparent));
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 30%, var(--color-border-subtle));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #000000 18%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--color-accent-primary) 9%, transparent);
 }
 
 .fill,
@@ -800,7 +818,10 @@ textarea:focus-visible,
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--color-accent-primary) 0%, color-mix(in srgb, var(--color-accent-primary) 70%, #ffffff) 100%);
+  background: linear-gradient(90deg, var(--color-accent-primary) 0%, var(--color-accent-green) 56%, var(--color-accent-violet) 100%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 34%, transparent),
+    0 0 14px color-mix(in srgb, var(--color-accent-primary) 30%, transparent);
 }
 
 .dashboard-tabs {

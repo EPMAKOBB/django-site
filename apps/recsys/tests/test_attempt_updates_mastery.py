@@ -38,6 +38,7 @@ class AttemptUpdatesMasteryTests(TestCase):
             level_band=Task.LevelBand.EXAM,
             expected_time_seconds=60,
             max_score=2,
+            status=Task.Status.PUBLISHED,
         )
         self.task.tags.add(self.tag)
         TaskSkill.objects.create(task=self.task, skill=self.skill, weight=1.0)
@@ -113,6 +114,9 @@ class AttemptUpdatesMasteryTests(TestCase):
         self.assertAlmostEqual(self.task.difficulty_empirical, 0.5)
         self.assertEqual(self.task.first_attempt_total, 1)
         self.assertEqual(self.task.first_attempt_failed, 1)
+        self.assertEqual(self.task.time_spent_count, 1)
+        self.assertAlmostEqual(self.task.time_spent_sum_seconds, 60.0)
+        self.assertAlmostEqual(self.task.time_spent_avg_seconds, 60.0)
 
         type_mastery = TypeMastery.objects.get(user=self.user, task_type=self.task_type)
         self.assertAlmostEqual(type_mastery.mastery, 0.075)
@@ -120,6 +124,22 @@ class AttemptUpdatesMasteryTests(TestCase):
         self.assertAlmostEqual(type_mastery.progress, 0.05)
         self.assertEqual(type_mastery.attempts_total, 1)
         self.assertEqual(type_mastery.successes_total, 0)
+
+    def test_time_aggregate_ignores_suspiciously_long_attempt_time(self):
+        Attempt.objects.create(
+            user=self.user,
+            task=self.task,
+            is_correct=True,
+            score=2,
+            max_score=2,
+            time_spent=timedelta(seconds=self.task.expected_time_seconds * 10),
+        )
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.attempts_total, 1)
+        self.assertEqual(self.task.time_spent_count, 0)
+        self.assertEqual(self.task.time_spent_sum_seconds, 0.0)
+        self.assertIsNone(self.task.time_spent_avg_seconds)
 
     def test_variant_task_attempt_scoped_aggregation(self):
         template = factories.create_variant_template()

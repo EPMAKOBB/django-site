@@ -1,3 +1,35 @@
+.exam-page,
+.exam-page__content,
+.exam-type-detail {
+  position: relative;
+  --exam-glow-cyan: #53d7ff;
+  --exam-glow-violet: #9f7bff;
+  --exam-glow-green: #5cffb1;
+  --exam-panel-line: color-mix(in srgb, var(--exam-glow-cyan) 34%, var(--color-border-subtle));
+  --exam-font-display: "Segoe UI Variable Display", "Segoe UI", "Inter", "Noto Sans", Arial, sans-serif;
+  --exam-font-read: "Segoe UI Variable Text", "Segoe UI", "Inter", "Noto Sans", Arial, sans-serif;
+  --exam-font-data: "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--exam-font-read);
+}
+
+body:has(.exam-page) .site-main,
+body:has(.exam-type-detail) .site-main {
+  position: relative;
+  isolation: isolate;
+  background: #02050a;
+}
+
+body:has(.exam-page) .site-main > .section,
+body:has(.exam-type-detail) .site-main > .section {
+  position: relative;
+  z-index: 1;
+}
+
+body[data-theme="day"]:has(.exam-page) .site-main,
+body[data-theme="day"]:has(.exam-type-detail) .site-main {
+  background: transparent;
+}
+
 .exam-page {
   padding-top: var(--space-5);
 }
@@ -15,7 +47,15 @@
 .exam-page__title {
   margin: 0;
   font-size: clamp(28px, 4vw, 42px);
-  line-height: 1.08;
+  line-height: 1.02;
+  font-family: var(--exam-font-display);
+  font-weight: 820;
+  letter-spacing: 0.005em;
+  background: linear-gradient(90deg, var(--color-text-primary), var(--exam-glow-cyan) 46%, var(--exam-glow-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 28px color-mix(in srgb, var(--exam-glow-cyan) 22%, transparent);
 }
 
 .exam-summary-grid {
@@ -25,37 +65,92 @@
 }
 
 .exam-summary-card {
+  position: relative;
+  overflow: hidden;
   display: grid;
   gap: 10px;
   min-height: 128px;
   padding: 16px;
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--exam-panel-line);
   border-radius: var(--radius-md);
-  background: var(--color-surface-1);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--exam-glow-cyan) 8%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-1) 96%, transparent), var(--color-surface-1));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 8%, transparent),
+    0 14px 34px color-mix(in srgb, var(--exam-glow-cyan) 10%, transparent);
+}
+
+.exam-summary-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--exam-glow-cyan), var(--exam-glow-violet), var(--exam-glow-green));
+  opacity: 0.78;
 }
 
 .exam-summary-card__label {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 13px;
-  font-weight: 600;
+  font-family: var(--exam-font-data);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .exam-summary-card__value {
   font-size: 30px;
-  font-weight: 650;
+  font-family: var(--exam-font-data);
+  font-weight: 800;
   line-height: 1;
+  color: color-mix(in srgb, var(--color-text-primary) 82%, var(--exam-glow-cyan));
 }
 
 .exam-summary-card__progress {
   margin-top: auto;
 }
 
+.exam-page .progress-bar,
+.exam-page__content .progress-bar,
+.exam-type-detail .progress-bar {
+  height: 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-bg-app) 70%, transparent), color-mix(in srgb, var(--color-surface-2) 84%, transparent));
+  border-color: color-mix(in srgb, var(--exam-glow-cyan) 30%, var(--color-border-subtle));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #000000 18%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--exam-glow-cyan) 9%, transparent);
+}
+
+.exam-page .progress-bar .fill,
+.exam-page__content .progress-bar .fill,
+.exam-type-detail .progress-bar .fill {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, var(--exam-glow-cyan) 0%, var(--exam-glow-green) 54%, var(--exam-glow-violet) 100%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 34%, transparent),
+    0 0 14px color-mix(in srgb, var(--exam-glow-cyan) 30%, transparent);
+}
+
+.exam-page .progress-bar .fill::after,
+.exam-page__content .progress-bar .fill::after,
+.exam-type-detail .progress-bar .fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, #ffffff 32%, transparent), transparent 48%);
+  mix-blend-mode: screen;
+  opacity: 0.52;
+}
+
 .exam-summary-card__note {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .exam-summary-list {
@@ -64,7 +159,7 @@
   display: grid;
   gap: 6px;
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.35;
 }
 
@@ -84,8 +179,11 @@
 
 .exam-section-heading__title {
   margin: 0;
-  font-size: 22px;
+  font-family: var(--exam-font-display);
+  font-size: 23px;
+  font-weight: 780;
   line-height: 1.2;
+  letter-spacing: 0.005em;
 }
 
 .exam-actions-grid {
@@ -96,33 +194,51 @@
 
 .exam-action-card,
 .exam-type-card {
+  position: relative;
+  overflow: hidden;
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--exam-panel-line);
   border-radius: var(--radius-md);
   background: var(--color-surface-1);
 }
 
+.exam-action-card::before,
+.exam-type-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--exam-glow-cyan) 18%, transparent), transparent 22%),
+    linear-gradient(180deg, color-mix(in srgb, #ffffff 7%, transparent), transparent 30%);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
 .exam-action-card {
   grid-template-rows: 1fr auto;
-  border-color: color-mix(in srgb, var(--color-accent-primary) 26%, var(--color-border-subtle));
+  border-color: color-mix(in srgb, var(--exam-glow-cyan) 38%, var(--color-border-subtle));
   background:
     linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-accent-primary) 10%, var(--color-surface-2)),
+      135deg,
+      color-mix(in srgb, var(--exam-glow-cyan) 14%, var(--color-surface-2)),
+      color-mix(in srgb, var(--exam-glow-violet) 8%, var(--color-surface-2)) 54%,
       color-mix(in srgb, var(--color-accent-primary) 4%, var(--color-surface-2))
     );
 }
 
 .exam-action-card--primary {
-  border-color: color-mix(in srgb, var(--color-accent-primary) 52%, var(--color-border-subtle));
+  border-color: color-mix(in srgb, var(--exam-glow-green) 48%, var(--color-border-subtle));
   background:
     linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-accent-primary) 16%, var(--color-surface-2)),
-      color-mix(in srgb, var(--color-accent-primary) 7%, var(--color-surface-2))
+      135deg,
+      color-mix(in srgb, var(--exam-glow-green) 18%, var(--color-surface-2)),
+      color-mix(in srgb, var(--exam-glow-cyan) 12%, var(--color-surface-2)) 48%,
+      color-mix(in srgb, var(--exam-glow-violet) 7%, var(--color-surface-2))
     );
+  box-shadow: 0 18px 40px color-mix(in srgb, var(--exam-glow-green) 12%, transparent);
 }
 
 .exam-action-card__body {
@@ -133,8 +249,10 @@
 .exam-action-card__title,
 .exam-type-card__title {
   margin: 0;
+  font-family: var(--exam-font-display);
   font-size: 18px;
-  line-height: 1.25;
+  font-weight: 780;
+  line-height: 1.18;
 }
 
 .exam-action-card__text,
@@ -142,7 +260,7 @@
   margin: 0;
   color: var(--color-text-secondary);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .exam-action-card__button {
@@ -163,8 +281,9 @@
 .exam-secondary-actions__title {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 14px;
-  font-weight: 600;
+  font-family: var(--exam-font-data);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .variant-buttons {
@@ -181,17 +300,30 @@
 
 .exam-type-card {
   color: inherit;
-  background: var(--color-surface-1);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--exam-glow-violet) 7%, transparent), transparent 36%),
+    var(--color-surface-1);
   gap: 12px;
   padding: 16px;
   text-decoration: none;
-  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--exam-glow-violet) 7%, transparent);
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .exam-type-card:hover {
-  border-color: color-mix(in srgb, var(--color-accent-primary) 46%, var(--color-border-subtle));
-  background: color-mix(in srgb, var(--color-accent-primary) 5%, var(--color-surface-1));
+  border-color: color-mix(in srgb, var(--exam-glow-cyan) 58%, var(--color-border-subtle));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--exam-glow-cyan) 11%, transparent), transparent 42%),
+    color-mix(in srgb, var(--color-accent-primary) 5%, var(--color-surface-1));
+  box-shadow:
+    0 16px 34px color-mix(in srgb, var(--exam-glow-cyan) 13%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--exam-glow-cyan) 14%, transparent);
   transform: translateY(-1px);
+}
+
+.exam-action-card:hover::before,
+.exam-type-card:hover::before {
+  opacity: 1;
 }
 
 .exam-type-card__header {
@@ -243,14 +375,18 @@
   min-height: 30px;
   padding: 0 9px;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-accent-primary) 14%, var(--color-surface-2));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--exam-glow-cyan) 22%, var(--color-surface-2)), color-mix(in srgb, var(--exam-glow-violet) 16%, var(--color-surface-2)));
+  border: 1px solid color-mix(in srgb, var(--exam-glow-cyan) 36%, transparent);
   color: var(--color-text-primary);
-  font-size: 14px;
-  font-weight: 700;
+  font-family: var(--exam-font-data);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .exam-type-card__score-muted {
   color: var(--color-text-muted);
+  font-family: var(--exam-font-data);
   font-weight: 700;
 }
 
@@ -259,7 +395,9 @@
   min-height: 22px;
   padding: 2px 9px;
   gap: 0;
-  font-size: 12px;
+  font-family: var(--exam-font-data);
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1.15;
   white-space: nowrap;
 }
@@ -290,16 +428,18 @@
   align-items: center;
   min-height: 22px;
   padding: 3px 7px;
-  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 36%, var(--color-border-subtle));
+  border: 1px solid color-mix(in srgb, var(--exam-glow-cyan) 36%, var(--color-border-subtle));
   border-radius: 4px;
-  background: color-mix(in srgb, var(--color-surface-2) 28%, transparent);
+  background: color-mix(in srgb, var(--color-surface-2) 44%, transparent);
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-family: var(--exam-font-data);
+  font-size: 11px;
+  font-weight: 650;
   line-height: 1.15;
 }
 
 .exam-type-card__tags .type-tag::before {
-  background: color-mix(in srgb, var(--color-accent-primary) 52%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--exam-glow-cyan) 58%, transparent), color-mix(in srgb, var(--exam-glow-green) 42%, transparent));
   opacity: 0.42;
 }
 
@@ -337,7 +477,7 @@
 .exam-type-detail__back {
   width: fit-content;
   color: var(--color-text-muted);
-  font-size: 14px;
+  font-size: 13px;
   text-decoration: none;
 }
 
@@ -348,12 +488,14 @@
 .exam-type-detail__title {
   margin: 0;
   font-size: clamp(26px, 3vw, 34px);
-  line-height: 1.12;
+  font-family: var(--exam-font-display);
+  font-weight: 800;
+  line-height: 1.08;
 }
 
 .exam-type-detail__meta {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .exam-type-detail__tasks {
@@ -370,7 +512,9 @@
 .exam-type-detail__task-title {
   margin: 0;
   font-size: clamp(24px, 3vw, 32px);
-  line-height: 1.1;
+  font-family: var(--exam-font-display);
+  font-weight: 780;
+  line-height: 1.08;
   color: var(--color-text-primary);
 }
 
@@ -382,7 +526,8 @@
 
 .exam-type-detail .chip {
   padding: 5px 11px;
-  font-size: 12px;
+  font-family: var(--exam-font-data);
+  font-size: 11px;
 }
 
 .exam-type-detail .task-description {

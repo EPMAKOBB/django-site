@@ -222,6 +222,8 @@ class TaskAdmin(admin.ModelAdmin):
         "image_preview",
         "first_attempt_total",
         "first_attempt_failed",
+        "time_spent_avg_seconds",
+        "time_spent_count",
         "pregenerated_datasets_link",
     )
     fieldsets = (
@@ -257,7 +259,12 @@ class TaskAdmin(admin.ModelAdmin):
         (
             "Статистика",
             {
-                "fields": ("first_attempt_total", "first_attempt_failed"),
+                "fields": (
+                    "first_attempt_total",
+                    "first_attempt_failed",
+                    "time_spent_avg_seconds",
+                    "time_spent_count",
+                ),
                 "classes": ("collapse",),
             },
         ),

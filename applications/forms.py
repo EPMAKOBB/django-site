@@ -36,7 +36,7 @@ class ApplicationForm(forms.ModelForm):
         ]
         labels = {
             "contact_name": _("Ваше имя"),
-            "contact_info": _("Телефон для связи"),
+            "contact_info": _("Ваш телефон"),
         }
         widgets = {
             "contact_name": forms.TextInput(
@@ -47,7 +47,7 @@ class ApplicationForm(forms.ModelForm):
             ),
             "contact_info": forms.TextInput(
                 attrs={
-                    "placeholder": _("Телефон для связи"),
+                    "placeholder": _("Введите телефон"),
                     "inputmode": "tel",
                     "autocomplete": "tel",
                 }

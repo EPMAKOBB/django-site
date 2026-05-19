@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from django.test import TestCase
+from datetime import timedelta
 
-from apps.recsys.models import Task, VariantTaskAttempt
+from django.core.management import call_command
+from django.test import TestCase
+from django.utils import timezone
+
+from apps.recsys.models import Attempt, Task, VariantTaskAttempt, VariantTaskTimeLog
 from apps.recsys.service_utils import task_generation, variants as variant_service
 
 from . import factories
@@ -363,6 +367,15 @@ class VariantGenerationTests(TestCase):
         attempt = variant_service.start_new_attempt(
             self.assignment.user, self.assignment.id
         )
+        started_at = timezone.now() - timedelta(seconds=120)
+        VariantTaskTimeLog.objects.create(
+            variant_attempt=attempt,
+            variant_task=self.static_variant_task,
+            started_at=started_at,
+            stopped_at=started_at + timedelta(seconds=60),
+            duration=timedelta(seconds=60),
+            stop_reason=VariantTaskTimeLog.StopReason.SAVE,
+        )
 
         variant_service.save_task_response(
             self.assignment.user,
@@ -414,6 +427,23 @@ class VariantGenerationTests(TestCase):
         self.assignment.refresh_from_db()
         progress_summary = variant_service.calculate_assignment_progress(self.assignment)
         self.assertEqual(progress_summary["solved_tasks"], 1)
+
+        global_attempts = Attempt.objects.filter(mode=Attempt.Mode.VARIANT).order_by("id")
+        self.assertEqual(global_attempts.count(), 2)
+        static_global_attempt = global_attempts.get(variant_task_attempt=static_attempt)
+        self.assertEqual(static_global_attempt.task, self.static_task)
+        self.assertTrue(static_global_attempt.is_correct)
+        self.assertEqual(static_global_attempt.time_spent, timedelta(seconds=60))
+        self.static_task.refresh_from_db()
+        self.assertEqual(self.static_task.attempts_total, 1)
+        self.assertEqual(self.static_task.time_spent_count, 1)
+        self.assertAlmostEqual(self.static_task.time_spent_avg_seconds, 60.0)
+
+        call_command("sync_variant_attempts")
+        self.assertEqual(
+            Attempt.objects.filter(variant_task_attempt=static_attempt).count(),
+            1,
+        )
 
     def test_task_body_html_falls_back_to_task_description_without_generation_snapshot(self):
         self.static_task.description = "first line\nsecond line"

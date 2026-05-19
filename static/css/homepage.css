@@ -12,8 +12,8 @@
 
 body[data-theme="day"] .home-hero {
   background:
-    radial-gradient(circle at 50% -8%, rgba(66, 158, 255, 0.18), transparent 28%),
-    linear-gradient(180deg, #f7faff 0%, #eef4fc 50%, #e8eff9 100%);
+    radial-gradient(circle at 50% -8%, rgba(79, 140, 255, 0.08), transparent 28%),
+    linear-gradient(180deg, #fbfdff 0%, #f4f7fb 54%, #eef3f9 100%);
 }
 
 .home-hero::before {
@@ -33,7 +33,7 @@ body[data-theme="day"] .home-hero {
 }
 
 body[data-theme="day"] .home-hero::before {
-  opacity: 0.24;
+  opacity: 0.08;
 }
 
 .home-hero__ascii-scene {
@@ -91,7 +91,15 @@ body[data-theme="day"] .home-hero::before {
 }
 
 body[data-theme="day"] .home-hero__mark {
-  color: #13253f;
+  color: #17263a;
+  text-shadow:
+    0 0 10px rgba(79, 140, 255, 0.16),
+    0 0 24px rgba(20, 184, 166, 0.1);
+}
+
+body[data-theme="day"] .home-hero__offer {
+  color: #17263a;
+  text-shadow: 0 0 18px rgba(79, 140, 255, 0.12);
 }
 
 .home-hero__offer {
@@ -114,17 +122,26 @@ body[data-theme="day"] .home-hero__mark {
 .home-hero__cards {
   width: min(100%, 520px);
   display: grid;
-  gap: 0;
+  gap: 12px;
   padding: 0;
-  border-top: 1px solid rgba(61, 181, 255, 0.36);
-  border-bottom: 1px solid rgba(61, 181, 255, 0.22);
-  background: linear-gradient(90deg, rgba(5, 6, 25, 0.42), rgba(5, 6, 25, 0.18));
-  backdrop-filter: blur(5px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .hero-card {
+  display: grid;
+  gap: 12px;
   text-align: left;
-  padding: 14px 18px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 20%, var(--color-border-subtle));
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-accent-primary) 7%, transparent), transparent 44%),
+    color-mix(in srgb, var(--color-surface-2) 58%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
 }
 
 .hero-card:first-child {
@@ -133,66 +150,68 @@ body[data-theme="day"] .home-hero__mark {
 }
 
 .hero-card + .hero-card {
-  border-top: 1px solid rgba(61, 181, 255, 0.18);
+  border-top: 1px solid color-mix(in srgb, var(--color-accent-primary) 20%, var(--color-border-subtle));
   padding-top: 14px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-accent-violet) 7%, transparent), transparent 44%),
+    color-mix(in srgb, var(--color-surface-2) 58%, transparent);
 }
 
 .hero-card h2 {
-  margin: 0 0 10px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 500;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(18px, 2vw, 21px);
+  font-weight: 760;
   line-height: 1.25;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(242, 240, 255, 0.76);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-primary);
 }
 
 .hero-card__actions,
 .hero-card__form {
   display: grid;
-  gap: 6px;
+  gap: 10px;
 }
 
 .hero-card__link,
 .hero-card__submit {
-  min-height: 38px;
-  padding: 8px 0;
-  border: 0;
-  border-radius: 0;
-  border-top: 1px solid rgba(61, 181, 255, 0.14);
-  background: transparent;
-  color: rgba(242, 240, 255, 0.9);
-  font-family: var(--font-mono);
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 28%, var(--color-border-subtle));
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-accent-primary) 9%, var(--color-surface-2)), color-mix(in srgb, var(--color-accent-violet) 5%, var(--color-surface-2)));
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
   font-size: 14px;
-  font-weight: 400;
-  justify-content: flex-start;
-  box-shadow: none;
+  font-weight: 650;
+  justify-content: center;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 8%, transparent);
 }
 
 .hero-card__link::before,
 .hero-card__submit::before {
-  content: "> ";
-  color: #3db5ff;
-  margin-right: 6px;
+  content: none;
 }
 
 .hero-card__link--accent,
 .hero-card__submit {
-  color: #f7fbff;
-  padding-left: 12px;
-  border-top-color: rgba(61, 181, 255, 0.34);
-  border-left: 2px solid #3db5ff;
-  background: linear-gradient(90deg, rgba(61, 181, 255, 0.18), rgba(61, 181, 255, 0.04));
-  box-shadow: inset 0 0 0 1px rgba(61, 181, 255, 0.08);
+  border-color: color-mix(in srgb, var(--color-accent-primary) 70%, var(--color-border-strong));
+  background: linear-gradient(90deg, var(--color-accent-primary) 0%, var(--color-accent-green) 56%, var(--color-accent-violet) 100%);
+  color: var(--color-text-on-accent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
+    0 12px 28px color-mix(in srgb, var(--color-accent-primary) 14%, transparent);
 }
 
 .hero-card__link:hover,
 .hero-card__submit:hover,
 .hero-card__link--accent:hover,
 .hero-card__submit:hover {
-  background: rgba(61, 181, 255, 0.08);
-  color: #ffffff;
+  border-color: var(--color-focus-ring);
+  color: var(--color-text-primary);
+  transform: translateY(-1px);
 }
 
 .hero-card__field {
@@ -201,25 +220,33 @@ body[data-theme="day"] .home-hero__mark {
 }
 
 .hero-card__field--inline {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 38px;
-  border-top: 1px solid rgba(61, 181, 255, 0.12);
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 20%, var(--color-border-subtle));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-2) 68%, transparent);
+}
+
+.hero-card__field--inline:has(select)::after {
+  content: none;
 }
 
 .hero-card__label {
+  flex: 0 0 112px;
   min-width: 112px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: rgba(181, 215, 255, 0.72);
-  font-weight: 400;
-  line-height: 1.35;
-  letter-spacing: 0.04em;
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0;
 }
 
 .hero-card__field--inline .hero-card__label {
-  flex: 0 0 auto;
   margin: 0;
 }
 
@@ -234,19 +261,43 @@ body[data-theme="day"] .home-hero__mark {
 .hero-card__field--inline select,
 .hero-card__field--inline input:not([type="checkbox"]) {
   min-height: 34px;
-  padding: 6px 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: rgba(242, 240, 255, 0.92);
-  font-family: var(--font-mono);
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 34%, var(--color-border-subtle));
+  border-radius: 10px;
+  background: #02050a;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
   font-size: 14px;
-  box-shadow: none;
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 5%, transparent),
+    inset 0 0 16px color-mix(in srgb, var(--color-accent-primary) 5%, transparent);
 }
 
 .hero-card__field--inline select {
-  text-align: right;
-  text-align-last: right;
+  appearance: none;
+  cursor: pointer;
+  flex: 1 1 auto;
+  width: 100%;
+  padding-right: 12px;
+  padding-left: 38px;
+  text-align: left;
+  text-align-last: left;
+  border-color: color-mix(in srgb, var(--color-accent-primary) 64%, var(--color-border-strong));
+  background-color: #02050a;
+  background-image: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 5L7 9L11 5' stroke='%2353d7ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left 14px center;
+  background-size: 14px 14px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 7%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-accent-primary) 12%, transparent),
+    0 0 18px color-mix(in srgb, var(--color-accent-primary) 10%, transparent);
+}
+
+.hero-card__field--inline input:not([type="checkbox"])::placeholder {
+  color: color-mix(in srgb, var(--color-text-muted) 72%, transparent);
+  opacity: 1;
 }
 
 .hero-card__field--inline select:focus-visible,
@@ -255,25 +306,32 @@ body[data-theme="day"] .home-hero__mark {
 }
 
 .hero-card__field--inline select option {
-  background: #050619;
-  color: #f2f0ff;
+  background: #0b1d33;
+  color: var(--color-text-primary);
   text-align: right;
 }
 
 .hero-card__subjects {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 14px;
-  padding: 7px 0;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0;
 }
 
 .hero-card__subject-option {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: rgba(242, 240, 255, 0.88);
-  font-family: var(--font-mono);
+  min-height: 30px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
   font-size: 13px;
+  font-weight: 600;
 }
 
 .hero-card__subject-option input {
@@ -285,20 +343,33 @@ body[data-theme="day"] .home-hero__mark {
 }
 
 body[data-theme="day"] .home-hero__cards {
-  border-top-color: rgba(47, 130, 225, 0.32);
-  border-bottom-color: rgba(47, 130, 225, 0.2);
-  background: linear-gradient(90deg, rgba(247, 250, 255, 0.58), rgba(247, 250, 255, 0.24));
+  border-color: transparent;
+  background: transparent;
 }
 
 body[data-theme="day"] .hero-card + .hero-card,
 body[data-theme="day"] .hero-card__link,
 body[data-theme="day"] .hero-card__submit,
 body[data-theme="day"] .hero-card__field--inline {
-  border-color: rgba(47, 130, 225, 0.16);
+  border-color: rgba(103, 132, 173, 0.28);
+}
+
+body[data-theme="day"] .hero-card {
+  border-color: rgba(103, 132, 173, 0.26);
+  background:
+    linear-gradient(145deg, rgba(79, 140, 255, 0.055), transparent 44%),
+    rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 42px rgba(40, 60, 95, 0.1);
+}
+
+body[data-theme="day"] .hero-card + .hero-card {
+  background:
+    linear-gradient(145deg, rgba(124, 92, 255, 0.045), transparent 44%),
+    rgba(255, 255, 255, 0.78);
 }
 
 body[data-theme="day"] .hero-card h2 {
-  color: rgba(16, 21, 40, 0.68);
+  color: var(--color-text-primary);
 }
 
 body[data-theme="day"] .hero-card__link,
@@ -306,32 +377,51 @@ body[data-theme="day"] .hero-card__submit,
 body[data-theme="day"] .hero-card__field--inline select,
 body[data-theme="day"] .hero-card__field--inline input:not([type="checkbox"]),
 body[data-theme="day"] .hero-card__subject-option {
-  color: rgba(16, 21, 40, 0.9);
+  color: #24364e;
+}
+
+body[data-theme="day"] .hero-card__field--inline {
+  background: rgba(255, 255, 255, 0.68);
 }
 
 body[data-theme="day"] .hero-card__label {
-  color: rgba(36, 80, 140, 0.72);
+  color: var(--color-text-muted);
 }
 
 body[data-theme="day"] .hero-card__field--inline select option {
-  background: #f7faff;
-  color: #101528;
+  background: var(--color-surface-1);
+  color: var(--color-text-primary);
+}
+
+body[data-theme="day"] .hero-card__field--inline select,
+body[data-theme="day"] .hero-card__field--inline input:not([type="checkbox"]) {
+  background-color: #ffffff;
+  border-color: rgba(79, 140, 255, 0.34);
+  color: #17263a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px rgba(79, 140, 255, 0.06);
+}
+
+body[data-theme="day"] .hero-card__field--inline select {
+  border-color: rgba(79, 140, 255, 0.52);
+}
+
+body[data-theme="day"] .hero-card__field--inline input:not([type="checkbox"])::placeholder {
+  color: rgba(95, 113, 136, 0.82);
 }
 
 body[data-theme="day"] .hero-card__link:hover,
 body[data-theme="day"] .hero-card__submit:hover,
 body[data-theme="day"] .hero-card__link--accent:hover {
-  background: rgba(47, 130, 225, 0.08);
-  color: #101528;
+  color: var(--color-text-primary);
 }
 
 body[data-theme="day"] .hero-card__link--accent,
 body[data-theme="day"] .hero-card__submit {
-  border-top-color: rgba(47, 130, 225, 0.28);
-  border-left-color: #2f82e1;
-  background: linear-gradient(90deg, rgba(47, 130, 225, 0.14), rgba(47, 130, 225, 0.04));
-  box-shadow: inset 0 0 0 1px rgba(47, 130, 225, 0.08);
-  color: #101528;
+  border-color: rgba(79, 140, 255, 0.48);
+  background: linear-gradient(90deg, #4f8cff 0%, #19b7aa 56%, #7c5cff 100%);
+  color: #ffffff;
 }
 
 .home-after-hero {
@@ -560,7 +650,7 @@ body[data-theme="day"] .home-editorial-button:hover {
 
 @media (max-width: 640px) {
   .home-hero__cards {
-    padding: 16px;
+    padding: 0;
   }
 
   .home-after-hero__inner {

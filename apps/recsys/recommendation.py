@@ -4,6 +4,7 @@ import math
 from dataclasses import dataclass
 from datetime import timedelta
 
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import Attempt, RecommendationLog, SkillMastery, TagMastery, Task
@@ -20,6 +21,7 @@ B_COVERAGE = 0.25
 B_MATCH = 0.25
 B_SPACING = 0.10
 B_DATA = 0.05
+SOLVED_TASK_COOLDOWN = timedelta(days=14)
 
 
 @dataclass(frozen=True)
@@ -262,10 +264,14 @@ def _select_candidates(
     if task_type_ids:
         queryset = queryset.filter(type_id__in=task_type_ids)
     if exclude_solved:
+        solved_cutoff = now - SOLVED_TASK_COOLDOWN
         solved_task_ids = Attempt.objects.filter(
             user=user,
             is_valid_attempt=True,
             is_correct=True,
+        ).filter(
+            Q(checked_at__gte=solved_cutoff)
+            | Q(checked_at__isnull=True, created_at__gte=solved_cutoff)
         ).values_list("task_id", flat=True)
         queryset = queryset.exclude(id__in=solved_task_ids)
     if exclude_recent:

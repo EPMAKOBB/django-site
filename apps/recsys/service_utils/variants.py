@@ -27,6 +27,7 @@ from apps.recsys.presentation.tasks import (
     build_task_statement_payload,
 )
 from apps.recsys.models import (
+    Attempt,
     ExamBlueprint,
     ExamScoreScale,
     Task,
@@ -764,6 +765,75 @@ def _sum_logged_duration(attempt: VariantAttempt, variant_task: VariantTask) -> 
     return total if total != timedelta(0) else None
 
 
+def _variant_task_attempt_has_response(task_attempt: VariantTaskAttempt) -> bool:
+    snapshot = task_attempt.task_snapshot or {}
+    return isinstance(snapshot, Mapping) and "response" in snapshot
+
+
+def _sync_attempt_from_variant_task_attempt(task_attempt: VariantTaskAttempt) -> Attempt | None:
+    if task_attempt.attempt_number <= 0 or task_attempt.task_id is None:
+        return None
+    if not _variant_task_attempt_has_response(task_attempt):
+        return None
+    user = task_attempt.variant_attempt.assignment.user
+    checked_at = task_attempt.checked_at or timezone.now()
+    attempt, created = Attempt.objects.get_or_create(
+        variant_task_attempt=task_attempt,
+        defaults={
+            "user": user,
+            "task": task_attempt.task,
+            "is_correct": task_attempt.is_correct,
+            "score": task_attempt.score,
+            "max_score": task_attempt.max_score,
+            "time_spent": task_attempt.time_spent,
+            "is_valid_attempt": task_attempt.is_valid_attempt,
+            "mode": Attempt.Mode.VARIANT,
+            "checked_at": checked_at,
+        },
+    )
+    if not created:
+        update_fields = []
+        field_values = {
+            "user": user,
+            "task": task_attempt.task,
+            "is_correct": task_attempt.is_correct,
+            "score": task_attempt.score,
+            "max_score": task_attempt.max_score,
+            "time_spent": task_attempt.time_spent,
+            "is_valid_attempt": task_attempt.is_valid_attempt,
+            "mode": Attempt.Mode.VARIANT,
+            "checked_at": checked_at,
+        }
+        for field, value in field_values.items():
+            current = getattr(attempt, f"{field}_id", None) if field in {"user", "task"} else getattr(attempt, field)
+            expected = value.pk if field in {"user", "task"} else value
+            if current != expected:
+                setattr(attempt, field, value)
+                update_fields.append(field)
+        if update_fields:
+            update_fields.append("updated_at")
+            attempt.save(update_fields=update_fields)
+    return attempt
+
+
+def sync_variant_task_attempt_to_attempt(task_attempt: VariantTaskAttempt) -> Attempt | None:
+    return _sync_attempt_from_variant_task_attempt(task_attempt)
+
+
+def sync_variant_task_attempts_to_attempts(queryset=None) -> int:
+    task_attempts = queryset if queryset is not None else VariantTaskAttempt.objects.all()
+    task_attempts = task_attempts.filter(
+        attempt_number__gt=0,
+        task__isnull=False,
+        task_snapshot__has_key="response",
+    ).select_related("task", "variant_attempt__assignment__user")
+    created_or_existing = 0
+    for task_attempt in task_attempts.iterator():
+        if _sync_attempt_from_variant_task_attempt(task_attempt) is not None:
+            created_or_existing += 1
+    return created_or_existing
+
+
 def _get_time_spent_map(attempt: VariantAttempt) -> dict[int, timedelta]:
     totals = (
         VariantTaskTimeLog.objects.filter(
@@ -1113,7 +1183,9 @@ def submit_task_answer(
         max_score=max_score,
         task_snapshot=snapshot,
         time_spent=time_spent,
+        checked_at=now,
     )
+    _sync_attempt_from_variant_task_attempt(task_attempt)
 
     return TaskSubmissionResult(attempt=attempt, task_attempt=task_attempt)
 
@@ -1210,16 +1282,26 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
             submission.max_score = max_score
             submission.task_snapshot = updated_snapshot
             submission.time_spent = time_spent
+            submission.checked_at = timezone.now()
             submission.save(
-                update_fields=["is_correct", "score", "max_score", "task_snapshot", "time_spent", "updated_at"]
+                update_fields=[
+                    "is_correct",
+                    "score",
+                    "max_score",
+                    "task_snapshot",
+                    "time_spent",
+                    "checked_at",
+                    "updated_at",
+                ]
             )
+            _sync_attempt_from_variant_task_attempt(submission)
         else:
             record_snapshot = {}
             if task_snapshot:
                 record_snapshot["task"] = deepcopy(task_snapshot)
             if response_payload is not None:
                 record_snapshot["response"] = deepcopy(response_payload)
-            VariantTaskAttempt.objects.create(
+            task_attempt = VariantTaskAttempt.objects.create(
                 variant_attempt=attempt,
                 variant_task=variant_task,
                 task=task,
@@ -1229,7 +1311,9 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
                 max_score=max_score,
                 task_snapshot=record_snapshot,
                 time_spent=time_spent,
+                checked_at=timezone.now(),
             )
+            _sync_attempt_from_variant_task_attempt(task_attempt)
 
     now = timezone.now()
     time_limit = attempt.assignment.template.time_limit

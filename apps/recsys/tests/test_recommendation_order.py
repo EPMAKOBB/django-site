@@ -200,6 +200,56 @@ class RecommendationOrderTests(TestCase):
         self.assertIsNotNone(recommendation)
         self.assertEqual(recommendation.status, RecommendationLog.Status.OPENED)
 
+    def test_old_solved_task_returns_to_recommendation_pool(self):
+        old_solved_task = Task.objects.create(
+            type=self.task1.type,
+            title="OldSolvedTask",
+            subject=self.subject,
+            exam_version=self.exam_version,
+            status=Task.Status.PUBLISHED,
+        )
+        recent_solved_task = Task.objects.create(
+            type=self.task1.type,
+            title="RecentSolvedTask",
+            subject=self.subject,
+            exam_version=self.exam_version,
+            status=Task.Status.PUBLISHED,
+        )
+        old_attempt = Attempt.objects.create(
+            user=self.user,
+            task=old_solved_task,
+            is_correct=True,
+            is_valid_attempt=True,
+            checked_at=timezone.now() - timedelta(days=30),
+            mode=Attempt.Mode.TRAINING,
+            attempt_number=1,
+            score=1,
+            max_score=1,
+        )
+        old_attempt.created_at = timezone.now() - timedelta(days=30)
+        old_attempt.save(update_fields=["created_at"])
+        Attempt.objects.create(
+            user=self.user,
+            task=recent_solved_task,
+            is_correct=True,
+            is_valid_attempt=True,
+            checked_at=timezone.now(),
+            mode=Attempt.Mode.TRAINING,
+            attempt_number=1,
+            score=1,
+            max_score=1,
+        )
+
+        tasks = recommend_tasks(
+            self.user,
+            limit=10,
+            exclude_recent=False,
+            exclude_solved=True,
+        )
+
+        self.assertIn(old_solved_task, tasks)
+        self.assertNotIn(recent_solved_task, tasks)
+
     def test_attempt_attaches_to_latest_recommendation_and_completes(self):
         task = Task.objects.create(
             type=self.task1.type,

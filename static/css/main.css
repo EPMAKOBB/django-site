@@ -1,15 +1,16 @@
 ﻿/* Color, spacing and typography variables */
 :root {
-  --bg: #0b0f14;
-  --card:#121820;
+  --bg: #02050a;
+  --card:#081424;
   --text:#e6eef8;
-  --muted:#9fb3c8;
-  --accent:#3aa0ff;
-  --accent-2:#7bffb7;
-  --border:#1e2a36;
-  --link:#0d6efd;
-  --link-hover:#0a58ca;
-  --link-visited:#5a2ca0;
+  --muted:#9eb7cf;
+  --accent:#53d7ff;
+  --accent-2:#5cffb1;
+  --accent-3:#9f7bff;
+  --border:rgba(83, 215, 255, 0.28);
+  --link:#53d7ff;
+  --link-hover:#7ee5ff;
+  --link-visited:#b5a1ff;
 
   /* vertical rhythm */
   --space-xs: 4px;
@@ -32,6 +33,23 @@ body {
   font-size: var(--font-base);
   background: var(--bg);
   color: var(--text);
+}
+
+body[data-theme="day"] {
+  --bg: #f4f8fc;
+  --card: #ffffff;
+  --text: #142033;
+  --muted: #5f7188;
+  --accent: #4f8cff;
+  --accent-2: #14b8a6;
+  --accent-3: #7c5cff;
+  --border: #d6e1ec;
+  --link: #0284c7;
+  --link-hover: #0369a1;
+  --link-visited: #7c3aed;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(111, 144, 209, 0.12), transparent 30%),
+    linear-gradient(180deg, #f6f8fc 0%, #edf2f8 48%, #e6ebf3 100%);
 }
 /* Normalize a few UA defaults that create unexpected spacing */
 figure { margin: 0; }
@@ -123,7 +141,7 @@ header a:hover {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 56%, var(--accent-3) 100%);
   color: #001420;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--accent) 70%, black);
@@ -170,8 +188,10 @@ header a:hover {
 .badge { padding: var(--space-xs) var(--space-md); border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: var(--font-sm); }
 
 .block {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent-3) 6%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, transparent), var(--card));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
   border-radius: 14px;
   padding: 16px;
 }
@@ -202,8 +222,10 @@ header a:hover {
   gap: var(--space-md);
 }
 .card {
-  background: #0f151d;
-  border: 1px solid var(--border);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent-3) 6%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, transparent), var(--card));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
   border-radius: 12px;
   padding: 14px;
   display: grid;
@@ -212,7 +234,9 @@ header a:hover {
 }
 .card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 15%, transparent);
+  box-shadow:
+    0 10px 28px color-mix(in srgb, var(--accent) 13%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .card h4 {
   margin: 0;
@@ -1560,15 +1584,22 @@ header a:hover {
   width: 100%;
   height: 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 18%, #0b1017);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 70%, transparent), color-mix(in srgb, var(--card) 84%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
   overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #000000 18%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--accent) 9%, transparent);
 }
 
 .course-card__progress-bar {
   display: block;
   height: 100%;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 56%, var(--accent-3) 100%);
   border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 34%, transparent),
+    0 0 14px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .course-card__progress-label {

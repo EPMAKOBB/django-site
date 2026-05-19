@@ -425,6 +425,9 @@ class Task(TimeStampedModel):
     attempts_total = models.PositiveIntegerField(default=0)
     priority_manual = models.FloatField(default=1.0)
     score_norm_sum_total = models.FloatField(default=0.0)
+    time_spent_sum_seconds = models.FloatField(default=0.0)
+    time_spent_count = models.PositiveIntegerField(default=0)
+    time_spent_avg_seconds = models.FloatField(null=True, blank=True)
     first_attempt_total = models.PositiveIntegerField(default=0)
     first_attempt_failed = models.PositiveIntegerField(default=0)
 
@@ -509,6 +512,16 @@ class Task(TimeStampedModel):
         if float(self.score_norm_sum_total or 0.0) < 0.0:
             raise ValidationError(
                 {"score_norm_sum_total": "Score norm sum total must be non-negative."}
+            )
+        if float(self.time_spent_sum_seconds or 0.0) < 0.0:
+            raise ValidationError(
+                {"time_spent_sum_seconds": "Time spent sum must be non-negative."}
+            )
+        if self.time_spent_count < 0:
+            raise ValidationError({"time_spent_count": "Time spent count must be non-negative."})
+        if self.time_spent_avg_seconds is not None and float(self.time_spent_avg_seconds) < 0.0:
+            raise ValidationError(
+                {"time_spent_avg_seconds": "Average time spent must be non-negative."}
             )
 
         if self.max_score is not None and self.max_score <= 0:

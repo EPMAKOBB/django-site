@@ -18,6 +18,9 @@ LAMBDA_TIME = 0.5
 LAMBDA_FORGET_BASE = 0.03
 C_STABILITY = 2.0
 K_DIFFICULTY = 30.0
+MIN_ANALYTIC_TIME_SECONDS = 2.0
+MAX_ANALYTIC_TIME_SECONDS = 4 * 60 * 60
+MAX_EXPECTED_TIME_RATIO_FOR_ANALYTICS = 5.0
 
 READINESS_BAND_FACTORS = {
     Task.LevelBand.INTRO: 0.10,
@@ -52,11 +55,25 @@ def _normalised_score(attempt: Attempt) -> tuple[float, int]:
     return score_norm, max_score
 
 
+def _analytics_time_spent_seconds(attempt: Attempt) -> float | None:
+    if attempt.time_spent is None:
+        return None
+    spent_seconds = attempt.time_spent.total_seconds()
+    if spent_seconds < MIN_ANALYTIC_TIME_SECONDS:
+        return None
+    if spent_seconds > MAX_ANALYTIC_TIME_SECONDS:
+        return None
+    expected = int(attempt.task.expected_time_seconds or 0)
+    if expected > 0 and spent_seconds > expected * MAX_EXPECTED_TIME_RATIO_FOR_ANALYTICS:
+        return None
+    return max(0.0, spent_seconds)
+
+
 def _time_ratio(attempt: Attempt) -> float:
     expected = int(attempt.task.expected_time_seconds or 0)
-    if expected <= 0 or attempt.time_spent is None:
+    spent_seconds = _analytics_time_spent_seconds(attempt)
+    if expected <= 0 or spent_seconds is None:
         return 1.0
-    spent_seconds = max(0.0, attempt.time_spent.total_seconds())
     return spent_seconds / expected
 
 
@@ -114,9 +131,14 @@ def _legacy_update_mastery(attempt: Attempt) -> None:
 
 def _update_task_aggregates(attempt: Attempt, score_norm: float, success_flag: int) -> None:
     task = attempt.task
+    time_spent_seconds = _analytics_time_spent_seconds(attempt)
     task.attempts_total = int(task.attempts_total or 0) + 1
     task.score_norm_sum_total = float(task.score_norm_sum_total or 0.0) + score_norm
     task.difficulty_empirical = 1.0 - (task.score_norm_sum_total / task.attempts_total)
+    if time_spent_seconds is not None:
+        task.time_spent_sum_seconds = float(task.time_spent_sum_seconds or 0.0) + time_spent_seconds
+        task.time_spent_count = int(task.time_spent_count or 0) + 1
+        task.time_spent_avg_seconds = task.time_spent_sum_seconds / task.time_spent_count
 
     if attempt.attempt_number == 1:
         task.first_attempt_total = int(task.first_attempt_total or 0) + 1
@@ -128,6 +150,9 @@ def _update_task_aggregates(attempt: Attempt, score_norm: float, success_flag: i
             "attempts_total",
             "score_norm_sum_total",
             "difficulty_empirical",
+            "time_spent_sum_seconds",
+            "time_spent_count",
+            "time_spent_avg_seconds",
             "first_attempt_total",
             "first_attempt_failed",
             "updated_at",
@@ -227,8 +252,21 @@ def update_mastery(attempt: Attempt) -> None:
 
 
 def recompute_task_difficulty(task: Task) -> None:
-    attempts_total = int(task.attempts_total or 0)
-    score_norm_sum_total = float(task.score_norm_sum_total or 0.0)
+    valid_attempts = list(
+        Attempt.objects.filter(task=task, is_valid_attempt=True).select_related("task")
+    )
+    attempts_total = len(valid_attempts)
+    score_norm_sum_total = 0.0
+    time_spent_sum_seconds = 0.0
+    time_spent_count = 0
+    for attempt in valid_attempts:
+        score_norm, _ = _normalised_score(attempt)
+        score_norm_sum_total += score_norm
+        time_spent_seconds = _analytics_time_spent_seconds(attempt)
+        if time_spent_seconds is not None:
+            time_spent_sum_seconds += time_spent_seconds
+            time_spent_count += 1
+
     if attempts_total > 0:
         difficulty_empirical = 1.0 - (score_norm_sum_total / attempts_total)
     else:
@@ -237,9 +275,27 @@ def recompute_task_difficulty(task: Task) -> None:
     weight = attempts_total / (attempts_total + K_DIFFICULTY)
     difficulty_level = (weight * difficulty_empirical) + ((1.0 - weight) * _difficulty_prior(task))
 
+    task.attempts_total = attempts_total
+    task.score_norm_sum_total = score_norm_sum_total
+    task.time_spent_sum_seconds = time_spent_sum_seconds
+    task.time_spent_count = time_spent_count
+    task.time_spent_avg_seconds = (
+        time_spent_sum_seconds / time_spent_count if time_spent_count else None
+    )
     task.difficulty_empirical = difficulty_empirical
     task.difficulty_level = int(round(_clamp_mastery(difficulty_level) * 100))
-    task.save(update_fields=["difficulty_empirical", "difficulty_level", "updated_at"])
+    task.save(
+        update_fields=[
+            "attempts_total",
+            "score_norm_sum_total",
+            "time_spent_sum_seconds",
+            "time_spent_count",
+            "time_spent_avg_seconds",
+            "difficulty_empirical",
+            "difficulty_level",
+            "updated_at",
+        ]
+    )
 
 
 def recompute_task_difficulties(queryset=None) -> int:

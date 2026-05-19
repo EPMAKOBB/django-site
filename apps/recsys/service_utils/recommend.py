@@ -5,7 +5,7 @@ import random
 from datetime import timedelta
 from typing import Iterable
 
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 
 from apps.recsys.models import (
     Attempt,
@@ -25,6 +25,7 @@ EPSILON = 0.1
 # Relative weights of different factors in the score.
 SKILL_WEIGHT = 0.7
 TYPE_WEIGHT = 0.3
+SOLVED_TASK_COOLDOWN = timedelta(days=14)
 
 
 # ---------------------------------------------------------------------------
@@ -34,13 +35,18 @@ TYPE_WEIGHT = 0.3
 def select_candidates(user, now) -> QuerySet[Task]:
     """Return tasks that may be recommended to ``user``.
 
-    The implementation is deliberately straightforward: tasks already solved by
-    the user as well as tasks that have been recommended within the last day are
-    excluded from the result.
+    Recently solved tasks and tasks that have been recommended within the last
+    day are excluded. Older solved tasks can return through spacing/forgetting.
     """
 
-    completed = Attempt.objects.filter(user=user, is_correct=True).values_list(
-        "task_id", flat=True
+    solved_cutoff = now - SOLVED_TASK_COOLDOWN
+    completed = (
+        Attempt.objects.filter(user=user, is_correct=True, is_valid_attempt=True)
+        .filter(
+            Q(checked_at__gte=solved_cutoff)
+            | Q(checked_at__isnull=True, created_at__gte=solved_cutoff)
+        )
+        .values_list("task_id", flat=True)
     )
     recent_recs = RecommendationLog.objects.filter(
         user=user, created_at__gte=now - timedelta(days=1)
