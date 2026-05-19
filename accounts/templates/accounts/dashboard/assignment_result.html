@@ -33,7 +33,7 @@
               <th scope="col">{% trans "Начало" %}</th>
               <th scope="col">{% trans "Завершение" %}</th>
               <th scope="col">{% trans "Длительность" %}</th>
-              <th scope="col">{% trans "???????" %}</th>
+              <th scope="col">{% trans "Действие" %}</th>
             </tr>
           </thead>
           <tbody>
@@ -66,11 +66,13 @@
                 </td>
                 <td>
                   {% if attempt.completed_at %}
-                    <a href="{% url 'accounts:variant-attempt-solver' attempt.id %}" target="_blank" rel="noopener noreferrer">
-                      {% trans "????????? ? ????????" %}
+                    <a href="{% url 'accounts:variant-attempt-solver' attempt.id %}">
+                      {% trans "Открыть результат" %}
                     </a>
                   {% else %}
-                    {% trans "?" %}
+                    <a href="{% url 'accounts:variant-attempt-solver' attempt.id %}">
+                      {% trans "Продолжить" %}
+                    </a>
                   {% endif %}
                 </td>
               </tr>

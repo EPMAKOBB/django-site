@@ -16,7 +16,7 @@ body:has(.exam-page) .site-main,
 body:has(.exam-type-detail) .site-main {
   position: relative;
   isolation: isolate;
-  background: #02050a;
+  background: transparent;
 }
 
 body:has(.exam-page) .site-main > .section,

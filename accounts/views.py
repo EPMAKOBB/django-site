@@ -1,8 +1,5 @@
 import logging
-import json
 from collections import defaultdict
-from collections.abc import Mapping
-from copy import deepcopy
 from datetime import timedelta
 
 from django.contrib import messages
@@ -29,10 +26,8 @@ from apps.recsys.models import (
     VariantAssignment,
     VariantTask,
 )
-from apps.recsys.forms import TaskAnswerForm
 from apps.recsys.service_utils import variants as variant_services
 from apps.recsys.service_utils.type_progress import build_type_progress_map
-from apps.recsys.presentation.tasks import build_task_statement_payload
 from subjects.models import Subject
 from courses.models import CourseGraphEdge, CourseModule, CourseModuleItem
 from .context_processors import SESSION_KEY
@@ -112,6 +107,15 @@ def _active_attempt(assignment):
     return None
 
 
+def _latest_completed_attempt(assignment):
+    completed_attempts = [
+        attempt for attempt in assignment.attempts.all() if attempt.completed_at is not None
+    ]
+    if not completed_attempts:
+        return None
+    return max(completed_attempts, key=lambda attempt: attempt.completed_at)
+
+
 def _build_assignment_context(assignment):
     progress = variant_services.calculate_assignment_progress(assignment)
     total_tasks = progress.get("total_tasks") or 0
@@ -122,6 +126,7 @@ def _build_assignment_context(assignment):
         progress_percentage = 0
 
     active_attempt = _active_attempt(assignment)
+    latest_completed_attempt = _latest_completed_attempt(assignment)
     attempts_used = assignment.attempts.count()
     attempts_total = assignment.template.max_attempts
     attempts_left = variant_services.get_attempts_left(assignment)
@@ -133,12 +138,18 @@ def _build_assignment_context(assignment):
         "progress": progress,
         "progress_percentage": progress_percentage,
         "active_attempt": active_attempt,
+        "latest_completed_attempt": latest_completed_attempt,
         "attempts_used": attempts_used,
         "attempts_total": attempts_total,
         "attempts_left": attempts_left,
         "can_start": variant_services.can_start_attempt(assignment),
         "deadline": deadline,
         "deadline_passed": deadline_passed,
+        "history_at": (
+            latest_completed_attempt.completed_at
+            if latest_completed_attempt
+            else assignment.updated_at or assignment.created_at
+        ),
     }
 
 
@@ -284,22 +295,46 @@ def progress(request):
     past_training_sessions = [
         session for session in training_sessions if session.status != TrainingSession.Status.ACTIVE
     ]
+    current_assignment_contexts = [
+        _build_assignment_context(assignment) for assignment in current_assignments
+    ]
+    past_assignment_contexts = [
+        _build_assignment_context(assignment) for assignment in past_assignments
+    ]
+    active_training_contexts = [
+        _build_training_session_context(session) for session in active_training_sessions
+    ]
+    past_training_contexts = [
+        _build_training_session_context(session) for session in past_training_sessions
+    ]
+    history_entries = [
+        {
+            "kind": "training",
+            "sort_at": item["activity_at"],
+            "item": item,
+        }
+        for item in past_training_contexts
+    ] + [
+        {
+            "kind": "assignment",
+            "sort_at": item["history_at"],
+            "item": item,
+        }
+        for item in past_assignment_contexts
+    ]
+    history_entries.sort(
+        key=lambda entry: entry["sort_at"] or timezone.now(),
+        reverse=True,
+    )
 
     context = {
         "active_tab": "tasks",
         "role": role,
-        "current_assignments": [
-            _build_assignment_context(assignment) for assignment in current_assignments
-        ],
-        "past_assignments": [
-            _build_assignment_context(assignment) for assignment in past_assignments
-        ],
-        "active_training_sessions": [
-            _build_training_session_context(session) for session in active_training_sessions
-        ],
-        "past_training_sessions": [
-            _build_training_session_context(session) for session in past_training_sessions
-        ],
+        "current_assignments": current_assignment_contexts,
+        "past_assignments": past_assignment_contexts,
+        "active_training_sessions": active_training_contexts,
+        "past_training_sessions": past_training_contexts,
+        "history_entries": history_entries,
         "active_count": len(current_assignments) + len(active_training_sessions),
         "history_count": len(past_assignments) + len(past_training_sessions),
     }
@@ -319,13 +354,13 @@ def assignment_detail(request, assignment_id: int):
 
     if request.method == "POST" and "start_attempt" in request.POST:
         try:
-            variant_services.start_new_attempt(request.user, assignment_id)
+            attempt = variant_services.start_new_attempt(request.user, assignment_id)
         except drf_exceptions.ValidationError as exc:
             logger.info("Assignment start validation error", extra={"assignment_id": assignment_id}, exc_info=exc)
             messages.error(request, _("Не удалось начать попытку."))
         else:
             messages.success(request, _("Новая попытка по варианту начата"))
-            return redirect("accounts:assignment-detail", assignment_id=assignment_id)
+            return redirect("accounts:variant-attempt-solver", attempt_id=attempt.id)
 
     context = {
         "active_tab": "tasks",
@@ -1044,218 +1079,14 @@ def _generate_template_name(user, tasks_count: int) -> str:
 
 @login_required
 def variant_attempt_work(request, attempt_id: int):
-    """Allow students to work on a specific attempt."""
+    """Compatibility redirect for the retired server-rendered attempt page."""
 
-    role = _get_dashboard_role(request)
     try:
         attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
     except drf_exceptions.NotFound as exc:
         logger.warning("Attempt not found", extra={"attempt_id": attempt_id}, exc_info=exc)
         raise Http404("Not found") from exc
-
-    assignment = attempt.assignment
-    template_tasks = {
-        task.id: task
-        for task in assignment.template.template_tasks.select_related("task__subject", "task__type", "task").all()
-    }
-    tasks_progress = variant_services.build_tasks_progress(attempt)
-
-    invalid_form: TaskAnswerForm | None = None
-    invalid_task_id: int | None = None
-
-    if request.method == "POST":
-        action = request.POST.get("action") or ""
-        if action == "save-task":
-            variant_task_id_raw = request.POST.get("variant_task_id")
-            try:
-                variant_task_id = int(variant_task_id_raw or "")
-            except (TypeError, ValueError):
-                messages.error(request, _("Не удалось определить задачу."))
-            else:
-                progress_entry = next(
-                    (entry for entry in tasks_progress if entry["variant_task_id"] == variant_task_id),
-                    None,
-                )
-                variant_task = template_tasks.get(variant_task_id)
-                if not progress_entry or not variant_task or not variant_task.task:
-                    messages.error(request, _("Задача недоступна."))
-                else:
-                    snapshot = progress_entry.get("task_snapshot") or {}
-                    correct_answer = None
-                    if isinstance(snapshot, dict):
-                        correct_answer = snapshot.get("correct_answer")
-                    if correct_answer is None:
-                        correct_answer = deepcopy(variant_task.task.correct_answer or {})
-                    saved_answer = progress_entry.get("saved_response")
-                    form = TaskAnswerForm(
-                        correct_answer,
-                        data=request.POST,
-                        initial_answer=saved_answer,
-                    )
-                    if not form.is_available:
-                        messages.error(request, _("Для этой задачи пока нет формы ответа."))
-                    elif form.is_valid():
-                        try:
-                            variant_services.save_task_response(
-                                request.user,
-                                attempt_id=attempt_id,
-                                variant_task_id=variant_task_id,
-                                answer=form.get_answer(),
-                            )
-                        except drf_exceptions.ValidationError as exc:
-                            logger.info(
-                                "Task response validation error",
-                                extra={"attempt_id": attempt_id, "variant_task_id": variant_task_id},
-                                exc_info=exc,
-                            )
-                            messages.error(request, _("Не удалось сохранить ответ."))
-                        except drf_exceptions.APIException as exc:
-                            logger.warning(
-                                "Task response API error",
-                                extra={"attempt_id": attempt_id, "variant_task_id": variant_task_id},
-                                exc_info=exc,
-                            )
-                            messages.error(request, _("Не удалось сохранить ответ."))
-                        except drf_exceptions.NotFound as exc:
-                            logger.warning(
-                                "Task response not found",
-                                extra={"attempt_id": attempt_id, "variant_task_id": variant_task_id},
-                                exc_info=exc,
-                            )
-                            raise Http404("Not found") from exc
-                        else:
-                            messages.success(request, _("Ответ сохранен."))
-                            return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
-                    else:
-                        invalid_form = form
-                        invalid_task_id = variant_task_id
-        elif action == "finalize":
-            try:
-                variant_services.finalize_attempt(request.user, attempt_id)
-            except drf_exceptions.ValidationError as exc:
-                logger.info("Finalize attempt validation error", extra={"attempt_id": attempt_id}, exc_info=exc)
-                messages.error(request, _("Не удалось завершить попытку."))
-            except drf_exceptions.NotFound as exc:
-                logger.warning("Finalize attempt not found", extra={"attempt_id": attempt_id}, exc_info=exc)
-                raise Http404("Not found") from exc
-            else:
-                messages.success(request, _("Попытка завершена."))
-            return redirect("accounts:variant-attempt-work", attempt_id=attempt_id)
-
-        attempt = variant_services.get_attempt_with_prefetch(request.user, attempt_id)
-        assignment = attempt.assignment
-        template_tasks = {
-            task.id: task
-            for task in assignment.template.template_tasks.select_related("task__subject", "task__type", "task").all()
-        }
-        tasks_progress = variant_services.build_tasks_progress(attempt)
-
-    tasks = []
-    for item in tasks_progress:
-        variant_task = template_tasks.get(item["variant_task_id"])
-        if not variant_task:
-            continue
-        task = variant_task.task
-        snapshot = item.get("task_snapshot") or {}
-        task_payload = snapshot if isinstance(snapshot, dict) else {}
-        statement = build_task_statement_payload(
-            task=task,
-            statement_source=task_payload,
-        )
-
-        saved_response = item.get("saved_response")
-        saved_response_display = _stringify_response(saved_response)
-        saved_response_updated_at = item.get("saved_response_updated_at")
-
-        correct_answer_meta = None
-        if isinstance(task_payload, dict):
-            correct_answer_meta = task_payload.get("correct_answer")
-        if correct_answer_meta is None and task is not None:
-            correct_answer_meta = deepcopy(task.correct_answer or {})
-        else:
-            correct_answer_meta = deepcopy(correct_answer_meta or {})
-
-        if invalid_form is not None and invalid_task_id == variant_task.id:
-            form = invalid_form
-        else:
-            form = TaskAnswerForm(correct_answer_meta, initial_answer=saved_response)
-
-        attempts_history = []
-        for attempt_entry in item.get("attempts", []):
-            payload = attempt_entry.task_snapshot or {}
-            response_payload = {}
-            if isinstance(payload, dict):
-                response_payload = payload.get("response") or {}
-            response_value = None
-            if isinstance(response_payload, Mapping):
-                response_value = response_payload.get("value")
-                if response_value is None:
-                    response_value = response_payload.get("answer")
-                if response_value is None:
-                    response_value = response_payload.get("text")
-            elif response_payload is not None:
-                response_value = response_payload
-
-            attempts_history.append(
-                {
-                    "number": attempt_entry.attempt_number,
-                    "is_correct": attempt_entry.is_correct,
-                    "created_at": attempt_entry.created_at,
-                    "response_text": _stringify_response(response_value),
-                }
-            )
-
-        max_attempts = item.get("max_attempts")
-        attempts_used = item.get("attempts_used") or 0
-        remaining_attempts = None
-        if max_attempts is not None:
-            remaining_attempts = max(0, max_attempts - attempts_used)
-
-        tasks.append(
-            {
-                "variant_task": variant_task,
-                "task": task,
-                "order": item.get("order"),
-                "statement": statement,
-                "skills": list(task.skills.all()) if task else [],
-                "is_completed": item.get("is_completed", False),
-                "remaining_attempts": remaining_attempts,
-                "max_attempts": max_attempts,
-                "history": attempts_history,
-                "last_attempt": attempts_history[-1] if attempts_history else None,
-                "form": form,
-                "form_available": form.is_available,
-                "saved_response_display": saved_response_display,
-                "saved_response_updated_at": saved_response_updated_at,
-                "has_saved_response": saved_response is not None,
-            }
-        )
-
-    tasks.sort(key=lambda entry: entry["order"] or 0)
-
-    attempt_completed = attempt.completed_at is not None
-    progress_summary = variant_services.calculate_assignment_progress(assignment)
-    all_completed = all(entry["is_completed"] for entry in tasks)
-    all_answers_saved = all(entry["has_saved_response"] for entry in tasks)
-    time_left_delta = variant_services.get_time_left(attempt)
-    time_left = _format_duration(time_left_delta) if time_left_delta else None
-
-    context = {
-        "active_tab": "tasks",
-        "role": role,
-        "assignment": assignment,
-        "attempt": attempt,
-        "tasks": tasks,
-        "progress_summary": progress_summary,
-        "attempt_completed": attempt_completed,
-        "all_completed": all_completed,
-        "all_answers_saved": all_answers_saved,
-        "time_left": time_left,
-        "task_answer_submit_label": _("Сохранить ответ"),
-        "task_answer_legend": _("Ответ на задание"),
-        "task_answer_unavailable_message": _("Для этого задания пока нет формы ответа."),
-    }
-    return render(request, "accounts/dashboard/variant_attempt_work.html", context)
+    return redirect("accounts:variant-attempt-solver", attempt_id=attempt.id)
 
 
 @login_required

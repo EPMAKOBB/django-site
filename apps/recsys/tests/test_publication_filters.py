@@ -188,3 +188,39 @@ class PublicationFiltersTests(TestCase):
         self.assertIsNotNone(attempt.completed_at)
         self.assertIsNotNone(assignment.deadline)
         self.assertEqual(VariantAssignment.objects.filter(user=self.user).count(), 2)
+
+    def test_completed_personal_variant_is_not_reused_for_new_personal_build(self):
+        task = self._task("Completed personal task", Task.Status.PUBLISHED)
+        blueprint = ExamBlueprint.objects.create(
+            subject=self.subject,
+            exam_version=self.exam,
+            title="Blueprint",
+            is_active=True,
+        )
+        ExamBlueprintItem.objects.create(
+            blueprint=blueprint,
+            task_type=self.task_type,
+            count=1,
+            order=1,
+        )
+        template = VariantTemplate.objects.create(
+            name="Completed personal variant",
+            exam_version=self.exam,
+            kind=VariantTemplate.Kind.PERSONAL,
+            is_public=False,
+        )
+        template.template_tasks.create(task=task, order=1)
+        assignment = VariantAssignment.objects.create(template=template, user=self.user)
+        VariantAttempt.objects.create(
+            assignment=assignment,
+            attempt_number=1,
+            completed_at=task.created_at,
+        )
+
+        new_assignment = variant_service.build_personal_assignment_from_blueprint(
+            user=self.user,
+            exam_version=self.exam,
+        )
+
+        self.assertNotEqual(new_assignment.pk, assignment.pk)
+        self.assertEqual(VariantAssignment.objects.filter(user=self.user).count(), 2)

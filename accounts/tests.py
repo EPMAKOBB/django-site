@@ -12,6 +12,7 @@ from apps.recsys.models import (
     TrainingSessionStep,
     VariantAssignment,
     VariantAttempt,
+    VariantTemplate,
     VariantTaskAttempt,
 )
 from apps.recsys.tests import factories as variant_factories
@@ -136,6 +137,26 @@ class DashboardAssignmentsViewTests(TestCase):
             is_correct=True,
         )
 
+        personal_assignment, personal_variant_tasks = self._create_assignment(
+            deadline=future_deadline,
+            max_attempts=None,
+        )
+        personal_assignment.template.kind = VariantTemplate.Kind.PERSONAL
+        personal_assignment.template.save(update_fields=["kind"])
+        personal_attempt = VariantAttempt.objects.create(
+            assignment=personal_assignment,
+            attempt_number=1,
+            completed_at=timezone.now() - timedelta(minutes=10),
+            time_spent=timedelta(minutes=20),
+        )
+        VariantTaskAttempt.objects.create(
+            variant_attempt=personal_attempt,
+            variant_task=personal_variant_tasks[0],
+            task=personal_variant_tasks[0].task,
+            attempt_number=1,
+            is_correct=True,
+        )
+
         other_user = User.objects.create_user(
             username="other-student",
             password="pass",
@@ -154,7 +175,7 @@ class DashboardAssignmentsViewTests(TestCase):
         )
         self.assertSetEqual(
             {item["assignment"].pk for item in past_assignments},
-            {past_assignment.pk},
+            {past_assignment.pk, personal_assignment.pk},
         )
 
         active_info = next(
@@ -164,8 +185,15 @@ class DashboardAssignmentsViewTests(TestCase):
         self.assertIsNotNone(active_info["active_attempt"])
         self.assertFalse(active_info["can_start"])
 
-        past_info = past_assignments[0]
+        past_info = next(
+            item for item in past_assignments if item["assignment"].pk == past_assignment.pk
+        )
         self.assertTrue(past_info["deadline_passed"])
+
+        personal_info = next(
+            item for item in past_assignments if item["assignment"].pk == personal_assignment.pk
+        )
+        self.assertFalse(personal_info["can_start"])
 
     def test_dashboard_shows_training_sessions(self):
         task = variant_factories.create_task(title="Training task")
@@ -245,13 +273,31 @@ class DashboardAssignmentsViewTests(TestCase):
 
         response = self.client.post(url, {"start_attempt": "1"})
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], url)
 
         assignment.refresh_from_db()
         self.assertEqual(assignment.attempts.count(), 1)
         attempt = assignment.attempts.first()
+        self.assertEqual(
+            response["Location"],
+            reverse("accounts:variant-attempt-solver", args=[attempt.pk]),
+        )
         self.assertEqual(attempt.attempt_number, 1)
         self.assertIsNotNone(attempt.started_at)
+
+    def test_attempt_work_route_redirects_to_solver(self):
+        assignment, _ = self._create_assignment()
+        attempt = VariantAttempt.objects.create(
+            assignment=assignment,
+            attempt_number=1,
+        )
+
+        response = self.client.get(reverse("accounts:variant-attempt-work", args=[attempt.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            reverse("accounts:variant-attempt-solver", args=[attempt.pk]),
+        )
 
     def test_assignment_result_contains_attempts(self):
         assignment, variant_tasks = self._create_assignment()

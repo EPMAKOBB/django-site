@@ -128,7 +128,7 @@
 
         <section class="assignment-detail__actions" aria-label="{% trans 'Доступные действия с заданием' %}">
       {% if assignment_info.active_attempt %}
-        <a class="btn btn-primary" href="{% url 'accounts:variant-attempt-work' assignment_info.active_attempt.id %}">
+        <a class="btn btn-primary" href="{% url 'accounts:variant-attempt-solver' assignment_info.active_attempt.id %}">
           {% trans "Продолжить решать" %}
         </a>
         <p class="assignment-detail__hint">{% trans "Попытка уже запущена. Возвращайтесь в интерфейс решения, чтобы продолжить." %}</p>
@@ -218,8 +218,12 @@
 
               </dl>
               {% if attempt.completed_at %}
-                <a class="assignment-detail__attempt-link" href="{% url 'accounts:variant-attempt-solver' attempt.id %}" target="_blank" rel="noopener noreferrer">
-                  {% trans "????????? ? ????????" %}
+                <a class="assignment-detail__attempt-link" href="{% url 'accounts:variant-attempt-solver' attempt.id %}">
+                  {% trans "Открыть результат" %}
+                </a>
+              {% else %}
+                <a class="assignment-detail__attempt-link" href="{% url 'accounts:variant-attempt-solver' attempt.id %}">
+                  {% trans "Продолжить" %}
                 </a>
               {% endif %}
 

@@ -278,6 +278,8 @@ def build_personal_assignment_from_blueprint(
             if _active_attempts(assignment):
                 ensure_variant_page(assignment.template, is_public=False)
                 return assignment
+            if _personal_assignment_has_completed_attempt(assignment):
+                continue
             attempts_left = _attempts_left(assignment)
             if attempts_left is None or attempts_left > 0:
                 ensure_variant_page(assignment.template, is_public=False)
@@ -468,6 +470,17 @@ def _active_attempts(assignment: VariantAssignment) -> List[VariantAttempt]:
     return [attempt for attempt in assignment.attempts.all() if attempt.completed_at is None]
 
 
+def _completed_attempts(assignment: VariantAssignment) -> List[VariantAttempt]:
+    return [attempt for attempt in assignment.attempts.all() if attempt.completed_at is not None]
+
+
+def _personal_assignment_has_completed_attempt(assignment: VariantAssignment) -> bool:
+    return (
+        assignment.template.kind == VariantTemplate.Kind.PERSONAL
+        and bool(_completed_attempts(assignment))
+    )
+
+
 def _attempts_left(assignment: VariantAssignment) -> int | None:
     template_limit = assignment.template.max_attempts
     if template_limit is None:
@@ -488,6 +501,9 @@ def can_start_attempt(assignment: VariantAssignment) -> bool:
         return False
 
     if _active_attempts(assignment):
+        return False
+
+    if _personal_assignment_has_completed_attempt(assignment):
         return False
 
     remaining = _attempts_left(assignment)
@@ -568,6 +584,12 @@ def start_new_attempt(user, assignment_id: int) -> VariantAttempt:
 
     if assignment.attempts.filter(completed_at__isnull=True).exists():
         raise exceptions.ValidationError("У вас уже есть активная попытка")
+
+    if (
+        assignment.template.kind == VariantTemplate.Kind.PERSONAL
+        and assignment.attempts.filter(completed_at__isnull=False).exists()
+    ):
+        raise exceptions.ValidationError("Соберите новый персональный вариант для новой попытки")
 
     template_limit = assignment.template.max_attempts
     next_number = assignment.attempts.count() + 1

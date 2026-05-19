@@ -71,7 +71,7 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       fontSize = Math.max(12, Math.min(16, Math.floor(width / 104)));
-      ctx.font = "600 " + fontSize + 'px "JetBrains Mono", Consolas, monospace';
+      ctx.font = fontSize + 'px "JetBrains Mono", Consolas, monospace';
       ctx.textBaseline = "top";
 
       const metrics = ctx.measureText("M");
@@ -204,8 +204,8 @@
       ctx.clearRect(0, 0, width, height);
 
       const isDay = document.body.getAttribute("data-theme") === "day";
-      const baseRgb = isDay ? [96, 134, 196] : [132, 196, 255];
-      const edgeRgb = isDay ? [118, 152, 210] : [190, 228, 255];
+      const baseRgb = isDay ? [96, 134, 196] : [104, 170, 255];
+      const edgeRgb = isDay ? [118, 152, 210] : [162, 211, 255];
       const trailRgb = isDay ? [74, 118, 194] : [236, 246, 255];
 
       for (let y = 0; y < rows; y += 1) {
@@ -219,7 +219,7 @@
           const centerDist = Math.sqrt(dx * dx + dy * dy);
           const centerNorm = clamp(centerDist / (Math.max(cols, rows) * 0.7), 0, 1);
           const edgeBias = Math.pow(centerNorm, 1.18);
-          const baseGlow = 0.38 + edgeBias * 0.28;
+          const baseGlow = 0.28 + edgeBias * 0.22;
           const trailGlow = trailField[k];
           const storedGlow = glowField[k];
           const finalGlow = Math.max(baseGlow, trailGlow * 0.95, storedGlow * 0.9);
@@ -235,7 +235,7 @@
 
           let alpha = isDay
             ? clamp(0.1 + finalGlow * 0.38, 0, 0.46)
-            : clamp(0.28 + finalGlow * 1.08, 0, 1);
+            : clamp(0.18 + finalGlow * 1.02, 0, 1);
           let rgb = baseRgb;
           if (edgeBias > 0.08) {
             rgb = edgeRgb;
