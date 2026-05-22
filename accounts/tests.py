@@ -232,7 +232,7 @@ class DashboardAssignmentsViewTests(TestCase):
                 "task_type_name": task.type.name,
                 "max_score": 1,
             },
-            response_snapshot={"answer": "42"},
+            response_snapshot={"answer": {"value": "42", "unit": "points"}},
             answered_at=timezone.now(),
         )
 
@@ -242,7 +242,7 @@ class DashboardAssignmentsViewTests(TestCase):
         self.assertEqual(len(response.context["past_training_sessions"]), 1)
         self.assertContains(response, "Training task")
         self.assertContains(response, "Training exam")
-        self.assertContains(response, "1")
+        self.assertContains(response, '"value": "42"')
 
     def test_assignment_detail_permissions_and_context(self):
         assignment, _ = self._create_assignment()
