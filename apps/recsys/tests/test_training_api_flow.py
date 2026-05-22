@@ -3,7 +3,7 @@ import json
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from apps.recsys.models import Attempt, ExamVersion, Subject, Task, TaskTag, TaskType, TrainingSession
+from apps.recsys.models import AnswerSchema, Attempt, ExamVersion, Subject, Task, TaskTag, TaskType, TrainingSession
 
 
 class TrainingApiFlowTests(TestCase):
@@ -338,3 +338,66 @@ class TrainingApiFlowTests(TestCase):
         self.assertEqual(second_payload["session"]["correct_steps"], 1)
         self.assertEqual(Attempt.objects.filter(user=self.user, task_id=current_task["task_id"]).count(), 2)
         self.assertEqual(Attempt.objects.filter(user=self.user, task_id=current_task["task_id"]).order_by("attempt_number").last().attempt_number, 2)
+
+    def test_training_accepts_grid_answer_with_trailing_blank_rows(self):
+        schema = AnswerSchema.objects.create(
+            name="grid_10x2_uint_test",
+            config={
+                "rows": 10,
+                "cols": 2,
+                "input_type": "uint",
+                "allow_blank_rows": True,
+            },
+            is_active=True,
+        )
+        grid_type = TaskType.objects.create(
+            name="Grid Type",
+            subject=self.subject,
+            exam_version=self.exam_version,
+            answer_schema=schema,
+        )
+        grid_type.required_tags.add(self.tag)
+        correct_answer = [
+            [1202156, 4436],
+            [12001506, 44286],
+            [12131586, 44766],
+            [12421556, 45836],
+            [12711526, 46906],
+        ]
+        task = Task.objects.create(
+            type=grid_type,
+            title="Grid task",
+            subject=self.subject,
+            exam_version=self.exam_version,
+            correct_answer=correct_answer,
+            status=Task.Status.PUBLISHED,
+        )
+        task.tags.add(self.tag)
+
+        resp = self.client.post(
+            "/api/training/sessions/",
+            data=json.dumps(
+                {
+                    "exam_version_id": self.exam_version.id,
+                    "selected_task_type_ids": [grid_type.id],
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        payload = resp.json()
+        self.assertEqual(payload["current_task"]["task_id"], task.id)
+
+        answer_with_empty_rows = correct_answer + [[], [], [], [], []]
+        resp = self.client.post(
+            f"/api/training/sessions/{payload['session']['id']}/submit/",
+            data=json.dumps(
+                {
+                    "step_id": payload["current_task"]["step_id"],
+                    "answer": answer_with_empty_rows,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.json()["submission_result"]["is_correct"])

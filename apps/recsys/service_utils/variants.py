@@ -47,6 +47,7 @@ from apps.recsys.service_utils.publication import (
     variant_template_is_public_ready,
 )
 from . import task_generation
+from .grading import _trim_trailing_blank_rows
 
 
 TASK_PREFETCH = Prefetch(
@@ -439,7 +440,10 @@ def _grade_answer(
 
     # Default/binary scoring
     try:
-        is_correct = compare_answers(correct_answer, response_value)
+        is_correct = compare_answers(
+            _trim_trailing_blank_rows(correct_answer),
+            _trim_trailing_blank_rows(response_value),
+        )
     except Exception:
         is_correct = False
     return (max_score if is_correct else 0), bool(is_correct)

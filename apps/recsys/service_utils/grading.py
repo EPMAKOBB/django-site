@@ -31,6 +31,25 @@ def _as_rows(value: Any) -> list[list[Any]]:
     return normalized
 
 
+def _is_blank_row(row: Any) -> bool:
+    if row in (None, ""):
+        return True
+    if isinstance(row, (list, tuple)):
+        return all(cell in (None, "") for cell in row)
+    return False
+
+
+def _trim_trailing_blank_rows(value: Any) -> Any:
+    if not isinstance(value, list):
+        return value
+    if not all(isinstance(row, (list, tuple)) or row in (None, "") for row in value):
+        return value
+    rows = list(value)
+    while rows and _is_blank_row(rows[-1]):
+        rows.pop()
+    return rows
+
+
 def grade_answer(
     scoring_scheme: str,
     correct_answer: Any,
@@ -78,7 +97,10 @@ def grade_answer(
         return score, score == max_score
 
     try:
-        is_correct = compare_answers(correct_answer, response_value)
+        is_correct = compare_answers(
+            _trim_trailing_blank_rows(correct_answer),
+            _trim_trailing_blank_rows(response_value),
+        )
     except Exception:
         is_correct = False
     return (max_score if is_correct else 0), bool(is_correct)

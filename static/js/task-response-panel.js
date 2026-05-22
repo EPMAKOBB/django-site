@@ -222,6 +222,17 @@
         matrix.push(rowValues);
       }
     }
+    if (allowBlankRows) {
+      while (
+        matrix.length
+        && (
+          matrix[matrix.length - 1].length === 0
+          || matrix[matrix.length - 1].every((value) => value === "" || value === null)
+        )
+      ) {
+        matrix.pop();
+      }
+    }
     return matrix;
   }
 
