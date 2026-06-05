@@ -16,7 +16,9 @@ class VariantApiFlowTests(TestCase):
         self.client.force_login(self.user)
 
         self.template = factories.create_variant_template(max_attempts=2, time_limit_minutes=5)
-        first_task = factories.create_task()
+        first_task = factories.create_task(description="Task with image")
+        first_task.image.name = "tasks/screenshots/schema.png"
+        first_task.save(update_fields=["image"])
         second_task = factories.create_task(subject=first_task.subject)
         self.variant_task_1 = factories.add_variant_task(
             template=self.template,
@@ -33,6 +35,25 @@ class VariantApiFlowTests(TestCase):
         self.assignment = factories.assign_variant(
             template=self.template, username=self.user.username
         )
+
+    def test_attempt_progress_exposes_task_media(self):
+        start_resp = self.client.post(
+            f"/api/variants/assignments/{self.assignment.id}/attempts/start/"
+        )
+        self.assertEqual(start_resp.status_code, 201)
+
+        attempt_resp = self.client.get(
+            f"/api/variants/attempts/{start_resp.json()['id']}/"
+        )
+        self.assertEqual(attempt_resp.status_code, 200)
+
+        first_task_entry = next(
+            item
+            for item in attempt_resp.json()["tasks_progress"]
+            if item["variant_task_id"] == self.variant_task_1.id
+        )
+        self.assertEqual(first_task_entry["image"], "/media/tasks/screenshots/schema.png")
+        self.assertEqual(first_task_entry["attachments"], [])
 
     def test_full_variant_flow(self):
         current_resp = self.client.get("/api/variants/assignments/current/")

@@ -721,6 +721,7 @@
       bodyEl.classList.remove("markdown-content");
     }
 
+    renderTaskImage(task);
     renderAttachments(task);
     const saved = task.saved_response !== null && task.saved_response !== undefined;
     isSaved = saved;
@@ -793,6 +794,19 @@
     saveBtn.hidden = attempt.completed_at !== null;
     saveBtn.textContent = saved ? "{% trans 'Изменить ответ' %}" : "{% trans 'Сохранить ответ' %}";
     updateNavButtons();
+  }
+
+  function renderTaskImage(task) {
+    const imageUrl = task?.image || task?.task_snapshot?.image || "";
+    if (!bodyEl || !imageUrl) return;
+    const figure = document.createElement("figure");
+    figure.className = "task-statement__figure";
+    const image = document.createElement("img");
+    image.className = "task-statement__image";
+    image.src = imageUrl;
+    image.alt = task?.image_alt || task?.task_snapshot?.image_alt || "Task illustration";
+    figure.appendChild(image);
+    bodyEl.appendChild(figure);
   }
 
   async function fetchAttempt() {
@@ -907,7 +921,7 @@
 
   function renderAttachments(task) {
     if (!attachmentsEl || !taskCardEl) return;
-    const attachments = task?.task_snapshot?.attachments;
+    const attachments = Array.isArray(task?.attachments) ? task.attachments : task?.task_snapshot?.attachments;
     if (!Array.isArray(attachments) || attachments.length === 0) {
       if (attachmentsEl.parentElement) {
         attachmentsEl.innerHTML = "";
@@ -922,6 +936,7 @@
         taskCardEl.appendChild(attachmentsEl);
       }
     }
+    attachmentsEl.hidden = false;
     attachmentsEl.innerHTML = "";
     const list = document.createElement("ul");
     list.className = "solver__attachments-list";

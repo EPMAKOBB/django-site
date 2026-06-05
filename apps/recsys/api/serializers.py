@@ -437,6 +437,8 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
                     "answer_schema": item.get("answer_schema"),
                     "task_rendering_strategy": item.get("task_rendering_strategy"),
                     "task_body_html": item.get("task_body_html"),
+                    "image": item.get("image"),
+                    "attachments": item.get("attachments"),
                     "max_score": item.get("max_score"),
                     "max_attempts": item["max_attempts"],
                     "attempts_used": item["attempts_used"],
