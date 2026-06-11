@@ -1,0 +1,207 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load i18n %}
+
+{% block dashboard_title %}{% trans "Журнал системы" %}{% endblock %}
+
+{% block dashboard_content %}
+  <div class="journal-header">
+    <div>
+      <h1 class="journal-title">{% trans "Журнал системы" %}</h1>
+      <p class="journal-subtitle">{% trans "Учебная активность внутри платформы: решения, тренировки, варианты и проблемные задачи." %}</p>
+    </div>
+    <form method="get" class="journal-filter">
+      <label for="journal-period">{% trans "Период" %}</label>
+      <select id="journal-period" name="period" onchange="this.form.submit()">
+        {% for value, label in period_options %}
+          <option value="{{ value }}" {% if period == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+
+  <section class="journal-metrics" aria-label="{% trans 'Сводка' %}">
+    <div class="journal-metric">
+      <span>{% trans "Пользователей с активностью" %}</span>
+      <strong>{{ summary.users_with_activity }}</strong>
+    </div>
+    <div class="journal-metric">
+      <span>{% trans "Сейчас в работе" %}</span>
+      <strong>{{ summary.active_now }}</strong>
+    </div>
+    <div class="journal-metric">
+      <span>{% trans "Ответов по задачам" %}</span>
+      <strong>{{ summary.task_attempts }}</strong>
+    </div>
+    <div class="journal-metric">
+      <span>{% trans "Точность задач" %}</span>
+      <strong>{{ summary.task_accuracy_percent }}%</strong>
+    </div>
+    <div class="journal-metric">
+      <span>{% trans "Тренировки" %}</span>
+      <strong>{{ summary.training_sessions }}</strong>
+    </div>
+    <div class="journal-metric">
+      <span>{% trans "Варианты" %}</span>
+      <strong>{{ summary.completed_variants }}/{{ summary.variant_attempts }}</strong>
+    </div>
+  </section>
+
+  <section class="journal-section">
+    <div class="journal-section__header">
+      <h2>{% trans "Пользователи" %}</h2>
+      <span class="muted">{% trans "Активные сейчас поднимаются наверх" %}</span>
+    </div>
+    <div class="journal-table-wrap">
+      <table class="journal-table">
+        <thead>
+          <tr>
+            <th>{% trans "Пользователь" %}</th>
+            <th>{% trans "Статус" %}</th>
+            <th>{% trans "Последняя активность" %}</th>
+            <th>{% trans "Ответы" %}</th>
+            <th>{% trans "Точность" %}</th>
+            <th>{% trans "Тренировки" %}</th>
+            <th>{% trans "Варианты" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in user_rows %}
+            <tr>
+              <td>
+                <strong>{{ row.user.get_full_name|default:row.user.username }}</strong>
+                <div class="muted">@{{ row.user.username }}{% if row.user.is_staff %} · staff{% endif %}</div>
+              </td>
+              <td>
+                {% if row.is_active_now %}
+                  <span class="journal-status journal-status--active">{% trans "сейчас" %}</span>
+                {% else %}
+                  <span class="journal-status">{% trans "нет" %}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.last_activity_at %}
+                  {{ row.last_activity_at|date:"d.m.Y H:i" }}
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ row.attempts_total }}</td>
+              <td>{{ row.accuracy_percent }}%</td>
+              <td>
+                {{ row.training_sessions_total }}
+                {% if row.training_sessions_active %}
+                  <div class="muted">{% blocktrans with count=row.training_sessions_active %}активных: {{ count }}{% endblocktrans %}</div>
+                {% endif %}
+              </td>
+              <td>
+                {{ row.variant_attempts_completed }}/{{ row.variant_attempts_total }}
+                {% if row.variant_attempts_active %}
+                  <div class="muted">{% blocktrans with count=row.variant_attempts_active %}в работе: {{ count }}{% endblocktrans %}</div>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="journal-empty">{% trans "За выбранный период учебной активности нет." %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="journal-grid">
+    <div class="journal-section">
+      <div class="journal-section__header">
+        <h2>{% trans "Последние действия" %}</h2>
+      </div>
+      <div class="journal-list">
+        {% for item in recent_activity %}
+          <div class="journal-event">
+            <div>
+              <strong>{{ item.user.get_full_name|default:item.user.username }}</strong>
+              <span class="muted">· {{ item.kind }}</span>
+              <div>{{ item.title }}</div>
+              <div class="muted">{{ item.meta }} · {{ item.result }}</div>
+            </div>
+            <time datetime="{{ item.at|date:'c' }}">{{ item.at|date:"d.m H:i" }}</time>
+          </div>
+        {% empty %}
+          <p class="journal-empty">{% trans "Действий пока нет." %}</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="journal-section">
+      <div class="journal-section__header">
+        <h2>{% trans "Проблемные задачи" %}</h2>
+        <span class="muted">{% trans "Минимум 3 попытки за период" %}</span>
+      </div>
+      <div class="journal-list">
+        {% for task in problem_tasks %}
+          <div class="journal-task-row">
+            <div>
+              <strong>{{ task.title }}</strong>
+              <div class="muted">{{ task.type.name }}{% if task.exam_version %} · {{ task.exam_version.name }}{% endif %}</div>
+            </div>
+            <div class="journal-task-row__stats">
+              <span>{{ task.period_attempts }} {% trans "поп." %}</span>
+              <span>{{ task.period_success_percent }}%</span>
+              {% if task.avg_time_minutes %}<span>{{ task.avg_time_minutes }} {% trans "мин" %}</span>{% endif %}
+            </div>
+          </div>
+        {% empty %}
+          <p class="journal-empty">{% trans "Недостаточно данных для списка проблемных задач." %}</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="journal-section">
+    <div class="journal-section__header">
+      <h2>{% trans "Самые используемые задачи" %}</h2>
+      <span class="muted">{% trans "По количеству валидных попыток за период" %}</span>
+    </div>
+    <div class="journal-table-wrap">
+      <table class="journal-table">
+        <thead>
+          <tr>
+            <th>{% trans "Задача" %}</th>
+            <th>{% trans "Тип" %}</th>
+            <th>{% trans "Попытки" %}</th>
+            <th>{% trans "Ученики" %}</th>
+            <th>{% trans "Успех за период" %}</th>
+            <th>{% trans "Успех всего" %}</th>
+            <th>{% trans "Ср. время" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in top_tasks %}
+            <tr>
+              <td>
+                <strong>{{ task.title }}</strong>
+                <div class="muted">{{ task.subject.name }}{% if task.exam_version %} · {{ task.exam_version.name }}{% endif %}</div>
+              </td>
+              <td>{{ task.type.name }}</td>
+              <td>{{ task.period_attempts }}</td>
+              <td>{{ task.period_users }}</td>
+              <td>{{ task.period_success_percent }}%</td>
+              <td>{{ task.all_time_success_percent }}%</td>
+              <td>
+                {% if task.avg_time_minutes %}
+                  {{ task.avg_time_minutes }} {% trans "мин" %}
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="journal-empty">{% trans "За выбранный период попыток по задачам нет." %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

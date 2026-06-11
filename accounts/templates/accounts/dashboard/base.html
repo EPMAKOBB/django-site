@@ -19,6 +19,11 @@
           <a role="tab" aria-selected="{% if active_tab == 'students' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-students' %}">{% trans 'Мои ученики' %}</a>
         </li>
       {% endif %}
+      {% if request.user.is_staff %}
+        <li class="{% if active_tab == 'system_journal' %}active{% endif %}" role="presentation">
+          <a role="tab" aria-selected="{% if active_tab == 'system_journal' %}true{% else %}false{% endif %}" href="{% url 'accounts:system-journal' %}">{% trans 'Журнал системы' %}</a>
+        </li>
+      {% endif %}
       <li class="{% if active_tab == 'settings' %}active{% endif %}" role="presentation">
         <a role="tab" aria-selected="{% if active_tab == 'settings' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-settings' %}">{% trans 'Настройки' %}</a>
       </li>

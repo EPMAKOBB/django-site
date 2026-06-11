@@ -5,11 +5,11 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.conf import settings
-from django.contrib.auth import login, update_session_auth_hash
+from django.contrib.auth import get_user_model, login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Count, Max, Prefetch, Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -19,12 +19,16 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as drf_exceptions
 
 from apps.recsys.models import (
+    Attempt,
     Skill,
     Task,
     TaskSkill,
     TrainingSession,
+    TrainingSessionStep,
+    VariantAttempt,
     VariantTemplate,
     VariantAssignment,
+    VariantTaskAttempt,
     VariantTask,
 )
 from apps.recsys.service_utils import variants as variant_services
@@ -762,6 +766,272 @@ def assignment_create(request):
         "classes": classes,
     }
     return render(request, "accounts/dashboard/assignment_create.html", context)
+
+
+def _percent(numerator: int | float | None, denominator: int | float | None) -> int:
+    if not denominator:
+        return 0
+    return int(round((float(numerator or 0) / float(denominator)) * 100))
+
+
+def _period_since(request):
+    period = (request.GET.get("period") or "30").strip().lower()
+    valid_periods = {"7", "30", "90", "all"}
+    if period not in valid_periods:
+        period = "30"
+    if period == "all":
+        return period, None
+    return period, timezone.now() - timedelta(days=int(period))
+
+
+@login_required
+def system_journal(request):
+    """Staff-only learning activity journal across the whole system."""
+
+    if not request.user.is_staff:
+        raise PermissionDenied("Only staff can access the system journal")
+
+    role = _get_dashboard_role(request)
+    period, since = _period_since(request)
+    now = timezone.now()
+    active_cutoff = now - timedelta(minutes=10)
+
+    attempt_filter = Q(is_valid_attempt=True)
+    training_filter = Q()
+    variant_filter = Q()
+    if since is not None:
+        attempt_filter &= Q(checked_at__gte=since) | Q(checked_at__isnull=True, created_at__gte=since)
+        training_filter &= (
+            Q(last_activity_at__gte=since)
+            | Q(last_activity_at__isnull=True, started_at__gte=since)
+            | Q(ended_at__gte=since)
+        )
+        variant_filter &= (
+            Q(last_seen_at__gte=since)
+            | Q(last_seen_at__isnull=True, started_at__gte=since)
+            | Q(completed_at__gte=since)
+        )
+
+    attempts_qs = Attempt.objects.filter(attempt_filter)
+    trainings_qs = TrainingSession.objects.filter(training_filter)
+    variants_qs = VariantAttempt.objects.filter(variant_filter)
+    variant_task_attempts_qs = VariantTaskAttempt.objects.filter(
+        is_valid_attempt=True,
+        attempt_number__gt=0,
+    )
+    if since is not None:
+        variant_task_attempts_qs = variant_task_attempts_qs.filter(
+            Q(checked_at__gte=since) | Q(checked_at__isnull=True, created_at__gte=since)
+        )
+    active_variant_attempts = VariantAttempt.objects.filter(
+        completed_at__isnull=True,
+        last_seen_at__gte=active_cutoff,
+    )
+    active_training_sessions = TrainingSession.objects.filter(
+        status=TrainingSession.Status.ACTIVE,
+        last_activity_at__gte=active_cutoff,
+    )
+
+    active_user_ids = set(active_variant_attempts.values_list("assignment__user_id", flat=True))
+    active_user_ids.update(active_training_sessions.values_list("user_id", flat=True))
+
+    activity_user_ids = set(attempts_qs.values_list("user_id", flat=True))
+    activity_user_ids.update(trainings_qs.values_list("user_id", flat=True))
+    activity_user_ids.update(variants_qs.values_list("assignment__user_id", flat=True))
+
+    attempt_rows = {
+        row["user_id"]: row
+        for row in attempts_qs.values("user_id").annotate(
+            attempts_total=Count("id"),
+            attempts_correct=Count("id", filter=Q(is_correct=True)),
+            last_attempt_at=Max("checked_at"),
+        )
+    }
+    training_rows = {
+        row["user_id"]: row
+        for row in trainings_qs.values("user_id").annotate(
+            training_sessions_total=Count("id", distinct=True),
+            training_sessions_active=Count("id", filter=Q(status=TrainingSession.Status.ACTIVE), distinct=True),
+            training_steps_total=Count("steps", filter=Q(steps__status=TrainingSessionStep.Status.ANSWERED)),
+            training_steps_correct=Count("steps", filter=Q(steps__result=TrainingSessionStep.Result.CORRECT)),
+            last_training_at=Max("last_activity_at"),
+        )
+    }
+    variant_rows = {
+        row["assignment__user_id"]: row
+        for row in variants_qs.values("assignment__user_id").annotate(
+            variant_attempts_total=Count("id"),
+            variant_attempts_completed=Count("id", filter=Q(completed_at__isnull=False)),
+            variant_attempts_active=Count("id", filter=Q(completed_at__isnull=True)),
+            last_variant_at=Max("last_seen_at"),
+        )
+    }
+
+    users = (
+        get_user_model()
+        .objects.filter(id__in=activity_user_ids)
+        .order_by("username")
+    )
+    very_old = now - timedelta(days=36500)
+    user_rows = []
+    for user in users:
+        attempt_data = attempt_rows.get(user.id, {})
+        training_data = training_rows.get(user.id, {})
+        variant_data = variant_rows.get(user.id, {})
+        last_dates = [
+            attempt_data.get("last_attempt_at"),
+            training_data.get("last_training_at"),
+            variant_data.get("last_variant_at"),
+        ]
+        last_activity_at = max([value for value in last_dates if value], default=None)
+        attempts_total = int(attempt_data.get("attempts_total") or 0)
+        attempts_correct = int(attempt_data.get("attempts_correct") or 0)
+        training_steps_total = int(training_data.get("training_steps_total") or 0)
+        training_steps_correct = int(training_data.get("training_steps_correct") or 0)
+        total_answers = attempts_total + training_steps_total
+        total_correct = attempts_correct + training_steps_correct
+        user_rows.append(
+            {
+                "user": user,
+                "is_active_now": user.id in active_user_ids,
+                "last_activity_at": last_activity_at,
+                "attempts_total": attempts_total,
+                "training_sessions_total": int(training_data.get("training_sessions_total") or 0),
+                "training_sessions_active": int(training_data.get("training_sessions_active") or 0),
+                "variant_attempts_total": int(variant_data.get("variant_attempts_total") or 0),
+                "variant_attempts_completed": int(variant_data.get("variant_attempts_completed") or 0),
+                "variant_attempts_active": int(variant_data.get("variant_attempts_active") or 0),
+                "accuracy_percent": _percent(total_correct, total_answers),
+            }
+        )
+    user_rows.sort(
+        key=lambda row: (
+            row["is_active_now"],
+            row["last_activity_at"] or very_old,
+        ),
+        reverse=True,
+    )
+
+    top_task_stats = list(
+        attempts_qs.values("task_id")
+        .annotate(
+            period_attempts=Count("id"),
+            period_correct=Count("id", filter=Q(is_correct=True)),
+            period_users=Count("user_id", distinct=True),
+        )
+        .order_by("-period_attempts")[:20]
+    )
+    top_task_ids = [row["task_id"] for row in top_task_stats if row["task_id"]]
+    top_task_map = {
+        task.id: task
+        for task in Task.objects.select_related("subject", "exam_version", "type").filter(id__in=top_task_ids)
+    }
+    top_tasks = []
+    for stats in top_task_stats:
+        task = top_task_map.get(stats["task_id"])
+        if task is None:
+            continue
+        task.period_attempts = int(stats["period_attempts"] or 0)
+        task.period_correct = int(stats["period_correct"] or 0)
+        task.period_users = int(stats["period_users"] or 0)
+        top_tasks.append(task)
+    for task in top_tasks:
+        task.period_success_percent = _percent(task.period_correct, task.period_attempts)
+        task.all_time_success_percent = _percent(
+            float(task.score_norm_sum_total or 0.0),
+            int(task.attempts_total or 0),
+        )
+        task.avg_time_minutes = (
+            round(float(task.time_spent_avg_seconds or 0.0) / 60.0, 1)
+            if task.time_spent_avg_seconds
+            else None
+        )
+
+    problem_tasks = [
+        task
+        for task in top_tasks
+        if task.period_attempts >= 3
+    ]
+    problem_tasks.sort(
+        key=lambda task: (
+            task.period_success_percent,
+            -(task.time_spent_avg_seconds or 0),
+            -task.period_attempts,
+        )
+    )
+    problem_tasks = problem_tasks[:10]
+
+    recent_attempts = [
+        {
+            "kind": "task",
+            "at": attempt.checked_at or attempt.created_at,
+            "user": attempt.user,
+            "title": attempt.task.title,
+            "meta": attempt.task.type.name if attempt.task.type_id else "",
+            "result": "верно" if attempt.is_correct else "ошибка",
+        }
+        for attempt in attempts_qs.select_related("user", "task", "task__type")
+        .order_by("-checked_at", "-created_at")[:15]
+    ]
+    recent_trainings = [
+        {
+            "kind": "training",
+            "at": session.last_activity_at or session.ended_at or session.started_at,
+            "user": session.user,
+            "title": session.exam_version.name,
+            "meta": session.exam_version.subject.name,
+            "result": session.get_status_display(),
+        }
+        for session in trainings_qs.select_related("user", "exam_version", "exam_version__subject")
+        .order_by("-last_activity_at", "-started_at")[:10]
+    ]
+    recent_variants = [
+        {
+            "kind": "variant",
+            "at": attempt.last_seen_at or attempt.completed_at or attempt.started_at,
+            "user": attempt.assignment.user,
+            "title": attempt.assignment.template.name,
+            "meta": f"попытка {attempt.attempt_number}",
+            "result": "завершён" if attempt.completed_at else "в работе",
+        }
+        for attempt in variants_qs.select_related("assignment__user", "assignment__template")
+        .order_by("-last_seen_at", "-started_at")[:10]
+    ]
+    recent_activity = recent_attempts + recent_trainings + recent_variants
+    recent_activity.sort(key=lambda entry: entry["at"] or very_old, reverse=True)
+    recent_activity = recent_activity[:25]
+
+    summary = {
+        "users_with_activity": len(activity_user_ids),
+        "active_now": len(active_user_ids),
+        "task_attempts": attempts_qs.count(),
+        "training_sessions": trainings_qs.count(),
+        "variant_attempts": variants_qs.count(),
+        "variant_task_attempts": variant_task_attempts_qs.count(),
+        "completed_variants": variants_qs.filter(completed_at__isnull=False).count(),
+        "task_accuracy_percent": _percent(
+            attempts_qs.filter(is_correct=True).count(),
+            attempts_qs.count(),
+        ),
+    }
+
+    context = {
+        "active_tab": "system_journal",
+        "role": role,
+        "period": period,
+        "period_options": [
+            ("7", "7 дней"),
+            ("30", "30 дней"),
+            ("90", "90 дней"),
+            ("all", "всё время"),
+        ],
+        "summary": summary,
+        "user_rows": user_rows[:100],
+        "top_tasks": top_tasks,
+        "problem_tasks": problem_tasks,
+        "recent_activity": recent_activity,
+    }
+    return render(request, "accounts/dashboard/system_journal.html", context)
 
 
 @login_required
