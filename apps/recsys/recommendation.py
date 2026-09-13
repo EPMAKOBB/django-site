@@ -73,11 +73,11 @@ def _weakness_value(components: dict) -> float:
     return _clamp_unit(weakness)
 
 
-def _legacy_score(user, task: Task) -> float:
+def _legacy_score(user, task: Task, skill_masteries=None) -> float:
     total = 0.0
     count = 0
     for skill in task.skills.all():
-        mastery = SkillMastery.objects.filter(user=user, skill=skill).first()
+        mastery = skill_masteries.get(skill.pk) if skill_masteries is not None else SkillMastery.objects.filter(user=user, skill=skill).first()
         if mastery:
             total += float(mastery.mastery or 0.0)
             count += 1
@@ -85,8 +85,8 @@ def _legacy_score(user, task: Task) -> float:
     return 1.0 - _clamp_unit(avg_mastery)
 
 
-def _legacy_candidate(user, task: Task) -> RecommendationCandidate:
-    score = _legacy_score(user, task)
+def _legacy_candidate(user, task: Task, skill_masteries=None) -> RecommendationCandidate:
+    score = _legacy_score(user, task, skill_masteries)
     score_snapshot = {
         "final_score": score,
         "mode": "legacy",
@@ -105,16 +105,17 @@ def _legacy_candidate(user, task: Task) -> RecommendationCandidate:
     )
 
 
-def _mvp_candidate(user, task: Task, now) -> RecommendationCandidate:
-    tag_records = list(task.tags.values("id", "name", "slug"))
+def _mvp_candidate(user, task: Task, now, tag_masteries=None, skill_masteries=None) -> RecommendationCandidate:
+    tag_records = [{"id": tag.pk, "name": tag.name, "slug": tag.slug} for tag in task.tags.all()]
     if not tag_records:
-        return _legacy_candidate(user, task)
+        return _legacy_candidate(user, task, skill_masteries)
 
     tag_ids = [tag["id"] for tag in tag_records]
-    tag_masteries = {
-        mastery.task_tag_id: mastery
-        for mastery in TagMastery.objects.filter(user=user, task_tag_id__in=tag_ids)
-    }
+    if tag_masteries is None:
+        tag_masteries = {
+            mastery.task_tag_id: mastery
+            for mastery in TagMastery.objects.filter(user=user, task_tag_id__in=tag_ids)
+        }
 
     task_mastery_values: list[float] = []
     weak_values: list[float] = []
@@ -259,10 +260,8 @@ def _select_candidates(
     exclude_solved: bool = True,
 ):
     queryset = public_tasks_queryset()
-    if exam_version is not None:
-        queryset = queryset.filter(exam_version=exam_version)
-    if task_type_ids:
-        queryset = queryset.filter(type_id__in=task_type_ids)
+    from .service_utils.exam_context import task_filter
+    queryset = queryset.filter(task_filter(exam_version=exam_version, task_type_ids=task_type_ids, for_issuance=True)).distinct()
     if exclude_solved:
         solved_cutoff = now - SOLVED_TASK_COOLDOWN
         solved_task_ids = Attempt.objects.filter(
@@ -380,9 +379,25 @@ def recommend_task_candidates(
             task_type_ids=task_type_ids,
             exclude_recent=exclude_recent,
             exclude_solved=exclude_solved,
-        ).prefetch_related("tags", "skills")
+        ).prefetch_related("tags", "skills", "placements__task_type__exam_version")
     )
-    candidates = [_mvp_candidate(user, task, now) for task in tasks]
+    from .models import TaskPlacement, ExamVersion
+    prepared_exam_ids = set(ExamVersion.objects.filter(students_preparing__user=user).values_list("pk", flat=True)) if exam_version is None else set()
+    for task in tasks:
+        placements = [p for p in task.placements.all() if p.status == TaskPlacement.Status.ACTIVE
+                      and (exam_version is None or p.task_type.exam_version_id == getattr(exam_version, "pk", exam_version))
+                      and (not task_type_ids or p.task_type_id in task_type_ids)
+                      and p.task_type.exam_version.status != "archived"
+                      and not (p.task_type.exam_version.copied_from_id and p.task_type.exam_version.status != "active")]
+        placements.sort(key=lambda p: (p.task_type.exam_version_id not in prepared_exam_ids,
+                                       not p.task_type.exam_version.is_default,
+                                       -(p.task_type.exam_version.year or 0),
+                                       -p.task_type.exam_version.revision,
+                                       p.task_type.display_order, p.pk))
+        task.selected_placement = placements[0] if placements else None
+    tag_masteries = {row.task_tag_id: row for row in TagMastery.objects.filter(user=user)}
+    skill_masteries = {row.skill_id: row for row in SkillMastery.objects.filter(user=user)}
+    candidates = [_mvp_candidate(user, task, now, tag_masteries, skill_masteries) for task in tasks]
     ranked = sorted(
         candidates,
         key=lambda candidate: (candidate.score, candidate.task.id),

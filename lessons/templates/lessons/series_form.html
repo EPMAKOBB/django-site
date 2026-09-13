@@ -1,0 +1,76 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load static %}
+
+{% block dashboard_title %}{% if is_edit %}Изменить серию{% else %}Добавить расписание{% endif %}{% endblock %}
+
+{% block dashboard_content %}
+  <div class="flex items-center justify-between mb-16">
+    <div>
+      <h1 class="mb-8">{% if is_edit %}Изменить серию уроков{% else %}Новое регулярное расписание{% endif %}</h1>
+      <p class="hint mb-0">
+        {% if is_edit %}
+          Изменения применятся к будущим запланированным урокам. При смене дня или времени уроки переносятся с сохранением оплаты и заметок. Отдельно перенесённые уроки сохраняют своё время.
+        {% else %}
+          Каждая дата станет отдельным уроком со своим переносом и оплатой.
+        {% endif %}
+      </p>
+    </div>
+    <a class="btn btn-secondary" href="{% url 'lessons:schedule' %}">Назад</a>
+  </div>
+
+  <section class="card">
+    <form method="post" {% if not is_edit %}data-lesson-defaults{% endif %}>
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}
+        <div class="mb-16">
+          <label for="{{ field.id_for_label }}"><strong>{{ field.label }}</strong></label>
+          {{ field }}
+          {% if field.help_text %}<div class="hint">{{ field.help_text }}</div>{% endif %}
+          {{ field.errors }}
+        </div>
+      {% endfor %}
+      <datalist id="lesson-timezones">
+        <option value="Europe/Moscow">
+        <option value="Asia/Yekaterinburg">
+        <option value="Asia/Novosibirsk">
+        <option value="Asia/Irkutsk">
+        <option value="Asia/Vladivostok">
+        <option value="Europe/Berlin">
+      </datalist>
+      <button class="btn btn-primary" type="submit">
+        {% if is_edit %}Сохранить серию{% else %}Создать и заполнить расписание{% endif %}
+      </button>
+    </form>
+  </section>
+
+  {% if is_edit %}
+    <section class="card mt-16">
+      <h2 class="mb-8">Состояние серии</h2>
+      <p class="hint">Сейчас: {{ series.get_status_display }}. Проведённые уроки и история оплат при этих действиях сохраняются.</p>
+      <div class="flex items-center gap-8" style="flex-wrap:wrap;">
+        {% if series.status == 'active' %}
+          <form method="post" action="{% url 'lessons:series-action' series.id %}">
+            {% csrf_token %}<input type="hidden" name="action" value="pause">
+            <button class="btn btn-secondary" type="submit">Приостановить продолжение</button>
+          </form>
+        {% elif series.status == 'paused' %}
+          <form method="post" action="{% url 'lessons:series-action' series.id %}">
+            {% csrf_token %}<input type="hidden" name="action" value="resume">
+            <button class="btn btn-primary" type="submit">Возобновить</button>
+          </form>
+        {% endif %}
+        {% if series.status != 'ended' %}
+          <form method="post" action="{% url 'lessons:series-action' series.id %}" onsubmit="return confirm('Завершить серию и отменить все будущие уроки?');">
+            {% csrf_token %}<input type="hidden" name="action" value="end">
+            <button class="btn btn-secondary" type="submit">Завершить серию</button>
+          </form>
+        {% endif %}
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/lesson-form.js' %}" defer></script>
+{% endblock %}

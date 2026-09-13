@@ -1,0 +1,22 @@
+{% extends 'accounts/dashboard/base.html' %}
+
+{% block dashboard_title %}Перенос урока{% endblock %}
+
+{% block dashboard_content %}
+  <div class="flex items-center justify-between mb-16">
+    <div>
+      <h1 class="mb-8">{% if can_manage %}Перенести урок{% else %}Запросить перенос{% endif %}</h1>
+      <p class="hint mb-0">
+        Сейчас: {{ lesson.scheduled_start|date:'d.m.Y H:i' }} · {{ lesson.teacher_student_link.subject.name }}
+      </p>
+    </div>
+    <a class="btn btn-secondary" href="{% url 'lessons:schedule' %}">Назад</a>
+  </div>
+  <section class="card">
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="btn btn-primary" type="submit">{% if can_manage %}Сохранить новое время{% else %}Отправить запрос{% endif %}</button>
+    </form>
+  </section>
+{% endblock %}

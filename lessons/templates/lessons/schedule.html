@@ -1,0 +1,162 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load static %}
+
+{% block dashboard_title %}Расписание{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'css/lesson-calendar.css' %}?v=calendar-1">
+{% endblock %}
+
+{% block dashboard_content %}
+  <div class="lesson-schedule-header">
+    <div>
+      <h1 class="mb-8">Расписание уроков</h1>
+      <p class="hint mb-0">
+        Время показывается для зоны {{ preferences.timezone }}{% if preferences.city %} · {{ preferences.city }}{% endif %}.
+      </p>
+    </div>
+    <div class="lesson-schedule-actions">
+      <a class="btn btn-secondary" href="{% url 'lessons:timezone-settings' %}">Часовой пояс</a>
+      {% if is_teacher %}
+        <a class="btn btn-primary" href="{% url 'lessons:lesson-create' %}">Добавить урок</a>
+        <a class="btn btn-secondary" href="{% url 'lessons:series-create' %}">Повторяющиеся уроки</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if is_teacher %}
+    <details class="lesson-series-details">
+      <summary>Повторяющиеся уроки{% if series_rows %} · {{ series_rows|length }}{% endif %}</summary>
+      <div class="lesson-series-grid">
+        {% for row in series_rows %}
+          <article class="lesson-series-item">
+            <div>
+              <strong>{{ row.student_name }} · {{ row.series.teacher_student_link.subject.name }}</strong>
+              <p class="hint mb-0">{{ row.weekdays }} · {{ row.series.local_time|time:'H:i' }} · {{ row.series.price_amount }} {{ row.series.currency }}</p>
+            </div>
+            <div class="lesson-series-item__actions">
+              <span class="lesson-series-status lesson-series-status--{{ row.series.status }}">{{ row.series.get_status_display }}</span>
+              <a class="btn btn-secondary" href="{% url 'lessons:series-edit' row.series.id %}">Изменить</a>
+            </div>
+          </article>
+        {% empty %}
+          <p class="hint mb-0">Регулярных серий пока нет.</p>
+        {% endfor %}
+      </div>
+    </details>
+  {% endif %}
+
+  <form method="get" class="lesson-month-filter">
+    <label for="statistics-month">Статистика за месяц</label>
+    <input id="statistics-month" type="month" name="month" value="{{ selected_month }}" min="2000-01" max="2100-12" required>
+    <button class="btn btn-secondary" type="submit">Показать</button>
+  </form>
+  <section class="lesson-payment-summary" aria-label="Статистика за {{ month_label|date:'F Y' }}">
+    <div>
+      <span>Запланировано за месяц</span>
+      <strong>{{ statistics.planned }} уроков</strong>
+    </div>
+    <div>
+      <span>Проведено за месяц</span>
+      <strong>{{ statistics.completed }} уроков</strong>
+      <span>{{ statistics.hours }} ч {{ statistics.remaining_minutes }} мин</span>
+    </div>
+    <div>
+      <span>{% if is_teacher %}Получено{% else %}Оплачено{% endif %} за месяц</span>
+      <strong>{% for amount in payment_summary.paid_month_amounts %}{{ amount.total }} {{ amount.payment__currency }}{% if not forloop.last %}<br>{% endif %}{% empty %}0{% endfor %}</strong>
+    </div>
+    <div>
+      <span>Проведено, не оплачено · за всё время</span>
+      <strong>{% for amount in statistics.debt_amounts %}{{ amount.total }} {{ amount.payment__currency }}{% if not forloop.last %}<br>{% endif %}{% empty %}0{% endfor %}</strong>
+      <span>{{ statistics.unpaid_completed }} уроков</span>
+    </div>
+  </section>
+  <p class="hint">Уроки учитываются по дате занятия, оплаты — по дате отметки «Урок оплачен».</p>
+
+  <section class="lesson-calendar-panel" aria-labelledby="lesson-calendar-heading">
+    <div class="lesson-calendar-heading">
+      <div>
+        <h2 id="lesson-calendar-heading" class="mb-0">Календарь</h2>
+        <p class="hint mb-0">Нажмите на урок, чтобы увидеть детали.</p>
+      </div>
+      <div class="lesson-calendar-legend" aria-label="Обозначения">
+        <span><i class="legend-dot legend-dot--scheduled"></i>Запланирован</span>
+        <span><i class="legend-dot legend-dot--completed"></i>Проведён</span>
+        <span><i class="legend-dot legend-dot--cancelled"></i>Отменён</span>
+        <span><i class="legend-dot legend-dot--unpaid"></i>Не оплачен</span>
+      </div>
+    </div>
+    <div
+      id="lesson-calendar"
+      data-events-url="{% url 'lessons:calendar-events' %}"
+      data-timezone="{{ preferences.timezone }}"
+      aria-label="Календарь индивидуальных уроков"
+    ></div>
+    <p id="lesson-calendar-error" class="lesson-calendar-error" role="alert" hidden></p>
+    <p id="lesson-calendar-notice" class="lesson-calendar-notice" role="status" hidden></p>
+  </section>
+
+  <section id="lesson-calendar-detail" class="lesson-calendar-detail" aria-live="polite" hidden>
+    <div class="lesson-calendar-detail__header">
+      <div>
+        <p class="lesson-calendar-detail__eyebrow">Выбранный урок</p>
+        <h2 id="lesson-detail-title" class="mb-0"></h2>
+      </div>
+      <button id="lesson-detail-close" class="lesson-calendar-detail__close" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <dl class="lesson-calendar-detail__grid">
+      <div><dt>Когда</dt><dd id="lesson-detail-time"></dd></div>
+      <div><dt id="lesson-detail-counterpart-label">Участник</dt><dd id="lesson-detail-counterpart"></dd></div>
+      <div><dt>Статус</dt><dd id="lesson-detail-status"></dd></div>
+      <div><dt>Оплата</dt><dd id="lesson-detail-payment"></dd></div>
+      <div><dt>Стоимость</dt><dd id="lesson-detail-price"></dd></div>
+      <div><dt>Продолжительность</dt><dd id="lesson-detail-duration"></dd></div>
+    </dl>
+    <div id="lesson-detail-actions" class="lesson-calendar-detail__actions"></div>
+  </section>
+
+  <details class="lesson-list-details" open>
+    <summary>Уроки и отметки</summary>
+    <div class="lesson-list-details__content">
+      <section class="card mb-16">
+        <h2 class="mb-12">Предстоящие уроки</h2>
+        {% if upcoming_rows %}
+          <div class="lesson-card-list">
+            {% for row in upcoming_rows %}
+              {% include 'lessons/_lesson_card.html' with row=row %}
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="hint mb-0">Пока нет запланированных уроков.</p>
+        {% endif %}
+      </section>
+
+      <section class="card">
+        <h2 class="mb-12">История</h2>
+        <p class="hint">Прошедшие занятия и завершённые уроки. Если занятие состоялось, отметьте «Урок проведён».</p>
+        {% if history_rows %}
+          <div class="lesson-card-list">
+            {% for row in history_rows %}
+              {% include 'lessons/_lesson_card.html' with row=row history=True %}
+            {% endfor %}
+          </div>
+          {% if history_page.has_other_pages %}
+            <nav class="lesson-month-filter" aria-label="Страницы истории">
+              {% if history_page.has_previous %}<a class="btn btn-secondary" href="?month={{ selected_month }}&page={{ history_page.previous_page_number }}">Назад</a>{% endif %}
+              <span>{{ history_page.number }} / {{ history_page.paginator.num_pages }}</span>
+              {% if history_page.has_next %}<a class="btn btn-secondary" href="?month={{ selected_month }}&page={{ history_page.next_page_number }}">Дальше</a>{% endif %}
+            </nav>
+          {% endif %}
+        {% else %}
+          <p class="hint mb-0">История уроков пока пуста.</p>
+        {% endif %}
+      </section>
+    </div>
+  </details>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.19/index.global.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.19/locales-all.global.min.js" defer></script>
+  <script src="{% static 'js/lesson-calendar.js' %}?v=calendar-3" defer></script>
+{% endblock %}

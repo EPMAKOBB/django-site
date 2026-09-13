@@ -336,6 +336,12 @@
         </div>
       </div>
 
+      <div class="form-field" style="margin-top: 10px;">
+        <input type="hidden" name="manage_placements" value="1">
+        <label for="{{ form.additional_types.id_for_label }}">{{ form.additional_types.label }}</label>
+        {{ form.additional_types }}{{ form.additional_types.errors }}
+        <div class="hint">{{ form.additional_types.help_text }}</div>
+      </div>
       <div class="form-grid" style="margin-top: 10px;">
         <div class="form-field">
           <label for="{{ form.source.id_for_label }}">Источник</label>

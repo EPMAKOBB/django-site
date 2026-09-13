@@ -7,6 +7,7 @@ functions intentionally operate on model instances instead of raw dictionaries
 so that serializers can decide how to present the data.
 """
 from __future__ import annotations
+from apps.recsys.models import ExamBlueprintItem
 
 from copy import deepcopy
 from dataclasses import dataclass
@@ -48,6 +49,7 @@ from apps.recsys.service_utils.publication import (
 )
 from . import task_generation
 from .grading import _trim_trailing_blank_rows
+from .exam_context import resolve_placement, grading_context, identity_context, task_filter
 
 
 TASK_PREFETCH = Prefetch(
@@ -125,7 +127,8 @@ def _count_task_types(template_tasks: Iterable[VariantTask]) -> dict[int, int]:
         task = variant_task.task
         if not task or not task.type_id:
             continue
-        counts[int(task.type_id)] = counts.get(int(task.type_id), 0) + 1
+        type_id = variant_task.placement.task_type_id if variant_task.placement_id else task.type_id
+        counts[int(type_id)] = counts.get(int(type_id), 0) + 1
     return counts
 
 
@@ -142,7 +145,8 @@ def template_matches_blueprint(template: VariantTemplate) -> tuple[bool, ExamBlu
     )
     for variant_task in template_tasks:
         task = variant_task.task
-        if not task or task.exam_version_id != exam_version.id:
+        current_exam_id = variant_task.placement.task_type.exam_version_id if variant_task.placement_id else (task.exam_version_id if task else None)
+        if not task or current_exam_id != exam_version.id:
             return False, blueprint
 
     blueprint_counts = {
@@ -172,6 +176,9 @@ def calculate_attempt_primary_summary(attempt: VariantAttempt) -> dict:
         task = variant_task.task
         if task:
             primary_max_total += task.get_max_score()
+
+    if attempt.exam_snapshot:
+        primary_max_total = sum(item["max_score"] for item in attempt.exam_snapshot.get("items", []))
 
     latest_attempts: dict[int, VariantTaskAttempt] = {}
     for task_attempt in attempt.task_attempts.all():
@@ -219,47 +226,30 @@ def build_personal_assignment_from_blueprint(
     if not items:
         raise exceptions.ValidationError("Чертёж не содержит типов заданий.")
 
-    recommended = recommend_tasks(user)
-    recommended_by_type: dict[int, list[int]] = {}
+    if exam_version.status == "archived" or (exam_version.copied_from_id and exam_version.status != "active"):
+        raise exceptions.ValidationError("Версия экзамена недоступна для новых вариантов.")
+    from .exam_rollover import match_blueprint
+    recommended = recommend_tasks(user, exam_version=exam_version)
+    rank = {task.pk: index for index, task in enumerate(recommended)}
     excluded_task_ids = {int(task_id) for task_id in (exclude_task_ids or [])}
-    for task in recommended:
-        if task.exam_version_id != exam_version.id or task.type_id is None:
-            continue
-        recommended_by_type.setdefault(int(task.type_id), []).append(int(task.id))
-
-    selected_tasks: list[Task] = []
-    used_task_ids: set[int] = set()
+    pools = []
     for item in items:
-        needed = max(1, int(item.count or 0))
-        selected_ids: list[int] = []
-
-        for tid in recommended_by_type.get(int(item.task_type_id), []):
-            if tid in used_task_ids or tid in excluded_task_ids:
-                continue
-            selected_ids.append(tid)
-            used_task_ids.add(tid)
-            if len(selected_ids) >= needed:
-                break
-
-        if len(selected_ids) < needed:
-            fallback_qs = public_tasks_queryset(
-                Task.objects.filter(type=item.task_type, exam_version=exam_version)
-            ).exclude(id__in=used_task_ids | excluded_task_ids).order_by("-difficulty_level", "id")
-            for tid in fallback_qs.values_list("id", flat=True)[: needed - len(selected_ids)]:
-                selected_ids.append(int(tid))
-                used_task_ids.add(int(tid))
-
-        task_map = {
-            t.id: t
-            for t in public_tasks_queryset(Task.objects.filter(id__in=selected_ids))
-        }
-        for tid in selected_ids:
-            task = task_map.get(tid)
-            if task:
-                selected_tasks.append(task)
-
-    if not selected_tasks:
-        raise exceptions.ValidationError("Не удалось подобрать задания для варианта.")
+        ids = list(public_tasks_queryset(Task.objects.filter(task_filter(exam_version=exam_version, task_type_ids=[item.task_type_id])))
+                   .exclude(pk__in=excluded_task_ids).distinct().values_list("pk", flat=True))
+        ids.sort(key=lambda pk: (rank.get(pk, len(rank)), pk))
+        pools.append((item.task_type_id, max(1, item.count), ids))
+    try:
+        selection = match_blueprint(pools)
+    except Exception as exc:
+        from django.core.exceptions import ValidationError
+        if isinstance(exc, ValidationError):
+            raise exceptions.ValidationError(exc.messages) from exc
+        raise
+    selected_tasks = []
+    for type_id, task_id in selection:
+        task = Task.objects.get(pk=task_id)
+        task.selected_placement = resolve_placement(task, exam_version=exam_version, task_type_id=type_id)
+        selected_tasks.append(task)
 
     now = timezone.now()
     existing_assignments = (
@@ -304,6 +294,7 @@ def build_personal_assignment_from_blueprint(
             VariantTask.objects.create(
                 template=template,
                 task=task,
+                placement=getattr(task, "selected_placement", None),
                 order=order,
                 max_attempts=None,
             )
@@ -501,6 +492,9 @@ def _deadline_passed(assignment: VariantAssignment) -> bool:
 def can_start_attempt(assignment: VariantAssignment) -> bool:
     """Return ``True`` if a new attempt can be started for ``assignment``."""
 
+    exam = assignment.template.exam_version
+    if exam and (exam.status == "archived" or (exam.copied_from_id and exam.status != "active")):
+        return False
     if _deadline_passed(assignment):
         return False
 
@@ -536,7 +530,7 @@ def get_assignment_or_404(user, assignment_id: int) -> VariantAssignment:
         assignment = _base_assignment_queryset().get(user=user, pk=assignment_id)
     except VariantAssignment.DoesNotExist as exc:  # pragma: no cover - defensive
         raise exceptions.NotFound("Назначение варианта не найдено") from exc
-    if not getattr(user, "is_staff", False) and not variant_template_is_public_ready(assignment.template):
+    if not assignment.attempts.exists() and not getattr(user, "is_staff", False) and not variant_template_is_public_ready(assignment.template):
         raise exceptions.NotFound("Assignment not found")
     return assignment
 
@@ -547,7 +541,7 @@ def _ensure_active_attempt(attempt: VariantAttempt) -> None:
 
 
 def _ensure_time_limit_allows_submission(attempt: VariantAttempt) -> None:
-    time_limit = attempt.assignment.template.time_limit
+    time_limit = _attempt_time_limit(attempt)
     if not time_limit:
         return
     now = timezone.now()
@@ -563,6 +557,8 @@ def start_new_attempt(user, assignment_id: int) -> VariantAttempt:
 
     @transaction.atomic
     def _create_attempt_with_generation(assignment: VariantAssignment) -> VariantAttempt:
+        if assignment.template.exam_version and assignment.template.exam_version.status == "archived":
+            raise exceptions.ValidationError("Экзамен перенесён в архив.")
         assignment.mark_started()
         attempt = VariantAttempt.objects.create(
             assignment=assignment,
@@ -625,7 +621,7 @@ def set_active_task(user, attempt_id: int, variant_task_id: int) -> VariantAttem
         return attempt
 
     assignment = attempt.assignment
-    variant_task = _validate_variant_task(assignment, variant_task_id)
+    variant_task = _validate_variant_task(assignment, variant_task_id, attempt=attempt)
 
     # If the same task is already active but timer is missing, restart it.
     if attempt.active_variant_task_id == variant_task.id:
@@ -643,16 +639,36 @@ def set_active_task(user, attempt_id: int, variant_task_id: int) -> VariantAttem
 
 
 def _materialize_tasks_for_attempt(attempt: VariantAttempt) -> None:
+    if attempt.exam_snapshot:
+        raise exceptions.ValidationError("Исходная выдача этой работы не сохранена полностью. Создайте новую работу вместо изменения старой.")
     template_tasks = list(
         attempt.assignment.template.template_tasks.select_related("task").prefetch_related(
             "task__attachments"
         ).all()
     )
+    manifest = []
     for variant_task in template_tasks:
+        placement = resolve_placement(variant_task.task, exam_version=attempt.assignment.template.exam_version, placement=variant_task.placement)
+        if placement and not variant_task.placement_id:
+            variant_task.placement = placement
+            variant_task.save(update_fields=["placement", "updated_at"])
         snapshot = _generate_task_snapshot(attempt, variant_task)
         if snapshot is None:
             continue
+        snapshot.update(grading_context(variant_task.task, placement))
+        # Annual blueprint overrides the task/type default for this exam work.
+        item = ExamBlueprintItem.objects.filter(blueprint__exam_version=attempt.assignment.template.exam_version,
+                                               task_type_id=placement.task_type_id if placement else variant_task.task.type_id).first() if attempt.assignment.template.exam_version_id else None
+        if item and item.score_override is not None:
+            snapshot["max_score"] = item.score_override
+        snapshot["context"] = identity_context(variant_task.task, placement, exam_version=attempt.assignment.template.exam_version, order=variant_task.order)
+        snapshot["task_type_name"] = snapshot["context"]["task_type_name"]
+        snapshot["storage_files"] = list(variant_task.task.attachments.exclude(file="").values_list("file", flat=True)) + ([variant_task.task.image.name] if variant_task.task.image else [])
+        statement = build_task_statement_payload(task=variant_task.task, statement_source=snapshot)
+        from apps.recsys.presentation.tasks import statement_fingerprint
+        snapshot.update(task_body_html=statement["task_body_html"], image=statement["image"] or None, attachments=statement["attachments"], statement_fingerprint=statement_fingerprint(snapshot))
         max_score = snapshot.get("max_score", 1)
+        manifest.append({"variant_task_id": variant_task.pk, "task_id": variant_task.task_id, "order": variant_task.order, "max_score": max_score, "max_attempts": variant_task.max_attempts})
         VariantTaskAttempt.objects.create(
             variant_attempt=attempt,
             variant_task=variant_task,
@@ -662,6 +678,24 @@ def _materialize_tasks_for_attempt(attempt: VariantAttempt) -> None:
             max_score=max_score,
             task_snapshot={"task": snapshot},
         )
+
+    template = attempt.assignment.template
+    scale = get_active_score_scale(template.exam_version)
+    attempt.exam_snapshot = {
+        "version": 1, "exam_version_id": template.exam_version_id,
+        "exam_name": template.exam_version.name if template.exam_version else "",
+        "template_name": template.name, "items": manifest,
+        "time_limit_seconds": template.time_limit.total_seconds() if template.time_limit else None,
+        "scale": deepcopy(scale.mapping) if scale else None,
+    }
+    attempt.save(update_fields=["exam_snapshot", "updated_at"])
+
+
+def _attempt_time_limit(attempt):
+    if attempt.exam_snapshot:
+        seconds = attempt.exam_snapshot.get("time_limit_seconds")
+        return timedelta(seconds=seconds) if seconds is not None else None
+    return attempt.assignment.template.time_limit
 
 
 def _generate_task_snapshot(
@@ -873,11 +907,11 @@ def _get_time_spent_map(attempt: VariantAttempt) -> dict[int, timedelta]:
 
 
 def _should_track_time(attempt: VariantAttempt) -> bool:
-    return bool(attempt.assignment.template.time_limit)
+    return bool(_attempt_time_limit(attempt))
 
 
 def _apply_attempt_timeout(attempt: VariantAttempt, *, now=None) -> bool:
-    time_limit = attempt.assignment.template.time_limit
+    time_limit = _attempt_time_limit(attempt)
     if not time_limit or attempt.completed_at is not None:
         return False
     now = now or timezone.now()
@@ -957,7 +991,7 @@ def clear_task_response(
     _ensure_time_limit_allows_submission(attempt)
 
     assignment = attempt.assignment
-    variant_task = _validate_variant_task(assignment, variant_task_id)
+    variant_task = _validate_variant_task(assignment, variant_task_id, attempt=attempt)
     generation_attempt = _get_generation_attempt_for_update(attempt, variant_task)
     if generation_attempt is None:
         _materialize_tasks_for_attempt(attempt)
@@ -1061,7 +1095,7 @@ def save_task_response(
     _ensure_time_limit_allows_submission(attempt)
 
     assignment = attempt.assignment
-    variant_task = _validate_variant_task(assignment, variant_task_id)
+    variant_task = _validate_variant_task(assignment, variant_task_id, attempt=attempt)
 
     now = timezone.now()
     _stop_active_task_timer(
@@ -1095,9 +1129,14 @@ def save_task_response(
     return generation_attempt
 
 
-def _validate_variant_task(assignment: VariantAssignment, variant_task_id: int) -> VariantTask:
+def _validate_variant_task(assignment: VariantAssignment, variant_task_id: int, *, attempt=None) -> VariantTask:
+    queryset = assignment.template.template_tasks
+    if attempt is not None and attempt.exam_snapshot:
+        if variant_task_id not in {item["variant_task_id"] for item in attempt.exam_snapshot.get("items", [])}:
+            raise exceptions.ValidationError("Задание не входило в выданную работу.")
+        queryset = VariantTask.objects.all()
     try:
-        variant_task = assignment.template.template_tasks.get(pk=variant_task_id)
+        variant_task = queryset.get(pk=variant_task_id)
     except VariantTask.DoesNotExist as exc:
         raise exceptions.ValidationError("Задание не относится к выбранному варианту") from exc
     return variant_task
@@ -1111,6 +1150,7 @@ def submit_task_answer(
     *,
     is_correct: bool,
     task_snapshot: dict | None = None,
+    submission_key=None,
 ) -> TaskSubmissionResult:
     """Persist an answer for a concrete task inside ``attempt``."""
 
@@ -1124,17 +1164,28 @@ def submit_task_answer(
     except VariantAttempt.DoesNotExist as exc:
         raise exceptions.NotFound("Попытка не найдена") from exc
 
+    if submission_key:
+        previous = VariantTaskAttempt.objects.filter(submission_key=submission_key).first()
+        if previous:
+            if previous.variant_attempt_id != attempt.pk or previous.variant_task_id != variant_task_id or previous.task_snapshot.get("response", {}) != (task_snapshot or {}):
+                raise exceptions.ValidationError("Ключ отправки уже использован для другого ответа.")
+            return TaskSubmissionResult(attempt=attempt, task_attempt=previous)
     _ensure_active_attempt(attempt)
     _ensure_time_limit_allows_submission(attempt)
 
     assignment = attempt.assignment
-    variant_task = _validate_variant_task(assignment, variant_task_id)
+    variant_task = _validate_variant_task(assignment, variant_task_id, attempt=attempt)
 
     task_attempts_qs = attempt.task_attempts.filter(
         variant_task=variant_task, attempt_number__gt=0
     )
     next_number = task_attempts_qs.count() + 1
     task_limit = variant_task.max_attempts
+    if attempt.exam_snapshot:
+        item = next((item for item in attempt.exam_snapshot["items"] if item["variant_task_id"] == variant_task_id), None)
+        if item is None:
+            raise exceptions.ValidationError("Задание не входило в выданный вариант.")
+        task_limit = item.get("max_attempts")
     if task_limit is not None and next_number > task_limit:
         raise exceptions.ValidationError("Достигнут лимит попыток по заданию")
 
@@ -1200,6 +1251,7 @@ def submit_task_answer(
     time_spent = _sum_logged_duration(attempt, variant_task)
 
     task_attempt = VariantTaskAttempt.objects.create(
+        submission_key=submission_key,
         variant_attempt=attempt,
         variant_task=variant_task,
         task=variant_task.task,
@@ -1342,7 +1394,7 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
             _sync_attempt_from_variant_task_attempt(task_attempt)
 
     now = timezone.now()
-    time_limit = attempt.assignment.template.time_limit
+    time_limit = _attempt_time_limit(attempt)
     if time_limit and now - attempt.started_at > time_limit:
         attempt.time_spent = time_limit
     else:
@@ -1402,7 +1454,7 @@ def get_attempts_left(assignment: VariantAssignment) -> int | None:
 
 
 def get_time_left(attempt: VariantAttempt) -> timedelta | None:
-    time_limit = attempt.assignment.template.time_limit
+    time_limit = _attempt_time_limit(attempt)
     if not time_limit:
         return None
     elapsed = timezone.now() - attempt.started_at
@@ -1414,24 +1466,33 @@ def get_time_left(attempt: VariantAttempt) -> timedelta | None:
 
 def calculate_assignment_progress(assignment: VariantAssignment) -> dict:
     template_tasks = list(assignment.template.template_tasks.all())
+    attempts = list(assignment.attempts.all())
+    latest = max(attempts, key=lambda row: (row.attempt_number, row.pk), default=None)
+    task_ids = {row.pk for row in template_tasks}
+    if latest and latest.exam_snapshot:
+        task_ids = {row["variant_task_id"] for row in latest.exam_snapshot.get("items", [])}
     solved_variant_task_ids = set()
-    for attempt in assignment.attempts.all():
+    for attempt in attempts:
         for task_attempt in attempt.task_attempts.all():
             if task_attempt.attempt_number == 0:
                 continue
-            if task_attempt.is_correct:
+            if task_attempt.is_correct and task_attempt.variant_task_id in task_ids:
                 solved_variant_task_ids.add(task_attempt.variant_task_id)
 
     return {
-        "total_tasks": len(template_tasks),
+        "total_tasks": len(task_ids),
         "solved_tasks": len(solved_variant_task_ids),
-        "remaining_tasks": max(0, len(template_tasks) - len(solved_variant_task_ids)),
+        "remaining_tasks": max(0, len(task_ids) - len(solved_variant_task_ids)),
     }
 
 
 def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
+    issued_items = {item["variant_task_id"]: item for item in (attempt.exam_snapshot or {}).get("items", [])}
+    task_queryset = attempt.assignment.template.template_tasks.all()
+    if attempt.exam_snapshot:
+        task_queryset = VariantTask.objects.filter(pk__in=[item["variant_task_id"] for item in attempt.exam_snapshot.get("items", [])])
     template_tasks = list(
-        attempt.assignment.template.template_tasks.select_related("task__type").prefetch_related(
+        task_queryset.select_related("task__type").prefetch_related(
             "task__attachments"
         ).all()
     )
@@ -1486,7 +1547,11 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
             if attempt.attempt_number > 0
         ]
         aggregated_time = time_spent_map.get(variant_task.id)
-        if generated_snapshot and attachments and "attachments" not in generated_snapshot:
+        if generated_snapshot:
+            task_type_name = generated_snapshot.get("task_type_name", task_type_name)
+            max_score = generated_snapshot.get("max_score", max_score)
+            answer_schema = generated_snapshot.get("answer_schema", answer_schema)
+        if generated_snapshot and not generated_snapshot.get("context") and attachments and "attachments" not in generated_snapshot:
             generated_snapshot["attachments"] = deepcopy(attachments)
         statement = build_task_statement_payload(
             task=variant_task.task,
@@ -1500,8 +1565,8 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
         progress.append(
             {
                 "variant_task_id": variant_task.id,
-                "task_id": variant_task.task_id,
-                "order": variant_task.order,
+                "task_id": (generated_snapshot or {}).get("task_id", variant_task.task_id),
+                "order": (generated_snapshot or {}).get("context", {}).get("order", variant_task.order),
                 "task_type_name": task_type_name,
                 "answer_schema": answer_schema,
                 "task_rendering_strategy": rendering_strategy,
@@ -1509,7 +1574,7 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
                 "image": image,
                 "attachments": attachments,
                 "max_score": max_score,
-                "max_attempts": variant_task.max_attempts,
+                "max_attempts": issued_items.get(variant_task.pk, {}).get("max_attempts", variant_task.max_attempts),
                 "attempts": actual_attempts,
                 "attempts_used": len(actual_attempts),
                 "is_completed": any(attempt.is_correct for attempt in actual_attempts),

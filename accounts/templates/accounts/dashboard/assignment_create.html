@@ -32,8 +32,8 @@
               {% for link in links %}
                 <li>
                   <label>
-                    <input type="checkbox" name="students" value="{{ link.student.id }}">
-                    {{ link.student.get_full_name|default:link.student.username }} — {{ link.subject.name }}
+                    <input type="checkbox" name="students" value="{{ link.student_record.user.id }}">
+                    {{ link.student_display_name }} — {{ link.subject.name }}
                   </label>
                 </li>
               {% endfor %}

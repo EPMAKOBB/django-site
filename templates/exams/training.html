@@ -915,11 +915,13 @@
       ? helper.collectPayload(answerFieldsEl, currentSchema)
       : answerTextEl.value;
     try {
+      const pendingAnswerKey = JSON.stringify([state.session.id, state.current_task.step_id, answer]);
+      if (state.pendingAnswerKey !== pendingAnswerKey) { state.pendingAnswerKey = pendingAnswerKey; state.submissionKey = crypto.randomUUID(); }
       const payload = await requestJson(endpoint(submitTemplate, state.session.id), {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
-        body: JSON.stringify({ step_id: state.current_task.step_id, answer }),
+        body: JSON.stringify({ step_id: state.current_task.step_id, answer, submission_key: state.submissionKey }),
       });
       lastSubmissionResult = payload.submission_result || null;
       renderPayload(payload);

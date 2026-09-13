@@ -1,0 +1,41 @@
+{% extends 'accounts/dashboard/base.html' %}
+{% load static %}
+
+{% block dashboard_title %}Добавить урок{% endblock %}
+
+{% block dashboard_content %}
+  <div class="flex items-center justify-between mb-16">
+    <div>
+      <h1 class="mb-8">Новый разовый урок</h1>
+      <p class="hint mb-0">Урок не будет привязан к регулярной серии.</p>
+    </div>
+    <a class="btn btn-secondary" href="{% url 'lessons:schedule' %}">Назад</a>
+  </div>
+  <section class="card">
+    <form method="post" data-lesson-defaults>
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}
+        <div class="mb-16">
+          <label for="{{ field.id_for_label }}"><strong>{{ field.label }}</strong></label>
+          {{ field }}
+          {% if field.help_text %}<div class="hint">{{ field.help_text }}</div>{% endif %}
+          {{ field.errors }}
+        </div>
+      {% endfor %}
+      <datalist id="lesson-timezones">
+        <option value="Europe/Moscow">
+        <option value="Asia/Yekaterinburg">
+        <option value="Asia/Novosibirsk">
+        <option value="Asia/Irkutsk">
+        <option value="Asia/Vladivostok">
+        <option value="Europe/Berlin">
+      </datalist>
+      <button class="btn btn-primary" type="submit">Создать урок</button>
+    </form>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/lesson-form.js' %}" defer></script>
+{% endblock %}

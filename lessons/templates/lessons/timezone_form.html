@@ -1,0 +1,50 @@
+{% extends 'accounts/dashboard/base.html' %}
+
+{% block dashboard_title %}Часовой пояс{% endblock %}
+
+{% block dashboard_content %}
+  <div class="flex items-center justify-between mb-16">
+    <div>
+      <h1 class="mb-8">Местное время</h1>
+      <p class="hint mb-0">Если оно отличается от московского, в расписании будут показаны оба значения.</p>
+    </div>
+    <a class="btn btn-secondary" href="{% url 'lessons:schedule' %}">Назад</a>
+  </div>
+  <section class="card">
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <datalist id="lesson-timezones">
+        <option value="Europe/Moscow">
+        <option value="Asia/Yekaterinburg">
+        <option value="Asia/Novosibirsk">
+        <option value="Asia/Irkutsk">
+        <option value="Asia/Vladivostok">
+        <option value="Europe/Berlin">
+      </datalist>
+      <div class="flex items-center gap-8">
+        <button class="btn btn-secondary" id="detect-timezone" type="button">Определить автоматически</button>
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+      </div>
+      <p class="hint mt-12" id="timezone-detection-result"></p>
+    </form>
+  </section>
+
+  <script>
+    (function () {
+      const button = document.getElementById("detect-timezone");
+      const input = document.getElementById("id_timezone");
+      const result = document.getElementById("timezone-detection-result");
+      if (!button || !input || !window.Intl) return;
+      button.addEventListener("click", function () {
+        const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (!detected) {
+          result.textContent = "Не удалось определить часовой пояс.";
+          return;
+        }
+        input.value = detected;
+        result.textContent = "Определено: " + detected + ". Нажмите «Сохранить».";
+      });
+    })();
+  </script>
+{% endblock %}

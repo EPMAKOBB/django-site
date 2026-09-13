@@ -108,7 +108,7 @@
               </tr>
             </thead>
             <tbody>
-              {% for task in tasks %}
+              {% for task in display_tasks %}
                 <tr>
                   <td>
                     {% if task.type %}
@@ -246,4 +246,3 @@
   })();
 </script>
 {% endblock %}
-

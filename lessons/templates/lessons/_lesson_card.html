@@ -1,0 +1,117 @@
+<article id="lesson-card-{{ row.lesson.id }}" class="block block--futuristic" style="padding:16px;">
+  <div class="flex items-center justify-between gap-8">
+    <div>
+      <div class="section-title">{{ row.local_start }}</div>
+      {% if row.differs_from_moscow %}
+        <div class="hint">По Москве: {{ row.moscow_start }}</div>
+      {% endif %}
+    </div>
+    <div>
+      <strong>{{ row.lesson.get_status_display }}</strong>
+    </div>
+  </div>
+
+  <p class="mb-8">
+    {{ row.lesson.teacher_student_link.subject.name }} ·
+    учитель {{ row.lesson.teacher_student_link.teacher.get_full_name|default:row.lesson.teacher_student_link.teacher.username }} ·
+    ученик {{ row.lesson.teacher_student_link.student_display_name }}
+  </p>
+  <p class="hint mb-8">
+    {{ row.lesson.duration_minutes }} минут · {{ row.lesson.price_amount }} {{ row.lesson.currency }} ·
+    оплата: {{ row.payment.get_status_display }}
+  </p>
+
+  {% if row.pending_request %}
+    <div class="card mb-8" style="padding:12px;">
+      <strong>Запрошен перенос</strong>
+      <p class="mb-8">
+        {{ row.pending_request.requested_by.get_full_name|default:row.pending_request.requested_by.username }} предлагает
+        {{ row.pending_request.proposed_start|date:'d.m.Y H:i' }}.
+        {% if row.pending_request.reason %}Причина: {{ row.pending_request.reason }}{% endif %}
+      </p>
+      {% if row.can_resolve %}
+        <div class="flex items-center gap-8">
+          <form method="post" action="{% url 'lessons:reschedule-resolve' row.pending_request.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="decision" value="accept">
+            <button class="btn btn-primary" type="submit">Принять</button>
+          </form>
+          <form method="post" action="{% url 'lessons:reschedule-resolve' row.pending_request.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="decision" value="reject">
+            <button class="btn btn-secondary" type="submit">Отклонить</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if row.lesson.teacher_notes %}
+    <p class="hint mb-8">Заметка: {{ row.lesson.teacher_notes }}</p>
+  {% endif %}
+  {% if row.lesson.cancellation_reason %}
+    <p class="hint mb-8">Причина отмены: {{ row.lesson.cancellation_reason }}</p>
+  {% endif %}
+
+  <div class="flex items-center gap-8" style="flex-wrap:wrap;">
+    {% if row.can_manage and row.lesson.status == 'scheduled' %}
+      <form method="post" action="{% url 'lessons:lesson-action' row.lesson.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="complete">
+        <button class="btn btn-primary" type="submit">Урок проведён</button>
+      </form>
+    {% endif %}
+
+    {% if row.can_manage and row.payment.status == 'unpaid' %}
+      <form method="post" action="{% url 'lessons:lesson-action' row.lesson.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="paid">
+        <button class="btn btn-secondary" type="submit">Урок оплачен</button>
+      </form>
+    {% endif %}
+    {% if row.can_reschedule %}
+      <a class="btn btn-secondary" href="{% url 'lessons:reschedule' row.lesson.id %}">{% if row.can_manage %}Перенести{% else %}Запросить перенос{% endif %}</a>
+    {% endif %}
+  </div>
+  {% if row.can_manage %}
+    <details class="lesson-extra-actions">
+      <summary>Дополнительно</summary>
+      {% if row.lesson.status == 'scheduled' and row.payment.status == 'unpaid' %}
+        <form method="post" action="{% url 'lessons:lesson-action' row.lesson.id %}" onsubmit="return confirm('Удалить ошибочный урок из расписания? Остальные занятия серии останутся без изменений.');">
+          {% csrf_token %}<input type="hidden" name="action" value="delete">
+          <button class="btn btn-secondary" type="submit">Удалить ошибочный урок</button>
+        </form>
+      {% endif %}
+      {% if row.lesson.status == 'scheduled' %}
+        <form method="post" action="{% url 'lessons:lesson-action' row.lesson.id %}">
+          {% csrf_token %}<input type="hidden" name="action" value="complete">
+          <label for="lesson-notes-{{ row.lesson.id }}">Заметка к уроку (видна ученику)</label>
+          <textarea id="lesson-notes-{{ row.lesson.id }}" name="notes" rows="2">{{ row.lesson.teacher_notes }}</textarea>
+          <button class="btn btn-secondary" type="submit">Проведён · сохранить заметку</button>
+        </form>
+        <form method="post" action="{% url 'lessons:lesson-action' row.lesson.id %}">
+          {% csrf_token %}<input type="hidden" name="action" value="cancel">
+          <label for="lesson-reason-{{ row.lesson.id }}">Причина отмены</label>
+          <input id="lesson-reason-{{ row.lesson.id }}" name="reason" type="text">
+          <button class="btn btn-secondary" type="submit">Отменить урок</button>
+        </form>
+        <form method="post" action="{% url 'lessons:lesson-action' row.lesson.id %}">
+          {% csrf_token %}<input type="hidden" name="action" value="no_show">
+          <button class="btn btn-secondary" type="submit">Ученик не пришёл</button>
+        </form>
+      {% else %}
+        <form method="post" action="{% url 'lessons:lesson-action' row.lesson.id %}">
+          {% csrf_token %}<input type="hidden" name="action" value="reopen">
+          <button class="btn btn-secondary" type="submit">Вернуть в запланированные</button>
+        </form>
+      {% endif %}
+      {% if row.payment.status == 'paid' %}
+        <form method="post" action="{% url 'lessons:lesson-action' row.lesson.id %}">
+          {% csrf_token %}<input type="hidden" name="action" value="unpaid">
+          <button class="btn btn-secondary" type="submit">Снять ошибочную отметку оплаты</button>
+        </form>
+      {% endif %}
+      {% if row.lesson.series_id %}<a href="{% url 'lessons:series-edit' row.lesson.series_id %}">Изменить повторяющееся расписание</a>{% endif %}
+    </details>
+  {% endif %}
+</article>

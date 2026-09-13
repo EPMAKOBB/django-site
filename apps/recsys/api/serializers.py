@@ -82,6 +82,16 @@ class TaskSerializer(serializers.ModelSerializer):
     exam_version = serializers.PrimaryKeyRelatedField(read_only=True)
     image = serializers.SerializerMethodField()
 
+    def to_representation(self, instance):
+        from ..service_utils.exam_context import bind_task
+        placement = getattr(instance, "selected_placement", None)
+        data = super().to_representation(bind_task(instance, placement) if placement else instance)
+        data["placement"] = placement.pk if placement else None
+        request = self.context.get("request")
+        if request and not request.user.is_staff:
+            data["correct_answer"] = {}
+        return data
+
     class Meta:
         model = Task
         fields = [
@@ -120,7 +130,7 @@ class AttemptSerializer(serializers.ModelSerializer):
         model = Attempt
         fields = [
             "id",
-            "task",
+            "task", "placement", "exam_version", "task_type", "context_origin", "submission_key",
             "is_correct",
             "score",
             "max_score",
@@ -136,7 +146,7 @@ class AttemptSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = [
+        read_only_fields = ["exam_version", "task_type", "context_origin",
             "id",
             "attempt_number",
             "attempts_count",
@@ -145,6 +155,45 @@ class AttemptSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+    def validate(self, attrs):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from ..service_utils.exam_context import resolve_placement
+        recommendation = attrs.get("source_recommendation")
+        request = self.context.get("request")
+        if recommendation and (not request or recommendation.user_id != request.user.pk or recommendation.task_id != attrs["task"].pk):
+            raise serializers.ValidationError({"source_recommendation": "Выдача не принадлежит этому ученику или относится к другой задаче."})
+        if recommendation and recommendation.task_snapshot:
+            context = recommendation.task_snapshot.get("context", {})
+            supplied = attrs.get("placement")
+            if supplied and supplied.pk != context.get("placement_id"):
+                raise serializers.ValidationError({"placement": "Назначение не совпадает с выданным заданием."})
+            attrs["task_snapshot"] = deepcopy(recommendation.task_snapshot)
+            from ..models import TaskPlacement
+            attrs["placement"] = TaskPlacement.objects.filter(pk=context.get("placement_id")).first()
+            return attrs
+        try:
+            attrs["placement"] = resolve_placement(attrs["task"], placement=attrs.get("placement"))
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"placement": exc.messages}) from exc
+        return attrs
+
+    def create(self, validated_data):
+        from django.db import transaction
+        from django.contrib.auth import get_user_model
+        key = validated_data.get("submission_key")
+        with transaction.atomic():
+            user = validated_data["user"]
+            get_user_model().objects.select_for_update().get(pk=user.pk)
+            if key:
+                previous = Attempt.objects.filter(user=user, submission_key=key).first()
+                if previous:
+                    comparable = {key: value.pk if hasattr(value, "pk") else value for key, value in validated_data.items() if key not in {"user", "submission_key", "task_snapshot"}}
+                    if any(getattr(previous, key + "_id" if hasattr(validated_data[key], "pk") else key) != value for key, value in comparable.items()):
+                        raise serializers.ValidationError("Ключ отправки уже использован для другого ответа.")
+                    return previous
+            return super().create(validated_data)
 
 
 class SkillMasterySerializer(serializers.ModelSerializer):
@@ -334,6 +383,16 @@ class VariantTemplateSerializer(serializers.ModelSerializer):
 class VariantTaskAttemptSerializer(serializers.ModelSerializer):
     task = TaskSerializer(read_only=True)
 
+    def to_representation(self, instance):
+        from ..service_utils.exam_context import public_snapshot
+        result = super().to_representation(instance)
+        reveal = bool(instance.variant_attempt.completed_at)
+        snapshot = result.get("task_snapshot") or {}
+        if isinstance(snapshot.get("task"), dict):
+            snapshot["task"] = public_snapshot(snapshot["task"], reveal=reveal)
+        result["task_snapshot"] = public_snapshot(snapshot, reveal=reveal)
+        return result
+
     class Meta:
         model = VariantTaskAttempt
         fields = [
@@ -353,9 +412,16 @@ class VariantTaskAttemptSerializer(serializers.ModelSerializer):
 
 
 class VariantAttemptSerializer(serializers.ModelSerializer):
-    time_limit = serializers.DurationField(
-        source="assignment.template.time_limit", read_only=True
-    )
+    time_limit = serializers.SerializerMethodField()
+    exam_context = serializers.SerializerMethodField()
+
+    def get_exam_context(self, obj):
+        frozen = obj.exam_snapshot or {}
+        return {key: frozen.get(key) for key in ("exam_version_id", "exam_name", "origin", "scale_unknown", "composition_complete")}
+
+    def get_time_limit(self, obj):
+        value = variant_service._attempt_time_limit(obj)
+        return serializers.DurationField().to_representation(value) if value is not None else None
     time_left = serializers.SerializerMethodField()
     is_completed = serializers.SerializerMethodField()
     tasks_progress = serializers.SerializerMethodField()
@@ -377,6 +443,7 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
             "tasks_progress",
             "primary_summary",
             "secondary_summary",
+            "exam_context",
         ]
         read_only_fields = fields
 
@@ -408,6 +475,8 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
                 saved_response_updated_at = timezone.localtime(saved_response_updated_at).isoformat()
             attempts_data = attempts_serializer.data
             task_snapshot = item.get("task_snapshot")
+            from ..service_utils.exam_context import public_snapshot
+            task_snapshot = public_snapshot(task_snapshot, reveal=is_completed) if task_snapshot else None
             if not is_completed:
                 for attempt_data in attempts_data:
                     task_payload = attempt_data.get("task")
@@ -456,19 +525,18 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
         return self._get_primary_summary(obj)
 
     def get_secondary_summary(self, obj: VariantAttempt):
-        exam_version = getattr(obj.assignment.template, "exam_version", None)
-        scale = variant_service.get_active_score_scale(exam_version)
-        if not scale:
-            return None
         summary = self._get_primary_summary(obj)
         primary_total = summary.get("primary_total", 0)
-        secondary_score, over_limit = scale.to_secondary(primary_total)
-        max_secondary = max(scale.mapping) if scale.mapping else None
-        return {
-            "score": secondary_score,
-            "over_limit": over_limit,
-            "max": max_secondary,
-        }
+        if obj.exam_snapshot:
+            mapping = obj.exam_snapshot.get("scale")
+        else:
+            scale = variant_service.get_active_score_scale(obj.assignment.template.exam_version)
+            mapping = scale.mapping if scale else None
+        if not mapping:
+            return None
+        over_limit = primary_total >= len(mapping)
+        return {"score": None if over_limit else mapping[max(0, int(primary_total))], "over_limit": over_limit, "max": max(mapping)}
+
 
 
 class VariantAssignmentSerializer(serializers.ModelSerializer):

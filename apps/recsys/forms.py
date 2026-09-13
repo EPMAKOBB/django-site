@@ -392,6 +392,9 @@ class TaskUploadForm(forms.ModelForm):
                 raise forms.ValidationError(self.error_messages["required"], code="required")
             return files
 
+    additional_types = forms.ModelMultipleChoiceField(queryset=TaskType.objects.none(), required=False,
+        label="Дополнительные экзамены и типы", widget=forms.SelectMultiple(attrs={"size": 6}),
+        help_text="Та же задача будет доступна в выбранных форматах без копирования её содержания и ответов.")
     answer_inputs = forms.CharField(required=False, widget=forms.HiddenInput())
     correct_answer = forms.JSONField(
         required=False,
@@ -441,6 +444,9 @@ class TaskUploadForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._task_type: TaskType | None = None
+        self.fields["additional_types"].queryset = TaskType.objects.exclude(exam_version=None).exclude(exam_version__status="archived").select_related("exam_version__subject", "subject")
+        if self.instance.pk:
+            self.initial["additional_types"] = list(self.instance.placements.exclude(status="retired").exclude(task_type_id=self.instance.type_id).values_list("task_type_id", flat=True))
         # When bound, try to resolve task type early for validation hooks
         type_id = None
         if "data" in kwargs:
@@ -650,6 +656,8 @@ class TaskUploadForm(forms.ModelForm):
             self.add_error("type", "Тип задачи должен совпадать с предметом.")
         if task_type and "tags" in cleaned:
             required_ids = set(task_type.required_tags.values_list("id", flat=True))
+            for additional_type in cleaned.get("additional_types", []):
+                required_ids.update(additional_type.required_tags.values_list("id", flat=True))
             selected_ids = (
                 set(cleaned.get("tags").values_list("id", flat=True))
                 if cleaned.get("tags")
@@ -657,7 +665,15 @@ class TaskUploadForm(forms.ModelForm):
             )
             extra = selected_ids - required_ids
             if extra:
-                self.add_error("tags", "Можно выбрать только обязательные теги выбранного типа.")
+                self.add_error("tags", "Можно выбрать только учебные темы выбранных типов.")
+        for additional_type in cleaned.get("additional_types", []):
+            if subject and additional_type.subject_id != subject.pk:
+                self.add_error("additional_types", "Дополнительные типы должны относиться к тому же предмету.")
+        if self.instance.pk and self.instance.placements.exists():
+            if task_type and task_type.pk != self.instance.type_id:
+                self.add_error("type", "Для другого года добавьте назначение ниже. Исходная классификация сохраняется.")
+            if exam and exam.pk != self.instance.exam_version_id:
+                self.add_error("exam_version", "Для другого года используйте дополнительные назначения.")
         if subject and cleaned.get("skills"):
             bad_skills = [s for s in cleaned["skills"] if s.subject_id != subject.id]
             if bad_skills:
@@ -686,6 +702,15 @@ class TaskUploadForm(forms.ModelForm):
         task.is_dynamic = False
         task.save()
         self.save_m2m()
+        from .models import TaskPlacement
+        if task.type.exam_version_id:
+            TaskPlacement.objects.get_or_create(task=task, task_type=task.type)
+        selected_types = list(self.cleaned_data.get("additional_types", []))
+        if self.data.get("manage_placements") == "1":
+            task.placements.exclude(task_type_id=task.type_id).exclude(task_type_id__in=[t.pk for t in selected_types]).update(status="retired")
+        for task_type in selected_types:
+            status = "draft" if task_type.exam_version.copied_from_id and task_type.exam_version.status == "draft" else "active"
+            TaskPlacement.objects.update_or_create(task=task, task_type=task_type, defaults={"status": status})
 
         # Delete existing attachments requested by the redact form.
         remove_attachment_ids: set[int] = set()
@@ -697,7 +722,7 @@ class TaskUploadForm(forms.ModelForm):
 
         files_to_create: list[tuple[TaskAttachment, Any]] = []
         uploaded_files = list(self.files.getlist("attachments")) if hasattr(self.files, "getlist") else []
-        provided_names = list(self.data.getlist("attachment_names")) if hasattr(self, "data") else []
+        provided_names = list(self.data.getlist("attachment_names")) if hasattr(self.data, "getlist") else []
 
         for index, uploaded in enumerate(uploaded_files, start=1):
             if not uploaded:

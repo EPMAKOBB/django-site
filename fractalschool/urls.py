@@ -38,7 +38,9 @@ urlpatterns = [
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap"),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
+    path('students/', include(('students.urls', 'students'), namespace='students')),
     path('courses/', include(('courses.urls', 'courses'), namespace='courses')),
+    path('lessons/', include(('lessons.urls', 'lessons'), namespace='lessons')),
     path('applications/', include(('applications.urls', 'applications'), namespace='applications')),
     path('parser/', include(('parser_tasks.urls', 'parser_tasks'), namespace='parser_tasks')),
 

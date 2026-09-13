@@ -9,6 +9,7 @@ from django.utils.html import format_html
 from django.utils.text import slugify
 
 from subjects.models import Subject
+from .admin_years import FrozenAnnualAdminMixin, FrozenAnnualInlineMixin
 
 from .models import (
     Attempt,
@@ -146,7 +147,7 @@ class TaskTagAdmin(admin.ModelAdmin):
 
 
 @admin.register(TaskType)
-class TaskTypeAdmin(admin.ModelAdmin):
+class TaskTypeAdmin(FrozenAnnualAdminMixin, admin.ModelAdmin):
     list_display = ("name", "slug", "subject", "exam_version", "display_order")
     list_filter = ("subject", "exam_version")
     ordering = ("subject__name", "exam_version__name", "display_order", "name")
@@ -412,33 +413,35 @@ class TaskPreGeneratedDatasetAdmin(admin.ModelAdmin):
         return text
 
 
-class SkillGroupItemInline(admin.TabularInline):
+class SkillGroupItemInline(FrozenAnnualInlineMixin, admin.TabularInline):
     model = SkillGroupItem
     extra = 1
 
 
 @admin.register(SkillGroup)
-class SkillGroupAdmin(admin.ModelAdmin):
+class SkillGroupAdmin(FrozenAnnualAdminMixin, admin.ModelAdmin):
     inlines = [SkillGroupItemInline]
     list_display = ("title", "exam_version")
     list_filter = ("exam_version",)
 
 
-class SkillGroupInline(admin.TabularInline):
+class SkillGroupInline(FrozenAnnualInlineMixin, admin.TabularInline):
     model = SkillGroup
     extra = 1
 
 
+from .admin_years import ExamYearAdminMixin, TransitionInline, PlacementInline
+
 @admin.register(ExamVersion)
-class ExamVersionAdmin(admin.ModelAdmin):
-    inlines = [SkillGroupInline]
-    list_display = ("name", "slug", "status", "subject")
+class ExamVersionAdmin(ExamYearAdminMixin, admin.ModelAdmin):
+    inlines = [SkillGroupInline, TransitionInline]
+    list_display = ("name", "slug", "status", "subject", "year", "revision", "is_default")
     list_filter = ("subject", "status")
     search_fields = ("name", "slug", "subject__name")
 
 
 @admin.register(ExamScoreScale)
-class ExamScoreScaleAdmin(admin.ModelAdmin):
+class ExamScoreScaleAdmin(FrozenAnnualAdminMixin, admin.ModelAdmin):
     list_display = ("exam_version", "max_primary", "is_active", "updated_at")
     list_filter = ("is_active", "exam_version__subject")
     search_fields = ("exam_version__name", "exam_version__subject__name")
@@ -452,7 +455,7 @@ class ExamScoreScaleAdmin(admin.ModelAdmin):
 admin.site.register(TaskSkill)
 
 
-class ExamBlueprintItemInline(admin.TabularInline):
+class ExamBlueprintItemInline(FrozenAnnualInlineMixin, admin.TabularInline):
     model = ExamBlueprintItem
     extra = 1
     ordering = ("order",)
@@ -485,7 +488,7 @@ class ExamBlueprintItemInline(admin.TabularInline):
 
 
 @admin.register(ExamBlueprint)
-class ExamBlueprintAdmin(admin.ModelAdmin):
+class ExamBlueprintAdmin(FrozenAnnualAdminMixin, admin.ModelAdmin):
     inlines = [ExamBlueprintItemInline]
     list_display = ("exam_version", "subject", "is_active", "time_limit", "max_attempts")
     list_filter = ("is_active", "subject")
@@ -627,3 +630,5 @@ class VariantTaskAttemptAdmin(admin.ModelAdmin):
         "variant_attempt__assignment__user__username",
         "variant_task__task__title",
     )
+
+TaskAdmin.inlines = list(TaskAdmin.inlines) + [PlacementInline]

@@ -52,7 +52,7 @@ class RecomputeMasteryCommandTest(TestCase):
         Attempt.objects.create(user=self.user, task=self.task, is_correct=False)
 
     def test_recompute_mastery_all_users(self):
-        call_command("recompute_mastery")
+        call_command("recompute_mastery", legacy_ratio=True)
         sm = SkillMastery.objects.get(user=self.user, skill=self.skill)
         tm = TypeMastery.objects.get(user=self.user, task_type=self.task_type)
         self.assertAlmostEqual(sm.mastery, 0.5)

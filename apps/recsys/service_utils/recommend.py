@@ -39,6 +39,7 @@ def select_candidates(user, now) -> QuerySet[Task]:
     day are excluded. Older solved tasks can return through spacing/forgetting.
     """
 
+    from .exam_context import task_filter
     solved_cutoff = now - SOLVED_TASK_COOLDOWN
     completed = (
         Attempt.objects.filter(user=user, is_correct=True, is_valid_attempt=True)
@@ -51,7 +52,7 @@ def select_candidates(user, now) -> QuerySet[Task]:
     recent_recs = RecommendationLog.objects.filter(
         user=user, created_at__gte=now - timedelta(days=1)
     ).values_list("task_id", flat=True)
-    return public_tasks_queryset().exclude(id__in=completed).exclude(id__in=recent_recs)
+    return public_tasks_queryset().filter(task_filter(for_issuance=True)).distinct().exclude(id__in=completed).exclude(id__in=recent_recs)
 
 
 def log_recommendations(user, tasks: Iterable[Task]) -> None:
