@@ -59,7 +59,9 @@
               </div>
             {% endif %}
             <div class="section-title">{{ task.title }}</div>
-            {% if task.exam_version %}
+            {% if task.display_placements %}
+              {% for placement in task.display_placements %}<div class="hint">{{ placement.task_type.exam_version.name }} ? {{ placement.task_type.name }}</div>{% endfor %}
+            {% elif task.exam_version %}
               <div class="hint">{{ task.subject.name }} — {{ task.exam_version.name }}</div>
             {% else %}
               <div class="hint">{{ task.subject.name }}</div>

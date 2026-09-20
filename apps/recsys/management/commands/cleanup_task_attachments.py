@@ -49,9 +49,8 @@ class Command(BaseCommand):
         if prefix and not prefix.endswith("/"):
             prefix = f"{prefix}/"
 
-        existing_files = set(
-            TaskAttachment.objects.exclude(file="").values_list("file", flat=True)
-        )
+        from apps.recsys.service_utils.historical_files import referenced_storage_files
+        existing_files = referenced_storage_files()
 
         total = 0
         deleted = 0

@@ -967,7 +967,7 @@ def system_journal(request):
             "at": attempt.checked_at or attempt.created_at,
             "user": attempt.user,
             "title": attempt.task.title,
-            "meta": attempt.task.type.name if attempt.task.type_id else "",
+            "meta": attempt.context_snapshot.get("task_type_name", attempt.task_type.name if attempt.task_type_id else "Неизвестный тип"),
             "result": "верно" if attempt.is_correct else "ошибка",
         }
         for attempt in attempts_qs.select_related("user", "task", "task__type")

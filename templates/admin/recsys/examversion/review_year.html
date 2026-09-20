@@ -1,0 +1,15 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>{{ exam }}</p>
+{% if exam.published_at %}<p>Опубликовано: {{ exam.published_at }}. Изменения содержания требуют новой редакции.</p>{% endif %}
+{% if report.errors %}<ul class="errorlist">{% for error in report.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+<p>Перед публикацией проверьте соответствия типов, структуру, критерии и документ-основание. Старая шкала баллов копируется отключённой; включайте её только после проверки.</p>
+<table><thead><tr><th>Новый тип</th><th>Подходящих задач</th><th>Учебные темы</th></tr></thead><tbody>
+{% for row in report.type_rows %}<tr><td><a href="{% url 'admin:recsys_tasktype_change' row.id %}">{{ row.name }}</a></td><td>{{ row.count }}</td><td>{{ row.requirements|join:", " }}</td></tr>{% endfor %}
+</tbody></table>
+<form method="post">{% csrf_token %}
+{% if not exam.published_at %}{{ form.as_p }}
+<button type="submit" name="action" value="publish">Проверить и опубликовать экзамен</button>{% endif %}
+{% if exam.status != 'archived' %}<button type="submit" name="action" value="archive">Сохранить показатели и перенести в архив</button>{% endif %}
+</form>
+{% endblock %}

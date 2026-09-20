@@ -81,8 +81,13 @@ class NextTaskView(APIView):
             task,
             source_mode="training",
         )
+        from ..service_utils.exam_context import snapshot_task, public_snapshot
+        if recommendation and not recommendation.task_snapshot:
+            recommendation.task_snapshot = snapshot_task(task, getattr(task, "selected_placement", None))
+            recommendation.save(update_fields=["task_snapshot", "updated_at"])
         payload = {
             "task": TaskSerializer(task, context={"request": request}).data,
+            "issued_task": public_snapshot(recommendation.task_snapshot) if recommendation else None,
             "recommendation_id": recommendation.id if recommendation else None,
             "score": candidate.score,
             "score_snapshot": candidate.score_snapshot,
@@ -127,9 +132,19 @@ class RecommendationListView(APIView):
                 recommendation_ids.setdefault(log.task_id, log.id)
 
         for candidate in candidates:
+            issued_task = None
+            if log_flag:
+                from ..service_utils.exam_context import snapshot_task, public_snapshot
+                log = RecommendationLog.objects.filter(pk=recommendation_ids.get(candidate.task.id)).first()
+                if log:
+                    if not log.task_snapshot:
+                        log.task_snapshot = snapshot_task(candidate.task, getattr(candidate.task, "selected_placement", None))
+                        log.save(update_fields=["task_snapshot", "updated_at"])
+                    issued_task = public_snapshot(log.task_snapshot)
             payload.append(
                 {
                     "task": TaskSerializer(candidate.task, context={"request": request}).data,
+                    "issued_task": issued_task,
                     "recommendation_id": recommendation_ids.get(candidate.task.id),
                     "score": candidate.score,
                     "score_snapshot": candidate.score_snapshot,
@@ -353,6 +368,7 @@ class VariantTaskSubmitView(APIView):
     class InputSerializer(serializers.Serializer):
         is_correct = serializers.BooleanField()
         task_snapshot = serializers.JSONField(required=False)
+        submission_key = serializers.UUIDField(required=False)
 
     def post(self, request, attempt_id: int, variant_task_id: int, *args, **kwargs):
         serializer = self.InputSerializer(data=request.data)
@@ -484,6 +500,7 @@ class TrainingSessionSubmitView(APIView):
     class InputSerializer(serializers.Serializer):
         step_id = serializers.IntegerField(min_value=1)
         answer = serializers.JSONField()
+        submission_key = serializers.UUIDField(required=False)
 
     def post(self, request, session_id: int, *args, **kwargs):
         serializer = self.InputSerializer(data=request.data)
@@ -493,6 +510,7 @@ class TrainingSessionSubmitView(APIView):
             session_id=session_id,
             step_id=serializer.validated_data["step_id"],
             answer=serializer.validated_data["answer"],
+            submission_key=serializer.validated_data.get("submission_key"),
         )
         return Response(payload, status=status.HTTP_201_CREATED)
 

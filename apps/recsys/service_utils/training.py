@@ -29,34 +29,15 @@ from .training_type_filters import (
 )
 
 
-def _task_snapshot(task: Task) -> dict[str, Any]:
-    statement = build_task_statement_payload(task=task)
-    schema = task.get_answer_schema()
-    answer_schema = None
-    if schema is not None:
-        answer_schema = {
-            "id": schema.id,
-            "name": schema.name,
-            "config": schema.config or {},
-        }
-    return {
-        "task_id": task.id,
-        "title": statement["title"],
-        "description": statement["description"],
-        "rendering_strategy": statement["task_rendering_strategy"],
-        "task_body_html": statement["task_body_html"],
-        "image": statement["image"],
-        "attachments": statement["attachments"],
-        "answer_schema": answer_schema,
-        "correct_answer": deepcopy(task.correct_answer or {}),
-        "scoring_scheme": task.get_scoring_scheme(),
-        "max_score": task.get_max_score(),
-        "task_type_name": task.type.name if task.type_id else "",
-    }
+def _task_snapshot(task: Task, placement=None, *, exam_version=None, order=None) -> dict[str, Any]:
+    from .exam_context import resolve_placement, snapshot_task
+    placement = resolve_placement(task, exam_version=exam_version, placement=placement)
+    return snapshot_task(task, placement, exam_version=exam_version, order=order)
 
 
 def _serialize_step(step: TrainingSessionStep) -> dict[str, Any]:
-    task_snapshot = deepcopy(step.task_snapshot or {})
+    from .exam_context import public_snapshot
+    task_snapshot = public_snapshot(step.task_snapshot, reveal=step.status == TrainingSessionStep.Status.ANSWERED)
     response_snapshot = deepcopy(step.response_snapshot or {})
     return {
         "id": step.id,
@@ -77,25 +58,7 @@ def _serialize_step(step: TrainingSessionStep) -> dict[str, Any]:
 
 
 def _freshen_open_task_snapshot(step: TrainingSessionStep) -> dict[str, Any]:
-    task_snapshot = deepcopy(step.task_snapshot or {})
-    if step.task is None:
-        return task_snapshot
-
-    fresh_snapshot = _task_snapshot(step.task)
-    for key in (
-        "title",
-        "description",
-        "rendering_strategy",
-        "task_body_html",
-        "image",
-        "attachments",
-        "answer_schema",
-        "max_score",
-        "task_type_name",
-    ):
-        if key in {"task_body_html", "image", "attachments"} or not task_snapshot.get(key):
-            task_snapshot[key] = deepcopy(fresh_snapshot.get(key))
-    return task_snapshot
+    return deepcopy(step.task_snapshot or {})
 
 
 def _session_summary(session: TrainingSession) -> dict[str, Any]:
@@ -188,9 +151,10 @@ def _append_next_step(user, session: TrainingSession) -> TrainingSessionStep | N
         session=session,
         order=session.steps_total + 1,
         task=candidate.task,
+        placement=getattr(candidate.task, "selected_placement", None),
         recommendation_log=recommendation,
         status=TrainingSessionStep.Status.OPENED,
-        task_snapshot=_task_snapshot(candidate.task),
+        task_snapshot=_task_snapshot(candidate.task, getattr(candidate.task, "selected_placement", None), exam_version=session.exam_version, order=session.steps_total + 1),
         reason_snapshot=deepcopy(candidate.reason_snapshot or {}),
         shown_at=timezone.now(),
     )
@@ -225,6 +189,8 @@ def _selected_task_types_summary(session: TrainingSession) -> list[dict[str, Any
 
 @transaction.atomic
 def start_session(user, *, exam_version, selected_task_type_ids: list[int] | None = None) -> TrainingSession:
+    if exam_version.status == "archived" or (exam_version.copied_from_id and exam_version.status != "active"):
+        raise exceptions.ValidationError("Версия экзамена недоступна для новых тренировок.")
     validated_type_ids = validate_selected_task_type_ids(
         exam_version=exam_version,
         selected_task_type_ids=selected_task_type_ids,
@@ -300,8 +266,8 @@ def session_payload(session: TrainingSession) -> dict[str, Any]:
     current_task = None
     if active_step is not None:
         current_snapshot = _freshen_open_task_snapshot(active_step)
-        if active_step.status != TrainingSessionStep.Status.ANSWERED:
-            current_snapshot.pop("correct_answer", None)
+        from .exam_context import public_snapshot
+        current_snapshot = public_snapshot(current_snapshot, reveal=active_step.status == TrainingSessionStep.Status.ANSWERED)
         current_task = {
             "step_id": active_step.id,
             "step_status": active_step.status,
@@ -327,6 +293,7 @@ def submit_step_answer(
     session_id: int,
     step_id: int,
     answer: Any,
+    submission_key=None,
 ) -> dict[str, Any]:
     session = (
         TrainingSession.objects.select_for_update()
@@ -334,6 +301,21 @@ def submit_step_answer(
         .prefetch_related("steps__task", "steps__recommendation_log", "steps__attempt")
         .get(pk=session_id)
     )
+    from django.contrib.auth import get_user_model
+    get_user_model().objects.select_for_update().get(pk=user.pk)
+    if submission_key:
+        previous = Attempt.objects.filter(user=user, submission_key=submission_key).first()
+        if previous:
+            if previous.response_snapshot != {"answer": answer, "step_id": step_id, "session_id": session_id}:
+                raise exceptions.ValidationError("Этот ключ отправки уже использован для другого ответа.")
+            payload = session_payload(get_session_or_404(user, session_id))
+            payload["submission_result"] = {"step_id": step_id, "attempt_id": previous.pk, "is_correct": previous.is_correct,
+                                            "score": previous.score, "max_score": previous.max_score, "answer": answer,
+                                            "result": "correct" if previous.is_correct else ("partial" if previous.score else "incorrect"),
+                                            "correct_answer": previous.task_snapshot.get("correct_answer") if previous.is_correct else None,
+                                            "answered_at": previous.checked_at}
+            payload["next_step_id"] = None
+            return payload
     if session.status != TrainingSession.Status.ACTIVE:
         raise exceptions.ValidationError("Training session is not active.")
 
@@ -370,6 +352,10 @@ def submit_step_answer(
     attempt = Attempt.objects.create(
         user=user,
         task=step.task,
+        placement=step.placement,
+        task_snapshot=deepcopy(snapshot),
+        response_snapshot={"answer": deepcopy(answer), "step_id": step_id, "session_id": session_id},
+        submission_key=submission_key,
         is_correct=bool(is_correct),
         score=score,
         max_score=max_score,

@@ -36,6 +36,7 @@ build/
 Thumbs.db
 
 # Testing / cache
+.local/
 .pytest_cache/
 .coverage
 htmlcov/

@@ -1,0 +1,16 @@
+{
+  "slug": "k27076",
+  "title": "k27076",
+  "description": "<div><strong>(<a href=\"https://t.me/ege_inf_cat\" target=\"_blank\">В. Лашин</a>) </strong>Алгоритм вычисления функций F(n), G(n) и Q(n), где n – целое число, задан следующими соотношениями:</div>\n<div> </div>\n<div>\\(F(n)= G(n + 4)\\), если \\(n&lt; 43\\);</div>\n<div>\\(F(n)= 2 * F(n - 2) - F(n - 4) + 2\\), если \\(n\\geq 43\\);</div>\n<div>\\(G(n)= G({n}+3) + 2\\) при \\(n&lt;11240\\);<br />\\(G(n)= Q(n)\\), если \\(n\\geq 11240\\).</div>\n<div>\n<div>\\(Q(n)= n + 4\\), если \\(n&lt; 21\\);</div>\n<div>\\(Q(n)= Q(n - 4) + 2\\), если \\(n\\geq 21\\);</div>\n<br />Чему равно значение функции \\(F(2026)\\)?</div>",
+  "correct_answer": 998154,
+  "rendering_strategy": "html",
+  "number": 16,
+  "tags": [
+    "Рекурсия большой глубины",
+    "Рекурсия большой ширины",
+    "Рекурсия с несколькими функциями"
+  ],
+  "source_name": "Kompege",
+  "source_slug": "kompege",
+  "source_description": "User-supplied task k27076. Answer independently verified: 998154."
+}

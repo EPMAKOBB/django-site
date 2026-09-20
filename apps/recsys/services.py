@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 from django.db.models import Max
+from django.db import transaction
 from django.utils import timezone
 
 from .models import Attempt, SkillMastery, TagMastery, Task, TypeMastery
@@ -63,14 +64,14 @@ def _analytics_time_spent_seconds(attempt: Attempt) -> float | None:
         return None
     if spent_seconds > MAX_ANALYTIC_TIME_SECONDS:
         return None
-    expected = int(attempt.task.expected_time_seconds or 0)
+    expected = int(attempt.context_snapshot.get("expected_time_seconds", attempt.task.expected_time_seconds) or 0)
     if expected > 0 and spent_seconds > expected * MAX_EXPECTED_TIME_RATIO_FOR_ANALYTICS:
         return None
     return max(0.0, spent_seconds)
 
 
 def _time_ratio(attempt: Attempt) -> float:
-    expected = int(attempt.task.expected_time_seconds or 0)
+    expected = int(attempt.context_snapshot.get("expected_time_seconds", attempt.task.expected_time_seconds) or 0)
     spent_seconds = _analytics_time_spent_seconds(attempt)
     if expected <= 0 or spent_seconds is None:
         return 1.0
@@ -83,7 +84,7 @@ def _quality_score(attempt: Attempt) -> tuple[float, float]:
     capped_ratio = max(0.0, min(time_ratio, 3.0))
     time_factor = math.exp(-LAMBDA_TIME * max(0.0, capped_ratio - 1.0))
     readiness_factor = READINESS_BAND_FACTORS.get(
-        attempt.task.level_band,
+        attempt.context_snapshot.get("level_band", attempt.task.level_band),
         READINESS_BAND_FACTORS[Task.LevelBand.EXAM],
     )
     base_quality = score_norm * time_factor
@@ -119,12 +120,12 @@ def _legacy_update_mastery(attempt: Attempt) -> None:
     if delta == 0:
         return
 
-    for skill in task.skills.all():
+    for skill in task.skills.model.objects.filter(pk__in=attempt.context_snapshot.get("skill_ids", list(task.skills.values_list("pk", flat=True)))):
         mastery, _ = SkillMastery.objects.get_or_create(user=user, skill=skill)
         mastery.mastery = _clamp_mastery(float(mastery.mastery or 0.0) + delta)
         mastery.save(update_fields=["mastery", "updated_at"])
 
-    type_mastery, _ = TypeMastery.objects.get_or_create(user=user, task_type=task.type)
+    type_mastery, _ = TypeMastery.objects.get_or_create(user=user, task_type=attempt.task_type or task.type)
     type_mastery.mastery = _clamp_mastery(float(type_mastery.mastery or 0.0) + delta)
     type_mastery.save(update_fields=["mastery", "updated_at"])
 
@@ -164,7 +165,7 @@ def _update_tag_masteries(attempt: Attempt, quality_score: float, score_norm: fl
     checked_at = attempt.checked_at or attempt.created_at
     success_flag = 1 if score_norm >= SUCCESS_THRESHOLD else 0
 
-    for tag in attempt.task.tags.all():
+    for tag in attempt.task.tags.model.objects.filter(pk__in=attempt.context_snapshot.get("tag_ids", list(attempt.task.tags.values_list("pk", flat=True)))):
         mastery_obj, _ = TagMastery.objects.get_or_create(user=attempt.user, task_tag=tag)
         old_mastery = float(mastery_obj.mastery or 0.0)
         old_coverage = float(mastery_obj.coverage or 0.0)
@@ -189,19 +190,25 @@ def _update_tag_masteries(attempt: Attempt, quality_score: float, score_norm: fl
         else:
             mastery_obj.stability = _clamp_mastery(old_stability)
         mastery_obj.last_seen_at = checked_at
+        mastery_obj.decayed_at = checked_at
         if success_flag:
             mastery_obj.last_success_at = checked_at
         mastery_obj.save()
 
 
+def _type_tag_masteries(user, task_type):
+    from .service_utils.exam_context import task_filter
+    required_ids = set(task_type.required_tags.values_list("pk", flat=True))
+    if not required_ids:
+        required_ids = set(Task.objects.filter(task_filter(task_type_ids=[task_type.pk])).values_list("tags", flat=True)) - {None}
+    return TagMastery.objects.filter(user=user, task_tag_id__in=required_ids), len(required_ids)
+
+
 def _update_type_mastery(attempt: Attempt) -> None:
-    task_type = attempt.task.type
+    task_type = attempt.task_type or attempt.task.type
     type_mastery, _ = TypeMastery.objects.get_or_create(user=attempt.user, task_type=task_type)
 
-    tag_masteries = TagMastery.objects.filter(
-        user=attempt.user,
-        task_tag__tasks__type=task_type,
-    ).distinct()
+    tag_masteries, required_count = _type_tag_masteries(attempt.user, task_type)
 
     if tag_masteries.exists():
         mastery_values = list(tag_masteries.values_list("mastery", flat=True))
@@ -209,7 +216,7 @@ def _update_type_mastery(attempt: Attempt) -> None:
         progress_values = list(tag_masteries.values_list("progress", flat=True))
         confidence_values = list(tag_masteries.values_list("confidence", flat=True))
         stability_values = list(tag_masteries.values_list("stability", flat=True))
-        count = len(mastery_values)
+        count = required_count
         type_mastery.mastery = _clamp_mastery(sum(mastery_values) / count)
         type_mastery.coverage = _clamp_mastery(sum(coverage_values) / count)
         type_mastery.progress = _clamp_mastery(sum(progress_values) / count)
@@ -220,7 +227,7 @@ def _update_type_mastery(attempt: Attempt) -> None:
 
     valid_attempts = Attempt.objects.filter(
         user=attempt.user,
-        task__type=task_type,
+        task_type=task_type,
         is_valid_attempt=True,
     )
     type_mastery.attempts_total = valid_attempts.count()
@@ -230,7 +237,7 @@ def _update_type_mastery(attempt: Attempt) -> None:
         if score_norm >= SUCCESS_THRESHOLD:
             successes_total += 1
     type_mastery.successes_total = successes_total
-    if not tag_masteries.exists():
+    if not required_count:
         # Transitional fallback for types that still have no tag data.
         raw_delta = attempt.weight if attempt.is_correct else -attempt.weight
         delta = raw_delta * MASTERY_WEIGHT_MULTIPLIER
@@ -243,6 +250,7 @@ def update_mastery(attempt: Attempt) -> None:
     if not attempt.is_valid_attempt:
         return
 
+    apply_forgetting_to_tag_masteries(now=attempt.checked_at or attempt.created_at, queryset=TagMastery.objects.filter(user=attempt.user))
     _legacy_update_mastery(attempt)
     quality_score, score_norm = _quality_score(attempt)
     success_flag = 1 if score_norm >= SUCCESS_THRESHOLD else 0
@@ -251,7 +259,9 @@ def update_mastery(attempt: Attempt) -> None:
     _update_type_mastery(attempt)
 
 
+@transaction.atomic
 def recompute_task_difficulty(task: Task) -> None:
+    task = Task.objects.select_for_update().get(pk=task.pk)
     valid_attempts = list(
         Attempt.objects.filter(task=task, is_valid_attempt=True).select_related("task")
     )
@@ -314,13 +324,15 @@ def apply_forgetting_to_tag_masteries(*, now=None, queryset=None) -> int:
     for mastery in tag_masteries.iterator():
         if mastery.last_success_at is None:
             continue
-        delta_days = max(0.0, (now - mastery.last_success_at).total_seconds() / 86400.0)
+        baseline = mastery.decayed_at or mastery.last_success_at
+        delta_days = max(0.0, (now - baseline).total_seconds() / 86400.0)
         lambda_forget = LAMBDA_FORGET_BASE / (1.0 + C_STABILITY * float(mastery.stability or 0.0))
         mastery_decayed = _clamp_mastery(float(mastery.mastery or 0.0) * math.exp(-lambda_forget * delta_days))
         if abs(mastery_decayed - float(mastery.mastery or 0.0)) < 1e-9:
             continue
         mastery.mastery = mastery_decayed
-        mastery.save(update_fields=["mastery", "updated_at"])
+        mastery.decayed_at = now
+        mastery.save(update_fields=["mastery", "decayed_at", "updated_at"])
         updated += 1
     return updated
 
@@ -329,11 +341,8 @@ def recompute_type_masteries_from_tags(queryset=None) -> int:
     type_masteries = queryset if queryset is not None else TypeMastery.objects.all()
     updated = 0
     for type_mastery in type_masteries.iterator():
-        tag_masteries = TagMastery.objects.filter(
-            user=type_mastery.user,
-            task_tag__tasks__type=type_mastery.task_type,
-        ).distinct()
-        if not tag_masteries.exists():
+        tag_masteries, required_count = _type_tag_masteries(type_mastery.user, type_mastery.task_type)
+        if not required_count:
             continue
 
         mastery_values = list(tag_masteries.values_list("mastery", flat=True))
@@ -341,7 +350,7 @@ def recompute_type_masteries_from_tags(queryset=None) -> int:
         progress_values = list(tag_masteries.values_list("progress", flat=True))
         confidence_values = list(tag_masteries.values_list("confidence", flat=True))
         stability_values = list(tag_masteries.values_list("stability", flat=True))
-        count = len(mastery_values)
+        count = required_count
 
         type_mastery.mastery = _clamp_mastery(sum(mastery_values) / count)
         type_mastery.coverage = _clamp_mastery(sum(coverage_values) / count)
@@ -366,7 +375,10 @@ def recompute_type_masteries_from_tags(queryset=None) -> int:
     return updated
 
 
+@transaction.atomic
 def refresh_student_recsys_state(user, *, now=None) -> dict[str, int]:
+    from django.contrib.auth import get_user_model
+    get_user_model().objects.select_for_update().get(pk=user.pk)
     now = now or timezone.now()
     forgetting_updates = apply_forgetting_to_tag_masteries(
         now=now,
