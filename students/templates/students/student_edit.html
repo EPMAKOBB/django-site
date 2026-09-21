@@ -1,0 +1,63 @@
+{% extends 'accounts/dashboard/base.html' %}
+
+{% block dashboard_title %}Карточка {{ student.full_name }}{% endblock %}
+
+{% block dashboard_content %}
+  <section class="card mb-16">
+    <div class="flex items-center justify-between mb-8">
+      <h1 class="mb-0">{{ student.full_name }}</h1>
+      <a class="btn btn-secondary" href="{% url 'accounts:dashboard-students' %}">К списку</a>
+    </div>
+    <p class="hint">
+      {% if student.user_id %}Аккаунт подключён: {{ student.user.username }}{% else %}Пока без аккаунта на платформе{% endif %}
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="edit_student">
+      {{ form.as_p }}
+      <button class="btn" type="submit">Сохранить</button>
+    </form>
+  </section>
+
+  <section class="card mb-16" id="student-subjects">
+    <h2>Предметы ученика у вас</h2>
+    <p class="hint">Цена и продолжительность по умолчанию подставляются при создании новых уроков и серий. Уже созданные уроки и серии сохраняют свои условия; для изменения серии откройте её в расписании.</p>
+    <ul>
+      {% for link in subject_links %}
+        <li><strong>{{ link.subject.name }}</strong> · {{ link.default_duration_minutes }} мин · {{ link.default_price_amount }} {{ link.currency }}
+          {% if link.status != 'active' %} · {% if link.status == 'pending' %}Ожидает подключения{% else %}Связь отключена{% endif %}{% endif %}
+          <form method="post" action="#student-subjects" class="mb-16">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit_lesson_defaults">
+            <input type="hidden" name="link_id" value="{{ link.pk }}">
+            {{ link.defaults_form.as_p }}
+            <button class="btn" type="submit">Сохранить условия — {{ link.subject.name }}</button>
+          </form>
+        </li>
+      {% empty %}<li>Предметы пока не добавлены.</li>{% endfor %}
+    </ul>
+    <h3>Добавить предмет</h3>
+    <p class="hint">У каждого предмета своя стоимость и длительность. Карточка ученика и его контакты остаются общими.</p>
+    <form method="post" action="#student-subjects">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_subject">
+      {{ subject_form.as_p }}
+      <button class="btn btn-primary" type="submit">Добавить предмет</button>
+    </form>
+    <p class="mt-12"><a href="{% url 'lessons:lesson-create' %}">Запланировать урок</a></p>
+  </section>
+
+  {% if not student.user_id %}
+    <section class="card">
+      <h2>Подключить аккаунт ученика</h2>
+      <p class="hint">Создайте одноразовую ссылку и отправьте её ученику. После входа его аккаунт привяжется к этой карточке.</p>
+      <form method="post" action="{% url 'students:create-invite' student.public_id %}">
+        {% csrf_token %}
+        <button class="btn btn-secondary" type="submit">Создать ссылку на 7 дней</button>
+      </form>
+      {% if invite_url %}
+        <p class="mt-12"><strong>Ссылка:</strong> <input value="{{ invite_url }}" readonly style="width:100%"></p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

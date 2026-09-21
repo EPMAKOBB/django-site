@@ -8,6 +8,17 @@
     <section class="card"><p>{% trans "Доступно только учителям." %}</p></section>
   {% else %}
     <section class="card mb-16">
+      <h2 class="mb-8">Добавить ученика без регистрации</h2>
+      <p class="hint">Карточка сразу станет доступна в расписании. Аккаунт ученика можно подключить позже.</p>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_student">
+        {{ student_form.as_p }}
+        <button type="submit" class="btn">Добавить ученика</button>
+      </form>
+    </section>
+
+    <section class="card mb-16">
       <h2 class="mb-8">{% trans "Пригласить ученика по предмету" %}</h2>
       <form method="post" class="flex items-center gap-8">
         {% csrf_token %}
@@ -37,19 +48,31 @@
       {% endif %}
     </section>
 
-    <section class="card">
+    <section class="card" id="students-list">
       <div class="flex items-center justify-between mb-8">
         <h2 class="mb-0">{% trans "Мои ученики по предметам" %}</h2>
         <a class="btn btn-secondary" href="{% url 'accounts:assignment-create' %}">{% trans "Назначить задание" %}</a>
       </div>
+      <nav class="flex items-center gap-8 mb-12" aria-label="Фильтр учеников">
+        <a class="btn {% if student_filter == 'active' %}btn-primary{% else %}btn-secondary{% endif %}" href="?students=active#students-list" {% if student_filter == 'active' %}aria-current="page"{% endif %}>Занимаются</a>
+        <a class="btn {% if student_filter == 'all' %}btn-primary{% else %}btn-secondary{% endif %}" href="?students=all#students-list" {% if student_filter == 'all' %}aria-current="page"{% endif %}>Все</a>
+      </nav>
+      <p class="hint">В «Занимаются» показаны ученики со статусом «Занимается» и активной связью по предмету. Статус можно изменить в карточке ученика.</p>
       {% if grouped_links %}
         {% for s in grouped_links.values %}
           <div class="block block--futuristic mb-12">
             <div class="section-title" style="margin-bottom:8px">{{ s.subject.name }}</div>
             {% if s.students %}
               <ul>
-                {% for st in s.students %}
-                  <li>{{ st.get_full_name|default:st.username }}</li>
+                {% for link in s.students %}
+                  <li>
+                    <a href="{% url 'students:edit' link.student_record.public_id %}">{{ link.student_display_name }}</a>
+                    · {{ link.student_record.get_status_display }}
+                    {% if link.status == 'revoked' %}· предмет отключён{% elif link.status == 'pending' %}· ожидает подключения по предмету{% endif %}
+                    {% if link.student_record.user_id %}· аккаунт подключён{% else %}· без аккаунта{% endif %}
+                    · {{ link.default_duration_minutes }} мин · {{ link.default_price_amount }} {{ link.currency }}
+                    · <a href="{% url 'students:edit' link.student_record.public_id %}#student-subjects">Добавить предмет</a>
+                  </li>
                 {% endfor %}
               </ul>
             {% else %}
@@ -58,7 +81,7 @@
           </div>
         {% endfor %}
       {% else %}
-        <p class="hint">{% trans "Связей с учениками пока нет" %}</p>
+        <p class="hint">{% if student_filter == 'active' %}Нет учеников со статусом «Занимается». Откройте «Все», чтобы проверить их статусы.{% else %}Учеников пока нет.{% endif %}</p>
       {% endif %}
     </section>
   {% endif %}

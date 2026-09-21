@@ -27,6 +27,9 @@
       <li class="{% if active_tab == 'settings' %}active{% endif %}" role="presentation">
         <a role="tab" aria-selected="{% if active_tab == 'settings' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-settings' %}">{% trans 'Настройки' %}</a>
       </li>
+      <li class="{% if active_tab == 'lessons' %}active{% endif %}" role="presentation">
+        <a role="tab" aria-selected="{% if active_tab == 'lessons' %}true{% else %}false{% endif %}" href="{% url 'lessons:schedule' %}">{% trans 'Расписание' %}</a>
+      </li>
       {% if role == 'methodist' %}
         <li class="{% if active_tab == 'methodist' %}active{% endif %}" role="presentation">
           <a role="tab" aria-selected="{% if active_tab == 'methodist' %}true{% else %}false{% endif %}" href="{% url 'accounts:dashboard-methodist' %}">{% trans 'Методист' %}</a>

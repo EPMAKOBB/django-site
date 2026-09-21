@@ -155,8 +155,8 @@ def teacher_user(request, user_id):
     student = get_object_or_404(user_model, pk=user_id)
     if not request.user.is_staff:
         has_link = TeacherStudentLink.objects.filter(
+            Q(student_record__user=student) | Q(student=student),
             teacher=request.user,
-            student=student,
             status=TeacherStudentLink.Status.ACTIVE,
         ).exists()
         shares_class = ClassTeacherSubject.objects.filter(

@@ -34,6 +34,8 @@ from apps.recsys.models import (
 from apps.recsys.service_utils import variants as variant_services
 from apps.recsys.service_utils.type_progress import build_type_progress_map
 from subjects.models import Subject
+from students.forms import UnregisteredStudentForm
+from students.models import StudentRecord
 from courses.models import CourseGraphEdge, CourseModule, CourseModuleItem
 from .context_processors import SESSION_KEY
 from courses.services import (
@@ -590,8 +592,17 @@ def dashboard_students(request):
         role = "teacher"
         request.session["dashboard_role"] = role
 
+    student_form = UnregisteredStudentForm(
+        request.POST if request.POST.get("action") == "create_student" else None,
+        teacher=request.user,
+    )
     if request.method == "POST":
-        if request.POST.get("action") == "create_invite":
+        action = request.POST.get("action")
+        if action == "create_student" and student_form.is_valid():
+            student, _ = student_form.save()
+            messages.success(request, f"Ученик «{student.full_name}» добавлен. Теперь можно создавать расписание.")
+            return redirect("accounts:dashboard-students")
+        if action == "create_invite":
             try:
                 subject_id = int(request.POST.get("subject") or 0)
             except (TypeError, ValueError):
@@ -610,12 +621,19 @@ def dashboard_students(request):
                     messages.error(request, _("Предмет не найден"))
             return redirect("accounts:dashboard-students")
 
-    # Active links grouped by subject
+    student_filter = request.GET.get("students", "active")
+    if student_filter not in {"active", "all"}:
+        student_filter = "active"
     links = (
-        TeacherStudentLink.objects.filter(teacher=request.user, status=TeacherStudentLink.Status.ACTIVE)
-        .select_related("student", "subject")
-        .order_by("subject__name", "student__username")
+        TeacherStudentLink.objects.filter(teacher=request.user)
+        .select_related("student", "student_record", "student_record__user", "subject")
+        .order_by("subject__name", "student_record__full_name")
     )
+    if student_filter == "active":
+        links = links.filter(
+            status=TeacherStudentLink.Status.ACTIVE,
+            student_record__status=StudentRecord.Status.ACTIVE,
+        )
     invites = (
         TeacherSubjectInvite.objects.filter(teacher=request.user, is_active=True)
         .select_related("subject")
@@ -628,14 +646,16 @@ def dashboard_students(request):
             link.subject_id,
             {"subject": link.subject, "students": []},
         )
-        data["students"].append(link.student)
+        data["students"].append(link)
 
     context = {
         "active_tab": "students",
         "role": role,
         "grouped_links": grouped,
+        "student_filter": student_filter,
         "invites": invites,
         "subjects": Subject.objects.all().order_by("name"),
+        "student_form": student_form,
     }
     return render(request, "accounts/dashboard/students.html", context)
 
@@ -652,15 +672,21 @@ def join_teacher_with_code(request, code: str):
         messages.error(request, _("Неверный или истекший код учителя"))
         return redirect("accounts:dashboard-settings")
 
+    full_name = request.user.get_full_name() or request.user.username
+    student_record, _ = StudentRecord.objects.get_or_create(
+        user=request.user,
+        defaults={"full_name": full_name, "status": StudentRecord.Status.ACTIVE},
+    )
     link, created = TeacherStudentLink.objects.get_or_create(
         teacher=invite.teacher,
-        student=request.user,
+        student_record=student_record,
         subject=invite.subject,
-        defaults={"status": TeacherStudentLink.Status.ACTIVE},
+        defaults={"student": request.user, "status": TeacherStudentLink.Status.ACTIVE},
     )
-    if not created and link.status != TeacherStudentLink.Status.ACTIVE:
+    if not created and (link.status != TeacherStudentLink.Status.ACTIVE or not link.student_id):
         link.status = TeacherStudentLink.Status.ACTIVE
-        link.save(update_fields=["status", "updated_at"]) if hasattr(link, "updated_at") else link.save()
+        link.student = request.user
+        link.save(update_fields=["status", "student"])
 
     invite.is_active = False
     invite.save(update_fields=["is_active", "updated_at"]) if hasattr(invite, "updated_at") else invite.save()
@@ -700,9 +726,13 @@ def assignment_create(request):
 
     # Collect recipients
     links = (
-        TeacherStudentLink.objects.filter(teacher=request.user, status=TeacherStudentLink.Status.ACTIVE)
-        .select_related("student", "subject")
-        .order_by("student__username")
+        TeacherStudentLink.objects.filter(
+            teacher=request.user,
+            status=TeacherStudentLink.Status.ACTIVE,
+            student_record__user__isnull=False,
+        )
+        .select_related("student", "student_record", "student_record__user", "subject")
+        .order_by("student_record__full_name")
     )
     classes = (
         StudyClass.objects.filter(teacher_subjects__teacher=request.user)
@@ -1107,7 +1137,10 @@ def dashboard_settings(request):
             except (TypeError, ValueError):
                 link_id = 0
             if link_id:
-                TeacherStudentLink.objects.filter(id=link_id, student=request.user).update(
+                TeacherStudentLink.objects.filter(
+                    Q(student_record__user=request.user) | Q(student=request.user),
+                    id=link_id,
+                ).update(
                     status=TeacherStudentLink.Status.REVOKED
                 )
                 messages.success(request, _("Вы отказались от учителя"))
@@ -1153,8 +1186,9 @@ def dashboard_settings(request):
         "active_tab": "settings",
         "role": role,
         "my_teacher_links": TeacherStudentLink.objects.filter(
-            student=request.user, status=TeacherStudentLink.Status.ACTIVE
-        ).select_related("teacher", "subject"),
+            Q(student_record__user=request.user) | Q(student=request.user),
+            status=TeacherStudentLink.Status.ACTIVE,
+        ).select_related("teacher", "subject", "student_record"),
         "my_class_memberships": ClassStudentMembership.objects.filter(
             student=request.user
         ).select_related("study_class"),
