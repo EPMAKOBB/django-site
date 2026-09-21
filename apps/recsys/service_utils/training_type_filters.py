@@ -46,17 +46,17 @@ def _recent_activity_map(user, *, task_type_ids: list[int]) -> dict[int, dict]:
     rows = (
         Attempt.objects.filter(
             user=user,
-            task__type_id__in=task_type_ids,
+            task_type_id__in=task_type_ids,
             is_valid_attempt=True,
         )
-        .values("task__type_id")
+        .values("task_type_id")
         .annotate(
             attempts_total=Count("id"),
             last_checked_at=Max("checked_at"),
         )
     )
     return {
-        int(row["task__type_id"]): {
+        int(row["task_type_id"]): {
             "attempts_total": int(row["attempts_total"] or 0),
             "last_checked_at": row["last_checked_at"],
         }

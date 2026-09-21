@@ -28,6 +28,29 @@
     >
       <header class="exam-page__header">
         <h1 class="exam-page__title">{{ exam.subject.name }} {{ exam.name }}</h1>
+        <nav aria-label="Версия экзамена">
+          {% for version in exam_years %}<a href="{% url 'exam-page' version.slug %}" {% if version.pk == exam.pk %}aria-current="page"{% endif %}>{{ version.name }}{% if version.is_default %} · рекомендуется{% endif %}{% if version.status == 'archived' %} · архив{% endif %}</a>{% if not forloop.last %} | {% endif %}{% endfor %}
+        </nav>
+        {% if exam.status == 'archived' %}<p>Архив экзамена. Выполненные работы и сохранённые показатели доступны для просмотра.</p>{% endif %}
+        <p id="exam-annual-history" aria-live="polite"></p>
+        {% if is_authenticated %}
+        <details>
+          <summary>История ответов в этом формате</summary>
+          <form id="exam-history-filter">
+            <label>С <input type="date" name="from"></label>
+            <label>По <input type="date" name="to"></label>
+            <button class="btn" type="submit">Показать</button>
+          </form>
+          <p>Период меняет только историю ответов. Готовность учитывает весь совместимый опыт.</p>
+          <div id="exam-period-history" aria-live="polite"></div>
+        </details>
+        {% endif %}
+        {% if is_authenticated and exam.status != 'archived' %}
+        <form method="post">{% csrf_token %}
+          {% if preparing_for_exam %}<span>Выбран для подготовки</span> <button class="btn" name="action" value="unselect_year">Убрать из выбранных</button>
+          {% else %}<button class="btn" name="action" value="select_year">Готовиться к этому экзамену</button>{% endif %}
+        </form>
+        {% endif %}
       </header>
 
       <div class="exam-summary-grid">

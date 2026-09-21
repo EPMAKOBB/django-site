@@ -13,6 +13,7 @@
   <div
     class="container training-page"
     id="training-app"
+    data-csrf-token="{{ csrf_token }}"
     data-exam-id="{{ exam.id }}"
     data-type-filters-url="{% url 'training-type-filters' %}"
     data-current-url="{% url 'training-session-current' %}"
@@ -284,8 +285,7 @@
   let activeTypePreset = "recommended";
 
   function csrfToken() {
-    const value = document.cookie.split(";").map((entry) => entry.trim()).find((entry) => entry.startsWith("csrftoken="));
-    return value ? decodeURIComponent(value.split("=")[1]) : "";
+    return app.dataset.csrfToken || "";
   }
 
   function endpoint(template, id) {
@@ -915,11 +915,13 @@
       ? helper.collectPayload(answerFieldsEl, currentSchema)
       : answerTextEl.value;
     try {
+      const pendingAnswerKey = JSON.stringify([state.session.id, state.current_task.step_id, answer]);
+      if (state.pendingAnswerKey !== pendingAnswerKey) { state.pendingAnswerKey = pendingAnswerKey; state.submissionKey = crypto.randomUUID(); }
       const payload = await requestJson(endpoint(submitTemplate, state.session.id), {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
-        body: JSON.stringify({ step_id: state.current_task.step_id, answer }),
+        body: JSON.stringify({ step_id: state.current_task.step_id, answer, submission_key: state.submissionKey }),
       });
       lastSubmissionResult = payload.submission_result || null;
       renderPayload(payload);

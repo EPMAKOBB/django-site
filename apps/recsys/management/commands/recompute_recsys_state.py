@@ -8,6 +8,7 @@ from apps.recsys.services import (
     apply_forgetting_to_tag_masteries,
     recompute_task_difficulties,
     recompute_type_masteries_from_tags,
+    refresh_student_recsys_state,
 )
 
 
@@ -59,13 +60,10 @@ class Command(BaseCommand):
         if not tasks_only:
             if users is None:
                 users = self._resolve_users(user_filter)
-            user_ids = list(users.values_list("id", flat=True))
-            forgetting_updates = apply_forgetting_to_tag_masteries(
-                queryset=TagMastery.objects.filter(user_id__in=user_ids)
-            )
-            type_updates = recompute_type_masteries_from_tags(
-                queryset=TypeMastery.objects.filter(user_id__in=user_ids)
-            )
+            for user in users:
+                result = refresh_student_recsys_state(user)
+                forgetting_updates += result["tag_forgetting"]
+                type_updates += result["type_masteries"]
 
         if not students_only:
             if users is not None:

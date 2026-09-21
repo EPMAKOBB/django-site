@@ -1,12 +1,35 @@
 import json
+import re
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import Client, TestCase, override_settings
 
 from apps.recsys.models import AnswerSchema, Attempt, ExamVersion, Subject, Task, TaskTag, TaskType, TrainingSession
 
 
 class TrainingApiFlowTests(TestCase):
+    @override_settings(CSRF_COOKIE_NAME="exam_sandbox_csrftoken", CSRF_COOKIE_HTTPONLY=True)
+    def test_training_page_token_starts_session_with_custom_csrf_cookie(self):
+        self.exam_version.slug = "csrf-training-exam"
+        self.exam_version.save()
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.user)
+        page = client.get(f"/exams/{self.exam_version.slug}/training/")
+        self.assertEqual(page.status_code, 200)
+        payload = json.dumps({"exam_version_id": self.exam_version.pk})
+        rejected = client.post("/api/training/sessions/", data=payload, content_type="application/json")
+        self.assertEqual(rejected.status_code, 403)
+        self.assertIn("CSRF", rejected.json()["detail"])
+        token = re.search(r'data-csrf-token="([A-Za-z0-9]+)"', page.content.decode())
+        self.assertIsNotNone(token)
+        self.assertIn("exam_sandbox_csrftoken", client.cookies)
+        self.assertTrue(client.cookies["exam_sandbox_csrftoken"]["httponly"])
+        started = client.post("/api/training/sessions/", data=payload, content_type="application/json", HTTP_X_CSRFTOKEN=token.group(1))
+        self.assertEqual(started.status_code, 201, started.content)
+        session_id = started.json()["session"]["id"]
+        ended = client.post(f"/api/training/sessions/{session_id}/end/", HTTP_X_CSRFTOKEN=token.group(1))
+        self.assertEqual(ended.status_code, 200, ended.content)
+
     def setUp(self):
         self.user = get_user_model().objects.create(username="training-user")
         self.client.force_login(self.user)

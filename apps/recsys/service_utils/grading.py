@@ -60,7 +60,7 @@ def grade_answer(
     if scoring_scheme == TaskType.ScoringScheme.MANUAL_SCALED:
         return None, None
 
-    if scoring_scheme == TaskType.ScoringScheme.PARTIAL_PAIRS:
+    if scoring_scheme in {TaskType.ScoringScheme.PARTIAL_PAIRS, TaskType.ScoringScheme.EGE_PAIRS_2027}:
         expected = _as_list(correct_answer)[:2]
         actual = _as_list(response_value)[:2]
         score = 0
@@ -70,6 +70,12 @@ def grade_answer(
                     score += 1
             except Exception:
                 continue
+        if scoring_scheme == TaskType.ScoringScheme.EGE_PAIRS_2027 and score == 0 and len(expected) == len(actual) == 2:
+            try:
+                if compare_answers(expected[0], actual[1]) and compare_answers(expected[1], actual[0]):
+                    score = 1
+            except Exception:
+                pass
         score = min(score, max_score)
         return score, score == max_score
 

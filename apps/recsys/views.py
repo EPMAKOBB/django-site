@@ -1,3 +1,6 @@
+from __future__ import annotations
+from apps.recsys.service_utils.exam_context import task_filter, display_tasks, bind_task
+from apps.recsys.service_utils.exam_history import exam_report
 
 import json
 import logging
@@ -191,6 +194,18 @@ def exam_page(request, exam_slug: str):
 
     exam = _get_exam_by_slug(exam_slug)
 
+    if request.method == "POST" and request.POST.get("action") in {"select_year", "unselect_year"}:
+        if not request.user.is_authenticated:
+            return redirect(f"{reverse('accounts:login')}?next={request.path}")
+        profile, _created = StudentProfile.objects.get_or_create(user=request.user)
+        if request.POST["action"] == "unselect_year":
+            profile.exam_versions.remove(exam)
+        elif exam.status != "archived" and not (exam.copied_from_id and exam.status != "active"):
+            profile.exam_versions.add(exam)
+        else:
+            messages.error(request, _("Этот экзамен недоступен для новой подготовки."))
+        return redirect("exam-page", exam_slug=exam.slug)
+
     if request.method == "POST" and request.POST.get("action") == "build_personal":
         if not request.user.is_authenticated:
             return redirect(f"{reverse('accounts:login')}?next={request.path}")
@@ -210,6 +225,8 @@ def exam_page(request, exam_slug: str):
         "exam": exam,
         "exam_slug": exam.slug or exam_slug,
         "is_authenticated": request.user.is_authenticated,
+        "preparing_for_exam": request.user.is_authenticated and exam.students_preparing.filter(user=request.user).exists(),
+        "exam_years": ExamVersion.objects.filter(subject=exam.subject).exclude(status="draft").order_by("-year", "-revision", "name"),
     }
     return render(request, "exams/detail.html", context)
 
@@ -236,7 +253,7 @@ def exam_type_page(request, exam_slug: str, type_slug: str):
     """Public page that lists tasks for a specific exam task type."""
     exam = _get_exam_by_slug(exam_slug)
     task_type = _get_exam_type_by_slug(exam, type_slug)
-    tasks_qs = Task.objects.filter(type=task_type)
+    tasks_qs = Task.objects.filter(task_filter(exam_version=exam, task_type_ids=[task_type.pk])).distinct()
     if not request.user.is_staff:
         tasks_qs = public_tasks_queryset(tasks_qs)
     tasks = (
@@ -250,7 +267,7 @@ def exam_type_page(request, exam_slug: str, type_slug: str):
             "task": task,
             "statement": build_task_statement_payload(task=task),
         }
-        for task in tasks
+        for task in display_tasks(tasks, exam_ids=[exam.pk], task_type_id=task_type.pk)
     ]
     context = {
         "exam": exam,
@@ -329,6 +346,33 @@ def exam_progress_data(request, exam_slug: str):
         return JsonResponse({"type_progress": {}, "tag_progress": {}})
 
     exam = _get_exam_by_slug(exam_slug)
+    from datetime import datetime, time, timedelta
+    from django.utils import timezone
+    from django.utils.dateparse import parse_date
+    from .service_utils.exam_history import attempt_history
+    bounds = {}
+    try:
+        for key in ("from", "to"):
+            value = request.GET.get(key)
+            if value:
+                day = parse_date(value)
+                if day is None:
+                    raise ValueError("Неверная дата")
+                bounds[key] = timezone.make_aware(datetime.combine(day + (timedelta(days=1) if key == "to" else timedelta()), time.min))
+        if bounds.get("from") and bounds.get("to") and bounds["from"] >= bounds["to"]:
+            raise ValueError("Начало периода должно предшествовать концу")
+    except (ValueError, OverflowError) as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    period_history = attempt_history(request.user, exam, since=bounds.get("from"), until=bounds.get("to"))
+    if exam.status == "archived":
+        saved = exam.progress_snapshots.filter(user=request.user, purpose="archive").first()
+        report = saved.data if saved else {"types": {}}
+        return JsonResponse({
+            "archived": True, "as_of": saved.as_of.isoformat() if saved else None,
+            "type_progress": {pk: {"percent": round(row["readiness"] * 100)} for pk, row in report.get("types", {}).items()},
+            "tag_progress": {pk: {str(e["tag_id"]): round(e["progress"] * 100) for e in row["requirements"]} for pk, row in report.get("types", {}).items()},
+            "annual_report": report, "period_history": period_history, "score_forecast": None,
+        })
     blueprint = (
         ExamBlueprint.objects.filter(exam_version=exam, is_active=True)
         .prefetch_related("items__task_type")
@@ -336,7 +380,7 @@ def exam_progress_data(request, exam_slug: str):
         .first()
     )
     if not blueprint:
-        return JsonResponse({"type_progress": {}, "tag_progress": {}})
+        return JsonResponse({"type_progress": {}, "tag_progress": {}, "period_history": period_history})
 
     type_ids = list(
         blueprint.items.values_list("task_type_id", flat=True)
@@ -367,6 +411,8 @@ def exam_progress_data(request, exam_slug: str):
             "type_progress": type_progress,
             "tag_progress": tag_progress,
             "score_forecast": score_forecast,
+            "annual_report": exam_report(request.user, exam),
+            "period_history": period_history,
         }
     )
 
@@ -544,7 +590,7 @@ def tasks_list(request):
     if not request.user.is_staff:
         qs = public_tasks_queryset(qs)
     if selected_exam_ids:
-        qs = qs.filter(exam_version_id__in=selected_exam_ids)
+        qs = qs.filter(Q(placements__task_type__exam_version_id__in=selected_exam_ids, placements__status="active") | Q(placements__isnull=True, exam_version_id__in=selected_exam_ids)).distinct()
 
     # Dynamic/static filter
     kind = request.GET.get("kind", "all")
@@ -581,7 +627,7 @@ def tasks_list(request):
             "task": task,
             "statement": build_task_statement_payload(task=task),
         }
-        for task in qs
+        for task in display_tasks(qs, exam_ids=selected_exam_ids)
     ]
 
     context = {
@@ -650,7 +696,7 @@ def variant_builder(request):
     if selected_subject_id:
         tasks_qs = tasks_qs.filter(subject_id=selected_subject_id)
     if selected_exam_version_id:
-        tasks_qs = tasks_qs.filter(exam_version_id=selected_exam_version_id)
+        tasks_qs = tasks_qs.filter(task_filter(exam_version=selected_exam_version_id)).distinct()
     if selected_source_id:
         tasks_qs = tasks_qs.filter(source_id=selected_source_id)
     if selected_source_variant_id:
@@ -661,6 +707,7 @@ def variant_builder(request):
     context = {
         "subjects": subjects,
         "tasks": tasks_qs,
+        "display_tasks": list(display_tasks(tasks_qs, exam_ids=[selected_exam_version_id] if selected_exam_version_id else None)),
         "selected_subject_id": selected_subject_id,
         "selected_exam_version_id": selected_exam_version_id,
         "selected_source_id": selected_source_id,
@@ -729,8 +776,9 @@ def task_variant_map(request):
             Task.objects.select_related("type", "source", "source_variant")
             .filter(
                 subject_id=selected_subject_id,
-                exam_version_id=selected_exam_version_id,
             )
+            .filter(task_filter(exam_version=selected_exam_version_id)).distinct()
+            .prefetch_related("placements__task_type__exam_version")
             .order_by("-id")
         )
 
@@ -738,7 +786,11 @@ def task_variant_map(request):
         by_source_without_variant_type: dict[tuple[int, int], list[Task]] = {}
         by_no_source_type: dict[int, list[Task]] = {}
 
+        expanded_tasks = []
         for task in tasks:
+            placements = [p for p in task.placements.all() if p.task_type.exam_version_id == selected_exam_version_id and p.status == "active"]
+            expanded_tasks.extend([bind_task(task, p) for p in placements] if placements else [task])
+        for task in expanded_tasks:
             if task.source_id and task.source_variant_id:
                 by_source_variant_type.setdefault(
                     (task.source_id, task.source_variant_id, task.type_id), []

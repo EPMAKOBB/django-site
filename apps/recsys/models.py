@@ -4,6 +4,7 @@ from copy import deepcopy
 from string import Formatter
 from typing import Mapping
 import os
+from uuid import uuid4
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -141,6 +142,7 @@ class TaskType(TimeStampedModel):
     class ScoringScheme(models.TextChoices):
         BINARY = "binary", "Binary (0/1)"
         PARTIAL_PAIRS = "partial_pairs", "Partial pairs (0-2)"
+        EGE_PAIRS_2027 = "ege_pairs_2027", "ЕГЭ 2027: пара чисел, перестановка — 1 балл"
         PARTIAL_ROWS = "partial_rows", "Partial rows (0-2)"
         MANUAL_SCALED = "manual_scaled", "Manual scaled"
 
@@ -257,12 +259,14 @@ def _exam_version_slug(task: "Task") -> str:
     return base or f"subject-{task.subject_id or 'unknown'}"
 
 
+def task_image_upload_to(instance: "Task", filename: str) -> str:
+    return f"tasks/bank/{instance.pk or 'new'}/{uuid4().hex}/images/{os.path.basename(filename)}"
+
+
 def task_attachment_upload_to(instance: "TaskAttachment", filename: str) -> str:
-    """
-    Store files under tasks/<exam_version>/files|images/<task_slug>-<label>.<ext>
-    """
+    """New objects have unique keys under the stable task identity."""
     task = instance.task
-    exam_slug = _exam_version_slug(task)
+    exam_slug = f"bank/{task.pk}/{uuid4().hex}"
     kind_folder = "images" if getattr(instance, "kind", "") == "image" else "files"
 
     # Allow explicit override for the stored filename (keeps prefix path only).
@@ -412,7 +416,7 @@ class Task(TimeStampedModel):
         default=DynamicMode.GENERATOR,
     )
     default_payload = models.JSONField(default=dict, blank=True)
-    image = models.ImageField(upload_to="tasks/screenshots/", blank=True)
+    image = models.ImageField(upload_to=task_image_upload_to, blank=True)
     correct_answer = models.JSONField(blank=True, default=dict)
     level_band = models.CharField(
         max_length=16,
@@ -454,6 +458,11 @@ class Task(TimeStampedModel):
 
     def clean(self):
         super().clean()
+
+        if self.pk:
+            previous = type(self).objects.filter(pk=self.pk).values("type_id", "exam_version_id").first()
+            if previous and (previous["type_id"], previous["exam_version_id"]) != (self.type_id, self.exam_version_id) and self.placements.exists():
+                raise ValidationError("Исходная классификация общей задачи сохраняется. Для другого года добавьте назначение.")
 
         raw_slug = self.slug or self.title
         self.slug = slugify(raw_slug or "") or self.slug
@@ -670,6 +679,120 @@ class TaskAttachment(TimeStampedModel):
         return resolve_media_url(raw)
 
 
+class TaskPlacement(TimeStampedModel):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Черновик"
+        ACTIVE = "active", "Доступно"
+        RETIRED = "retired", "Исключено из выдачи"
+
+    task = models.ForeignKey(Task, on_delete=models.PROTECT, related_name="placements")
+    task_type = models.ForeignKey(TaskType, on_delete=models.PROTECT, related_name="placements")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    scoring_scheme = models.CharField(max_length=32, choices=TaskType.ScoringScheme.choices, blank=True)
+    max_score = models.PositiveSmallIntegerField(null=True, blank=True)
+    answer_schema = models.ForeignKey(AnswerSchema, on_delete=models.PROTECT, null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["task", "task_type"], name="task_placement_unique")]
+        indexes = [models.Index(fields=["task_type", "status"], name="placement_type_status_idx")]
+
+    def __str__(self):
+        return f"{self.task} → {self.task_type}"
+
+    def clean(self):
+        super().clean()
+        if self.task_id and self.task_type_id:
+            if self.task.subject_id != self.task_type.subject_id or not self.task_type.exam_version_id:
+                raise ValidationError("Назначение требует годового типа того же предмета.")
+            if self.task_type.exam_version.subject_id != self.task.subject_id:
+                raise ValidationError("Предмет экзамена не совпадает с задачей.")
+        if self.max_score is not None and self.max_score < 1:
+            raise ValidationError({"max_score": "Максимум должен быть положительным."})
+        if self.pk:
+            old = type(self).objects.get(pk=self.pk)
+            if (old.task_id, old.task_type_id) != (self.task_id, self.task_type_id):
+                raise ValidationError("Создайте новое назначение вместо переноса существующего.")
+            if self.attempts.exists() or self.training_steps.exists() or self.variant_tasks.filter(task_attempts__isnull=False).exists():
+                for field in ("scoring_scheme", "max_score", "answer_schema_id"):
+                    if getattr(old, field) != getattr(self, field):
+                        raise ValidationError("Использованное оценивание зафиксировано; создайте новую редакцию экзамена.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class ExamProgressSnapshot(TimeStampedModel):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="exam_progress_snapshots")
+    exam_version = models.ForeignKey("ExamVersion", on_delete=models.PROTECT, related_name="progress_snapshots")
+    as_of = models.DateTimeField(default=timezone.now)
+    algorithm_version = models.CharField(max_length=64, default="exam-progress-v1")
+    purpose = models.CharField(max_length=32, default="archive")
+    data = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ["-as_of", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["user", "exam_version", "purpose", "as_of"], name="exam_progress_snapshot_unique")]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Снимок прогресса неизменяем; создайте новый снимок.")
+        return super().save(*args, **kwargs)
+
+
+class TaskTypeTransition(TimeStampedModel):
+    class Relation(models.TextChoices):
+        EQUIVALENT = "equivalent", "Соответствует"
+        PARTIAL = "partial", "Частично"
+        SPLIT = "split", "Разделение"
+        MERGE = "merge", "Объединение"
+        ADDED = "added", "Новый тип"
+        REMOVED = "removed", "Исключённый тип"
+
+    target_exam = models.ForeignKey("ExamVersion", on_delete=models.PROTECT, related_name="type_transitions")
+    source_type = models.ForeignKey(TaskType, on_delete=models.PROTECT, null=True, blank=True, related_name="outgoing_transitions")
+    target_type = models.ForeignKey(TaskType, on_delete=models.PROTECT, null=True, blank=True, related_name="incoming_transitions")
+    relation = models.CharField(max_length=16, choices=Relation.choices, default=Relation.EQUIVALENT)
+    approved = models.BooleanField(default=False)
+    task_ids = models.JSONField(default=list, blank=True, help_text="Явный набор задач для частичного соответствия.")
+    allow_empty_source_pool = models.BooleanField(
+        default=False,
+        help_text="Для частичного соответствия: намеренно не переносить старые задачи. Укажите причину в примечании.",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["target_exam", "source_type", "target_type"], name="type_transition_unique")]
+
+    def __str__(self):
+        return f"{self.source_type or 'Новый'} → {self.target_type or 'Исключён'}"
+
+    def clean(self):
+        super().clean()
+        if not self.source_type_id and not self.target_type_id:
+            raise ValidationError("Укажите исходный или новый тип.")
+        if self.target_type_id and self.target_type.exam_version_id != self.target_exam_id:
+            raise ValidationError("Новый тип должен относиться к выбранному экзамену.")
+        if self.source_type_id and (self.source_type.subject_id != self.target_exam.subject_id or self.source_type.exam_version_id == self.target_exam_id):
+            raise ValidationError("Исходный тип должен относиться к другому экзамену того же предмета.")
+        if self.relation == self.Relation.ADDED and (self.source_type_id or not self.target_type_id):
+            raise ValidationError("Для нового типа укажите только целевой тип.")
+        if self.relation == self.Relation.REMOVED and (not self.source_type_id or self.target_type_id):
+            raise ValidationError("Для исключения укажите только исходный тип.")
+        if self.relation not in {self.Relation.ADDED, self.Relation.REMOVED} and not (self.source_type_id and self.target_type_id):
+            raise ValidationError("Для соответствия нужны оба типа.")
+        if not isinstance(self.task_ids, list) or any(type(value) is not int or value <= 0 for value in self.task_ids):
+            raise ValidationError({"task_ids": "Ожидается список положительных ID задач."})
+        if self.allow_empty_source_pool and (self.relation != self.Relation.PARTIAL or self.task_ids or not self.notes.strip()):
+            raise ValidationError("Пустой исходный банк разрешён только для частичного соответствия без выбранных задач и с объяснением причины.")
+        if self.target_exam.published_at:
+            raise ValidationError("Соответствия опубликованного экзамена зафиксированы.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
 class TaskSkill(TimeStampedModel):
     task = models.ForeignKey(Task, on_delete=models.CASCADE)
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE)
@@ -698,6 +821,15 @@ class ExamVersion(TimeStampedModel):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
         ACTIVE = "active", "Active"
+        ARCHIVED = "archived", "Архив"
+
+    exam_kind = models.CharField(max_length=32, blank=True)
+    year = models.PositiveSmallIntegerField(null=True, blank=True)
+    revision = models.PositiveSmallIntegerField(default=1)
+    is_default = models.BooleanField(default=False)
+    copied_from = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True, related_name="successors")
+    publication_info = models.JSONField(default=dict, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
 
     subject = models.ForeignKey(
         Subject, on_delete=models.CASCADE, related_name="exam_versions"
@@ -720,6 +852,10 @@ class ExamVersion(TimeStampedModel):
     class Meta:
         ordering = ["subject__name", "name"]
         unique_together = ("subject", "name")
+        constraints = [
+            models.UniqueConstraint(fields=["subject", "exam_kind", "year", "revision"], name="exam_year_revision_unique"),
+            models.UniqueConstraint(fields=["subject", "exam_kind"], condition=models.Q(is_default=True), name="exam_default_unique"),
+        ]
         indexes = [
             models.Index(fields=["subject", "name"]),
             models.Index(fields=["slug"]),
@@ -827,6 +963,15 @@ class SkillGroupItem(TimeStampedModel):
 
 
 class Attempt(TimeStampedModel):
+    placement = models.ForeignKey("TaskPlacement", on_delete=models.PROTECT, null=True, blank=True, related_name="attempts")
+    exam_version = models.ForeignKey("ExamVersion", on_delete=models.PROTECT, null=True, blank=True, related_name="recorded_attempts")
+    task_type = models.ForeignKey("TaskType", on_delete=models.PROTECT, null=True, blank=True, related_name="recorded_attempts")
+    context_origin = models.CharField(max_length=20, default="unknown")
+    context_snapshot = models.JSONField(default=dict, blank=True)
+    task_snapshot = models.JSONField(default=dict, blank=True)
+    response_snapshot = models.JSONField(default=dict, blank=True)
+    submission_key = models.UUIDField(null=True, blank=True)
+
     class Mode(models.TextChoices):
         TRAINING = "training", "Training"
         VARIANT = "variant", "Variant"
@@ -834,7 +979,7 @@ class Attempt(TimeStampedModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="attempts"
     )
-    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attempts")
+    task = models.ForeignKey(Task, on_delete=models.PROTECT, related_name="attempts")
     is_correct = models.BooleanField(default=False)
     attempts_count = models.PositiveIntegerField(default=1)
     attempt_number = models.PositiveIntegerField(default=1)
@@ -850,7 +995,7 @@ class Attempt(TimeStampedModel):
     checked_at = models.DateTimeField(null=True, blank=True)
     variant_task_attempt = models.ForeignKey(
         "VariantTaskAttempt",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="attempts",
         null=True,
         blank=True,
@@ -865,7 +1010,26 @@ class Attempt(TimeStampedModel):
     weight = models.FloatField(default=1.0)
 
     class Meta:
-        indexes = [models.Index(fields=["user", "task"])]
+        indexes = [models.Index(fields=["user", "task"]), models.Index(fields=["user", "exam_version", "task_type", "created_at"], name="attempt_exam_history_idx")]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "submission_key"], name="attempt_submission_unique"),
+            models.UniqueConstraint(fields=["variant_task_attempt"], condition=models.Q(variant_task_attempt__isnull=False, context_origin="issued"), name="attempt_variant_answer_unique"),
+        ]
+
+    def save(self, *args, **kwargs):
+        from .service_utils.exam_context import prepare_attempt_context
+        if self._state.adding:
+            prepare_attempt_context(self)
+        else:
+            old = type(self).objects.filter(pk=self.pk).values("task_id", "placement_id", "exam_version_id", "task_type_id", "context_snapshot", "task_snapshot", "response_snapshot").first()
+            if old and any(getattr(self, key) != value for key, value in old.items()):
+                raise ValidationError("Контекст сохранённого ответа нельзя менять.")
+        from django.db import transaction
+        from django.contrib.auth import get_user_model
+        with transaction.atomic():
+            get_user_model().objects.select_for_update().get(pk=self.user_id)
+            self.task = Task.objects.select_for_update().get(pk=self.task_id)
+            return super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         status = "correct" if self.is_correct else "incorrect"
@@ -889,6 +1053,7 @@ class SkillMastery(TimeStampedModel):
 
 
 class TagMastery(TimeStampedModel):
+    decayed_at = models.DateTimeField(null=True, blank=True)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tag_masteries"
     )
@@ -939,6 +1104,7 @@ class TypeMastery(TimeStampedModel):
 
 
 class RecommendationLog(TimeStampedModel):
+    task_snapshot = models.JSONField(default=dict, blank=True)
     class Status(models.TextChoices):
         RECOMMENDED = "recommended", "Recommended"
         OPENED = "opened", "Opened"
@@ -1075,6 +1241,7 @@ class TrainingSession(TimeStampedModel):
 
 
 class TrainingSessionStep(TimeStampedModel):
+    placement = models.ForeignKey("TaskPlacement", on_delete=models.PROTECT, null=True, blank=True, related_name="training_steps")
     class Status(models.TextChoices):
         RECOMMENDED = "recommended", "Recommended"
         OPENED = "opened", "Opened"
@@ -1305,6 +1472,7 @@ class VariantTemplate(TimeStampedModel):
 
 
 class VariantTask(TimeStampedModel):
+    placement = models.ForeignKey("TaskPlacement", on_delete=models.PROTECT, null=True, blank=True, related_name="variant_tasks")
     template = models.ForeignKey(
         VariantTemplate, on_delete=models.CASCADE, related_name="template_tasks"
     )
@@ -1322,6 +1490,18 @@ class VariantTask(TimeStampedModel):
             models.Index(fields=["template", "order"]),
             models.Index(fields=["template", "task"]),
         ]
+
+    def save(self, *args, **kwargs):
+        from .service_utils.exam_context import resolve_placement
+        if self._state.adding and self.template.assignments.filter(attempts__isnull=False).exists():
+            raise ValidationError("Уже начатый вариант нельзя дополнять. Создайте новый шаблон.")
+        if self._state.adding and self.template.exam_version_id:
+            self.placement = resolve_placement(self.task, exam_version=self.template.exam_version, placement=self.placement)
+        if self.pk and self.task_attempts.exists():
+            old = type(self).objects.get(pk=self.pk)
+            if any(getattr(old, name) != getattr(self, name) for name in ("task_id", "template_id", "placement_id", "order")):
+                raise ValidationError("Состав уже начатого варианта нельзя переназначить.")
+        return super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f"{self.template} -> {self.task}"
@@ -1357,6 +1537,7 @@ class VariantAssignment(TimeStampedModel):
 
 
 class VariantAttempt(TimeStampedModel):
+    exam_snapshot = models.JSONField(default=dict, blank=True)
     assignment = models.ForeignKey(
         VariantAssignment, on_delete=models.CASCADE, related_name="attempts"
     )
@@ -1408,15 +1589,16 @@ class VariantAttempt(TimeStampedModel):
 
 
 class VariantTaskAttempt(TimeStampedModel):
+    submission_key = models.UUIDField(null=True, blank=True, unique=True)
     variant_attempt = models.ForeignKey(
         VariantAttempt, on_delete=models.CASCADE, related_name="task_attempts"
     )
     variant_task = models.ForeignKey(
-        VariantTask, on_delete=models.CASCADE, related_name="task_attempts"
+        VariantTask, on_delete=models.PROTECT, related_name="task_attempts"
     )
     task = models.ForeignKey(
         Task,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="variant_task_attempts",

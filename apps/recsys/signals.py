@@ -11,6 +11,7 @@ from django.utils import timezone
 from .models import Attempt
 from .recommendation import attach_attempt_to_recommendation
 from .services import update_mastery
+from . import annual_guards  # noqa: F401; register publication guards
 
 
 @receiver(post_save, sender=Attempt)

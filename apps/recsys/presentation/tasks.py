@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
+import json
 from typing import Any, Mapping
 
 from bs4 import BeautifulSoup
@@ -93,12 +95,28 @@ def build_task_attachments_payload(task: Task | None) -> list[dict[str, Any]]:
     return attachments_payload
 
 
+def statement_fingerprint(source):
+    return hashlib.sha256(json.dumps({key: source.get(key) for key in ("title", "description", "content", "rendering_strategy")}, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
 def build_task_statement_payload(
     *,
     task: Task | None = None,
     statement_source: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = statement_source if isinstance(statement_source, Mapping) else {}
+    if source.get("context", {}).get("version") and "task_body_html" in source and source.get("statement_fingerprint") == statement_fingerprint(source):
+        return {
+            "title": source.get("title") or source.get("content", {}).get("title", ""),
+            "description": source.get("description", ""),
+            "task_body_html": source["task_body_html"],
+            "task_rendering_strategy": source.get("rendering_strategy"),
+            "image": source.get("image", ""),
+            "attachments": source.get("attachments", []),
+        }
+    if source.get("context", {}).get("version") and "task_body_html" in source:
+        # A stale rendering cache may be rebuilt from saved fields only.
+        task = None
     content = source.get("content")
     content_payload = content if isinstance(content, Mapping) else {}
 

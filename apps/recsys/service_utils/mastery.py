@@ -150,7 +150,7 @@ def update_mastery(attempt: Attempt) -> Dict[str, Dict[int, float]]:
     # ------------------------------------------------------------------
     # Update task type mastery
     # ------------------------------------------------------------------
-    task_type = task.type
+    task_type = attempt.task_type or task.type
     type_mastery, _ = TypeMastery.objects.get_or_create(user=user, task_type=task_type)
     beta_key = BETA_TYPE_KEY.format(user=user.id, type=task_type.id)
     params = _get_beta_params(beta_key)

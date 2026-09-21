@@ -28,6 +28,7 @@ class TypeProgressInfo:
     required_tags: tuple[TaskTag, ...]
     covered_tag_ids: frozenset[int]
     tag_progress: tuple[TagProgressInfo, ...]
+    previous_year_evidence: int = 0
 
 
 def _clamp_mastery(value: float) -> float:
@@ -40,6 +41,7 @@ def build_type_progress_map(
     *,
     user,
     task_type_ids: Iterable[int],
+    as_of=None,
 ) -> dict[int, TypeProgressInfo]:
     """Return progress information per task type for the given ``user``.
 
@@ -69,39 +71,49 @@ def build_type_progress_map(
         tag.id for tags in required_tags_map.values() for tag in tags
     }
 
-    tasks_per_type_tag: dict[tuple[int, int], int] = {}
-    if required_tag_ids:
-        task_totals = (
-            public_tasks_queryset(
-                Task.objects.filter(
-                    type_id__in=type_ids,
-                    tags__in=required_tag_ids,
-                )
-            )
-            .values("type_id", "tags")
-            .annotate(total=Count("id", distinct=True))
-        )
-        tasks_per_type_tag = {
-            (int(row["type_id"]), int(row["tags"])): int(row["total"])
-            for row in task_totals
-        }
-
-    solved_by_type_tag: dict[tuple[int, int], int] = {}
-    if required_tag_ids:
-        solved_rows = (
-            Attempt.objects.filter(
-                user=user,
-                is_correct=True,
-                task__type_id__in=type_ids,
-                task__tags__in=required_tag_ids,
-            )
-            .values("task__type_id", "task__tags")
-            .annotate(total=Count("task_id", distinct=True))
-        )
-        solved_by_type_tag = {
-            (int(row["task__type_id"]), int(row["task__tags"])): int(row["total"])
-            for row in solved_rows
-        }
+    from .exam_context import task_filter, grading_context
+    tasks_per_type_tag = {}
+    solved_by_type_tag = {}
+    # A real task may be in several annual catalogs. Count evidence once per
+    # task within a projection, never create extra Attempt records.
+    banks = list(public_tasks_queryset(Task.objects.filter(task_filter(task_type_ids=type_ids)))
+                 .distinct().select_related("type__answer_schema", "answer_schema")
+                 .prefetch_related("tags", "placements__task_type__answer_schema", "placements__answer_schema"))
+    successful_qs = Attempt.objects.filter(user=user, task_id__in=[t.pk for t in banks], is_correct=True, is_valid_attempt=True)
+    if as_of:
+        successful_qs = successful_qs.filter(created_at__lte=as_of)
+    successful = list(successful_qs.values("pk", "task_id", "exam_version_id", "context_snapshot", "task_snapshot"))
+    evidence = {}
+    for row in successful:
+        evidence.setdefault(row["task_id"], []).append(row)
+    inherited_by_type = {}
+    for task_type in task_types:
+        required = {tag.pk for tag in required_tags_map[task_type.pk]}
+        inherited = set()
+        for task in banks:
+            placements = list(task.placements.all())
+            placement = next((p for p in placements if p.task_type_id == task_type.pk and p.status == "active"), None)
+            if placement is None and (placements or task.type_id != task_type.pk):
+                continue
+            grading = grading_context(task, placement)
+            compatible = []
+            for row in evidence.get(task.pk, []):
+                snapshot = row["task_snapshot"] or {}
+                # Old partial data remains labelled inferred in history. Whenever
+                # criteria were frozen, require the same criteria for full credit.
+                if any(key in snapshot and snapshot[key] != grading[key] for key in ("max_score", "scoring_scheme", "answer_schema")):
+                    continue
+                if snapshot.get("type") == "static" and any(key in snapshot and snapshot[key] != getattr(task, key) for key in ("description", "correct_answer")):
+                    continue
+                compatible.append(row)
+                if row["exam_version_id"] and row["exam_version_id"] != task_type.exam_version_id:
+                    inherited.add(row["pk"])
+            for tag_id in required.intersection(tag.pk for tag in task.tags.all()):
+                key = (task_type.pk, tag_id)
+                tasks_per_type_tag[key] = tasks_per_type_tag.get(key, 0) + 1
+                if any(row["context_snapshot"].get("tag_ids") is None or tag_id in row["context_snapshot"]["tag_ids"] for row in compatible):
+                    solved_by_type_tag[key] = solved_by_type_tag.get(key, 0) + 1
+        inherited_by_type[task_type.pk] = len(inherited)
 
     progress_map: dict[int, TypeProgressInfo] = {}
     for type_id in type_ids:
@@ -134,7 +146,9 @@ def build_type_progress_map(
             )
 
         if required_count == 0:
-            coverage_ratio = 1.0
+            # An undefined syllabus is not fully covered. In particular, a new
+            # annual type with no reviewed topics must not report 100% coverage.
+            coverage_ratio = 0.0
         else:
             coverage_ratio = (
                 sum(entry.coverage_ratio for entry in tag_progress_entries) / required_count
@@ -159,6 +173,7 @@ def build_type_progress_map(
             required_tags=required_tags,
             covered_tag_ids=frozenset(covered_tag_ids),
             tag_progress=tuple(tag_progress_entries),
+            previous_year_evidence=inherited_by_type.get(type_id, 0),
         )
 
     return progress_map

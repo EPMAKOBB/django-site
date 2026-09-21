@@ -1,0 +1,8 @@
+{% extends "admin/change_form.html" %}
+{% block object-tools-items %}
+{{ block.super }}
+{% if original %}
+<li><a href="{% url 'admin:recsys_examversion_next_year' original.pk %}">Создать следующий год</a></li>
+<li><a href="{% url 'admin:recsys_examversion_review_year' original.pk %}">Проверка и публикация</a></li>
+{% endif %}
+{% endblock %}

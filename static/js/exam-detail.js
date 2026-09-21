@@ -97,6 +97,22 @@
   };
 
   const applyProgress = (payload) => {
+    const historyEl = document.getElementById("exam-period-history");
+    if (historyEl) {
+      const rows = payload?.period_history?.types || [];
+      historyEl.innerHTML = rows.length
+        ? '<table><thead><tr><th>Тип</th><th>Ответов</th><th>Полностью верных</th><th>Время, мин</th></tr></thead><tbody>'
+          + rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${row.attempts}</td><td>${row.correct}</td><td>${row.time_spent_seconds == null ? "—" : Math.round(row.time_spent_seconds / 60)}</td></tr>`).join("") + '</tbody></table>'
+        : "В этом периоде ответов нет.";
+    }
+    const annualEl = document.getElementById("exam-annual-history");
+    const annualTypes = Object.values(payload?.annual_report?.types || {});
+    if (annualEl) {
+      const attempts = annualTypes.reduce((sum, row) => sum + row.attempts, 0);
+      annualEl.textContent = payload?.archived
+        ? (payload.as_of ? `Состояние на ${new Date(payload.as_of).toLocaleDateString("ru-RU")}. Попыток в этом формате: ${attempts}.` : "Снимок показателей для этого ученика ещё не сохранён.")
+        : `Попыток в этом формате: ${attempts}. Готовность учитывает совместимый опыт прошлых лет.`;
+    }
     const typeProgress = payload?.type_progress || {};
     const tagProgress = payload?.tag_progress || {};
     const cards = getTypeCards();
@@ -190,6 +206,22 @@
     );
     setList(weaknessesListEl, weakest.map((entry) => `${entry.name} (${entry.percent}%)`));
   };
+
+  document.getElementById("exam-history-filter")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const url = new URL(progressUrl, window.location.href);
+    for (const [key, value] of new FormData(event.currentTarget)) {
+      if (value) url.searchParams.set(key, value);
+    }
+    try {
+      const response = await fetch(url, { credentials: "same-origin" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.detail || "Не удалось загрузить историю");
+      applyProgress(payload);
+    } catch (error) {
+      document.getElementById("exam-period-history").textContent = error.message;
+    }
+  });
 
   fetch(publicUrl, { credentials: "same-origin" })
     .then((resp) => (resp.ok ? resp.json() : null))

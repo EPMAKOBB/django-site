@@ -1,0 +1,5 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Исходный экзамен: {{ exam }}. Будут созданы новые типы и назначения существующих задач.</p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button type="submit">Создать черновик</button></form>
+{% endblock %}
