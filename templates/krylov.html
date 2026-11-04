@@ -1,4 +1,6 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
+{% load static versioned_assets %}
+{% block extra_head %}<link rel="stylesheet" href="{% versioned_static 'css/materials.css' %}">{% endblock %}
 
 {% block title %}Крылов — загрузки{% endblock %}
 {% block meta_description %}Техническая страница для скачивания материалов к задачнику Крылова 2026 по информатике.{% endblock %}
@@ -26,64 +28,5 @@
   </div>
 </section>
 
-<style>
-  .krylov-page {
-    padding: 48px 0 72px;
-  }
 
-  .krylov-card {
-    margin: 0 auto;
-    max-width: 980px;
-    border-radius: 20px;
-    padding: 32px 36px;
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
-    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.45);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-  }
-
-  .krylov-title {
-    margin: 0 0 20px;
-    font-size: 32px;
-    line-height: 1.25;
-    letter-spacing: 0.2px;
-    color: #f8fafc;
-  }
-
-  .krylov-link {
-    margin: 0 0 14px;
-    font-size: 18px;
-    line-height: 1.5;
-    color: rgba(226, 232, 240, 0.92);
-  }
-
-  .krylov-link:last-child {
-    margin-bottom: 0;
-  }
-
-  .krylov-card a {
-    color: #7dd3fc;
-    text-decoration: none;
-    border-bottom: 1px solid rgba(125, 211, 252, 0.45);
-  }
-
-  .krylov-card a:hover {
-    color: #bae6fd;
-    border-bottom-color: rgba(186, 230, 253, 0.75);
-  }
-
-  @media (max-width: 720px) {
-    .krylov-card {
-      padding: 24px;
-      border-radius: 16px;
-    }
-
-    .krylov-title {
-      font-size: 24px;
-    }
-
-    .krylov-link {
-      font-size: 16px;
-    }
-  }
-</style>
 {% endblock %}

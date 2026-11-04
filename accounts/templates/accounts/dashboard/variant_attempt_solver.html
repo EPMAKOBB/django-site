@@ -1,12 +1,25 @@
 {% extends 'base_solver.html' %}
-{% load i18n markdown_extras %}
+{% load i18n markdown_extras static versioned_assets %}
 
 {% block title %}{% trans "Выполнение" %}: {{ assignment.template.name }}{% endblock %}
 
 {% block content %}
-<section class="solver">
+<section class="solver{% if attempt.mode == 'training' %} solver--training{% endif %}" data-attempt-id="{{ attempt_id }}" data-user-id="{{ request.user.pk }}" data-csrf="{{ csrf_token }}" data-exam-url="{% if assignment.template.exam_version.slug %}{% url 'exam-page' assignment.template.exam_version.slug %}{% else %}/{% endif %}">
   {{ exam_start_info|default:""|json_script:"solver-start-info" }}
   {{ solver_meta|default:""|json_script:"solver-meta" }}
+  {% if attempt.mode == 'training' %}
+  <header class="training-toolbar" aria-label="Тренировка">
+    <a id="training-leave" class="training-exam-link" href="{% if assignment.template.exam_version.slug %}{% url 'exam-page' assignment.template.exam_version.slug %}#training-builder{% else %}/{% endif %}">
+      <span aria-hidden="true">←</span>
+      <span>{% if assignment.template.exam_version %}{{ assignment.template.exam_version.subject.name }} · {{ assignment.template.exam_version.name }}{% else %}К экзамену{% endif %}</span>
+    </a>
+    <span id="training-progress" class="training-progress" role="status">Решено —</span>
+    <div class="training-toolbar__actions">
+      {% include 'partials/theme_toggle.html' %}
+      <button id="training-archive" class="btn btn-secondary" type="button" disabled>В архив</button>
+    </div>
+  </header>
+  {% else %}
   <div class="solver__header" role="banner" aria-label="{% trans 'Заголовок варианта' %}">
     <div class="solver__header-col solver__header-col--left">
       <p class="solver__eyebrow">{% trans "Вариант" %}: <span class="solver__eyebrow-value">{{ assignment.template.name }}</span></p>
@@ -24,23 +37,35 @@
       </div>
     </div>
     <div class="solver__header-col solver__header-col--right">
+      {% include 'partials/theme_toggle.html' %}
       <a class="solver__header-link" href="{% url 'home' %}">{% trans "На главную" %}</a>
       <button id="solver-finalize" class="btn btn-primary">{% trans "ЗАВЕРШИТЬ" %}</button>
     </div>
   </div>
+  {% endif %}
+
+  {% if attempt.mode == 'training' %}
+  <div id="training-notice" class="training-notice" role="alert" hidden></div>
+  <div id="training-state" class="training-state" role="status" hidden></div>
+  {% endif %}
 
   <div class="solver__layout">
     <aside class="solver__sidebar" aria-label="{% trans 'Задачи варианта' %}">
+      {% if attempt.mode == 'training' %}
+      <button id="training-nav-toggle" class="btn btn-secondary" type="button" aria-controls="solver-task-list" aria-expanded="false" hidden>Все задания</button>
+      {% endif %}
       <ul id="solver-task-list" class="solver__task-list"></ul>
+      {% if attempt.mode == 'training' %}<button id="solver-finalize" class="btn btn-secondary" type="button">Итоги</button>{% endif %}
     </aside>
 
     <main class="solver__main" aria-live="polite">
       <article class="solver__task-card" id="solver-task-card">
+        {% if attempt.mode == 'training' %}<div id="solver-task-meta-value" class="training-task-caption">Загрузка задания…</div>{% endif %}
         <div id="solver-task-body" class="solver__task-body task-content task-statement__body">
           <p class="muted">{% trans "Загрузка варианта..." %}</p>
         </div>
         <div id="solver-attachments" class="solver__attachments" hidden></div>
-        <footer class="solver__footer">
+        <footer class="solver__footer" {% if attempt.mode == 'training' %}hidden{% endif %}>
           <label class="solver__label" for="solver-answer">{% trans "Ответ" %}</label>
           <div id="solver-answer-builder" class="solver__answer-builder" hidden>
             <div id="solver-answer-fields"></div>
@@ -55,17 +80,28 @@
             <button id="solver-prev" class="btn btn-secondary" type="button" disabled aria-label="{% trans 'Назад' %}">
               <span aria-hidden="true">&larr;</span>
             </button>
+            {% if attempt.mode == 'training' %}
+            <button id="training-check" class="btn btn-primary" type="button">Проверить</button>
+            {% else %}
             <button id="solver-save" class="btn btn--primary">{% trans "Сохранить ответ" %}</button>
+            {% endif %}
             <button id="solver-next" class="btn btn-secondary" type="button" disabled aria-label="{% trans 'Вперед' %}">
               <span aria-hidden="true">&rarr;</span>
             </button>
           </div>
+          {% if attempt.mode == 'training' %}
+          <p id="training-feedback" role="status" hidden></p>
+          <div class="solver__status-right" role="status" aria-live="polite"></div>
+          {% endif %}
         </footer>
       </article>
     </main>
   </div>
 </section>
 
+{% if attempt.mode == 'training' %}
+<script src="{% versioned_static 'js/training-solver.js' %}" defer></script>
+{% else %}
 <script>
 (function() {
   const attemptId = {{ attempt_id }};
@@ -437,6 +473,7 @@
           "<div class='solver__results-score'>" +
             "<p class='solver__results-caption'>{% trans 'Результаты экзамена' %}</p>" +
             "<p class='solver__results-value'>" + secondaryValue + "/" + secondaryMax + "</p>" +
+            (secondary && secondary.label ? "<p class='solver__results-sub'>" + secondary.label.replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])) + "</p>" : "") +
             "<p class='solver__results-sub'>{% trans 'Первичный балл' %}: " +
             summary.primaryTotal + "/" + summary.primaryMax + "</p>" +
           "</div>" +
@@ -1230,5 +1267,6 @@
   if (finalizeBtn) finalizeBtn.addEventListener("click", handleFinalizeClick);
 })();
 </script>
+{% endif %}
 
 {% endblock %}

@@ -1,5 +1,5 @@
 {% extends 'accounts/dashboard/base.html' %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block dashboard_title %}{% trans "Учительская" %}{% endblock %}
 
@@ -10,6 +10,7 @@
       <p class="muted">{% trans "Учительская доступна только пользователям с ролью преподавателя." %}</p>
     </section>
   {% else %}
+    <h1 class="page-title">{% trans "Учительская" %}</h1>
     <section class="card">
       <h2 class="mb-16">{% trans "Добавить задачу" %}</h2>
       <form method="post" enctype="multipart/form-data" class="teacher-task-form">
@@ -135,3 +136,5 @@
     </section>
   {% endif %}
 {% endblock %}
+
+{% block extra_js %}<script src="{% static 'js/teacher-skillset.js' %}?v=cleanup-20261019" defer></script>{% endblock %}

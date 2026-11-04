@@ -1,0 +1,26 @@
+{% extends 'tutors/base.html' %}
+{% block title %}Репетиторы — Фрактал{% endblock %}
+{% block meta_description %}Преподаватели Фрактала и независимые репетиторы: направления, стоимость и контакты.{% endblock %}
+{% block tutors_content %}
+<header class="tutors-heading"><h1>Репетиторы</h1><p>Подготовка к экзаменам и помощь со школьной программой. Выберите своего преподавателя.</p></header>
+<form class="tutors-filters" method="get">
+<label>Предмет<select name="subject"><option value="">Все предметы</option>{% for subject in subjects %}<option value="{{ subject.slug }}" {% if subject_filter == subject.slug %}selected{% endif %}>{{ subject.name }}</option>{% endfor %}</select></label>
+<label>Цель<select name="goal"><option value="">Все направления</option>{% for key,label in goals %}<option value="{{ key }}" {% if goal_filter == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Класс<select name="grade"><option value="">Любой</option>{% for grade in grades %}<option value="{{ grade }}" {% if grade_filter == grade|stringformat:'s' %}selected{% endif %}>{{ grade }}</option>{% endfor %}</select></label>
+<button class="btn btn-primary" type="submit">Подобрать</button><a class="btn" href="{% url 'tutors:catalog' %}">Сбросить</a></form>
+<div class="tutors-grid">{% for tutor in page_obj %}<article class="tutor-card">
+<div class="tutor-card__top">{% include 'tutors/portrait.html' %}<div><span class="tutor-meta">{{ tutor.get_affiliation_display }}</span><h2><a href="{{ tutor.get_absolute_url }}">{{ tutor.display_name }}</a></h2><span class="tutor-meta">{% if tutor.accepting_students %}Принимает учеников{% else %}Набор закрыт{% endif %}</span></div></div>
+<p>{{ tutor.summary }}</p>
+<ul class="tutor-card__subjects">
+  {% for subject in tutor.catalog_summary.subjects %}
+  <li><strong>{{ subject.name }}</strong><span> — {{ subject.goals }}</span></li>
+  {% endfor %}
+</ul>
+{% with summary=tutor.catalog_summary %}
+  {% if summary.price != None %}<p class="tutor-card__price">{% if summary.from_price %}От {% endif %}{{ summary.price|floatformat:'-2' }} ₽ / {{ summary.duration }} мин</p>
+  {% elif summary.price_note %}<p class="tutor-meta">{{ summary.price_note }}</p>{% endif %}
+{% endwith %}
+<a class="btn btn-secondary" href="{{ tutor.get_absolute_url }}">Подробнее и контакты <span aria-hidden="true">→</span></a></article>
+{% empty %}<div class="tutor-empty">{% if subject_filter or goal_filter or grade_filter %}<h2>По этим условиям преподавателей пока нет</h2><p>Попробуйте изменить фильтры или <a href="{% url 'tutors:catalog' %}">посмотреть всех</a>.</p>{% else %}<h2>Знакомим вас с преподавателями</h2><p>Анкеты скоро появятся. Пока напишите нам — поможем выбрать репетитора.</p><a class="btn btn-primary" href="https://t.me/EPMAKO" target="_blank" rel="noopener">Связаться со школой</a>{% endif %}</div>{% endfor %}</div>
+{% if page_obj.has_other_pages %}<nav class="tutor-pagination" aria-label="Страницы каталога">{% if page_obj.has_previous %}<a class="btn" href="?{{ filter_query }}&page={{ page_obj.previous_page_number }}">Назад</a>{% endif %}<span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>{% if page_obj.has_next %}<a class="btn" href="?{{ filter_query }}&page={{ page_obj.next_page_number }}">Далее</a>{% endif %}</nav>{% endif %}
+{% endblock %}

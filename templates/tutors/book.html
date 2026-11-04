@@ -1,0 +1,5 @@
+{% extends 'tutors/base.html' %}
+{% load tz %}
+{% block title %}Запись на занятие — {{ tutor.display_name }}{% endblock %}
+{% block extra_head %}{{ block.super }}<meta name="robots" content="noindex"><meta name="referrer" content="same-origin">{% endblock %}
+{% block tutors_content %}<a class="tutor-back" href="{% url 'tutors:calendar' tutor.slug %}">← Выбрать другое время</a><div class="tutor-panel tutor-form"><h1>Запись на занятие</h1><p>{{ tutor.display_name }} · {{ offering }}</p>{% if local_start %}<p><strong>{% localtime off %}{{ local_start|date:'j E Y, H:i' }}{% endlocaltime %}</strong> · {{ visitor_timezone }}</p>{% endif %}<p>{% if offering.price != None %}{{ offering.price|floatformat:'-2' }} ₽ / {{ offering.duration_minutes }} минут{% else %}Стоимость нужно согласовать с преподавателем{% endif %}</p><p>Это запрос на запись. Преподаватель должен подтвердить его в течение {{ tutor.confirmation_hours }} ч.</p><form method="post">{% csrf_token %}{{ form.as_div }}<button class="btn btn-primary" type="submit">Отправить запрос</button></form></div>{% endblock %}

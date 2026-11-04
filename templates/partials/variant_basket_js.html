@@ -1,0 +1,4 @@
+{% load static %}
+{% if user.is_authenticated and user.teacherprofile %}
+<script src="{% static 'js/variant-basket.js' %}?v=cleanup-20261019" data-csrf-token="{{ csrf_token }}"></script>
+{% endif %}

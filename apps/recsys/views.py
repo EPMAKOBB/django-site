@@ -48,6 +48,7 @@ from apps.recsys.service_utils.publication import (
     variant_template_is_public_ready,
 )
 from apps.recsys.service_utils.type_progress import build_type_progress_map
+from apps.recsys.service_utils.exam_catalog import get_exam_catalog, find_exam, exam_structure
 from subjects.models import Subject
 
 
@@ -66,16 +67,15 @@ def _format_score_range(low: int, high: int) -> str:
 def _build_exam_score_forecast(*, blueprint, exam, type_progress_map) -> dict:
     primary_expected = 0.0
     primary_max = 0
-    items = (
-        blueprint.items.select_related("task_type")
-        .order_by("order", "id")
-    )
+    catalog = get_exam_catalog()
+    reference = catalog["blueprints"].get(exam.pk)
+    items = reference["items"] if reference else []
     for item in items:
-        task_type = item.task_type
-        item_score = int(item.score_override or task_type.max_score or 1)
-        item_count = int(item.count or 1)
+        task_type = item["task_type"]
+        item_score = int(item["score_override"] or task_type["max_score"] or 1)
+        item_count = int(item["count"] or 1)
         item_max = item_score * item_count
-        progress = type_progress_map.get(task_type.id)
+        progress = type_progress_map.get(task_type["id"])
         readiness = float(progress.effective_mastery if progress else 0.0)
         primary_expected += item_max * max(0.0, min(1.0, readiness))
         primary_max += item_max
@@ -83,11 +83,8 @@ def _build_exam_score_forecast(*, blueprint, exam, type_progress_map) -> dict:
     primary_score = int(round(primary_expected))
     primary_range_min = max(0, primary_score - FORECAST_PRIMARY_MARGIN)
     primary_range_max = min(primary_max, primary_score + FORECAST_PRIMARY_MARGIN)
-    scale = (
-        ExamScoreScale.objects.filter(exam_version=exam, is_active=True)
-        .order_by("-updated_at", "-id")
-        .first()
-    )
+    scale_data = catalog["scales"].get(exam.pk)
+    scale = ExamScoreScale(**scale_data) if scale_data else None
     secondary_score = None
     secondary_max = None
     secondary_values = []
@@ -129,6 +126,7 @@ def _build_exam_score_forecast(*, blueprint, exam, type_progress_map) -> dict:
             else None
         ),
         "has_scale": scale is not None,
+        "scale_label": scale.display_label if scale else "",
         "over_scale_limit": over_scale_limit,
     }
 
@@ -192,7 +190,10 @@ def _get_exam_by_slug(exam_slug: str) -> ExamVersion:
 def exam_page(request, exam_slug: str):
     """Public exam landing with personal variant builder."""
 
-    exam = _get_exam_by_slug(exam_slug)
+    # POST actions still use live models and their publication/permission checks.
+    catalog = get_exam_catalog()
+    reference = find_exam(catalog, exam_slug)
+    exam = _get_exam_by_slug(exam_slug) if request.method == "POST" else None
 
     if request.method == "POST" and request.POST.get("action") in {"select_year", "unselect_year"}:
         if not request.user.is_authenticated:
@@ -222,11 +223,15 @@ def exam_page(request, exam_slug: str):
             return redirect("variant-page", slug=page.slug)
 
     context = {
-        "exam": exam,
-        "exam_slug": exam.slug or exam_slug,
+        "exam": reference,
+        "exam_slug": reference["slug"] or exam_slug,
         "is_authenticated": request.user.is_authenticated,
-        "preparing_for_exam": request.user.is_authenticated and exam.students_preparing.filter(user=request.user).exists(),
-        "exam_years": ExamVersion.objects.filter(subject=exam.subject).exclude(status="draft").order_by("-year", "-revision", "name"),
+        "preparing_for_exam": request.user.is_authenticated and StudentProfile.objects.filter(user=request.user, exam_versions=reference["pk"]).exists(),
+        "exam_years": sorted(
+            [row for row in catalog["exams"].values() if row["subject_id"] == reference["subject_id"] and row["status"] != "draft"],
+            key=lambda row: (-(row["year"] or 0), -row["revision"], row["name"]),
+        ),
+        **_exam_public_context(catalog, reference, request),
     }
     return render(request, "exams/detail.html", context)
 
@@ -253,6 +258,10 @@ def exam_type_page(request, exam_slug: str, type_slug: str):
     """Public page that lists tasks for a specific exam task type."""
     exam = _get_exam_by_slug(exam_slug)
     task_type = _get_exam_type_by_slug(exam, type_slug)
+    from .service_utils.training_builder import available_tasks
+    available_ids = set(available_tasks(exam).filter(
+        task_filter(exam_version=exam, task_type_ids=[task_type.pk])
+    ).values_list("pk", flat=True))
     tasks_qs = Task.objects.filter(task_filter(exam_version=exam, task_type_ids=[task_type.pk])).distinct()
     if not request.user.is_staff:
         tasks_qs = public_tasks_queryset(tasks_qs)
@@ -266,15 +275,20 @@ def exam_type_page(request, exam_slug: str, type_slug: str):
         {
             "task": task,
             "statement": build_task_statement_payload(task=task),
+            "can_train": task.pk in available_ids,
         }
         for task in display_tasks(tasks, exam_ids=[exam.pk], task_type_id=task_type.pk)
     ]
+    # Staff keep their draft bank, with usable tasks shown first.
+    task_rows.sort(key=lambda row: (not row["can_train"], row["task"].pk))
     context = {
         "exam": exam,
         "exam_slug": exam.slug or exam_slug,
         "task_type": task_type,
         "task_rows": task_rows,
         "task_count": len(task_rows),
+        "available_task_count": len(available_ids),
+        "draft_task_count": sum(row["task"].status == Task.Status.DRAFT for row in task_rows),
     }
     return render(request, "exams/type_detail.html", context)
 
@@ -282,61 +296,29 @@ def exam_type_page(request, exam_slug: str, type_slug: str):
 @login_required
 def training_page(request, exam_slug: str):
     exam = _get_exam_by_slug(exam_slug)
-    context = {
+    return redirect(reverse("exam-page", args=[exam.slug or exam_slug]) + "#training-builder")
+
+
+def _exam_public_context(catalog, exam, request):
+    # Variant visibility depends on current task publication; do not cache it.
+    static_variants = public_ready_variant_templates(
+        VariantTemplate.objects.filter(
+            exam_version_id=exam["pk"], is_public=True, page__is_public=True,
+        ).select_related("page").order_by("display_order", "name")
+    )
+    return {
         "exam": exam,
-        "exam_slug": exam.slug or exam_slug,
+        "is_authenticated": request.user.is_authenticated,
+        "static_variants": static_variants,
+        **exam_structure(catalog, exam["pk"]),
     }
-    return render(request, "exams/training.html", context)
 
 
 def exam_public_blocks(request, exam_slug: str):
-    """Return non-personal exam blocks (builder, static variants, types/tags)."""
-    exam = _get_exam_by_slug(exam_slug)
-    blueprint = (
-        ExamBlueprint.objects.filter(exam_version=exam, is_active=True)
-        .order_by("-updated_at", "-id")
-        .first()
-    )
-    static_variants = (
-        VariantTemplate.objects.filter(
-            exam_version=exam,
-            is_public=True,
-            page__is_public=True,
-        )
-        .select_related("page")
-        .order_by("display_order", "name")
-    )
-    static_variants = public_ready_variant_templates(static_variants)
-    type_rows = []
-    if blueprint:
-        items = (
-            blueprint.items.select_related("task_type")
-            .prefetch_related("task_type__required_tags")
-            .order_by("order", "id")
-        )
-        for item in items:
-            task_type = item.task_type
-            if not task_type:
-                continue
-            type_rows.append(
-                {
-                    "item": item,
-                    "type": task_type,
-                    "required_tags": tuple(task_type.required_tags.all()),
-                }
-            )
-
-    html = render_to_string(
-        "exams/_public_blocks.html",
-        {
-            "exam": exam,
-            "blueprint": blueprint,
-            "static_variants": static_variants,
-            "type_rows": type_rows,
-            "is_authenticated": request.user.is_authenticated,
-        },
-        request=request,
-    )
+    """Compatibility endpoint; the landing now includes these blocks in its HTML."""
+    catalog = get_exam_catalog()
+    exam = find_exam(catalog, exam_slug)
+    html = render_to_string("exams/_public_blocks.html", _exam_public_context(catalog, exam, request), request=request)
     return JsonResponse({"html": html})
 
 
@@ -411,7 +393,7 @@ def exam_progress_data(request, exam_slug: str):
             "type_progress": type_progress,
             "tag_progress": tag_progress,
             "score_forecast": score_forecast,
-            "annual_report": exam_report(request.user, exam),
+            "annual_report": exam_report(request.user, exam, type_progress_map=type_progress_map),
             "period_history": period_history,
         }
     )

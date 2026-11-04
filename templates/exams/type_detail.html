@@ -1,17 +1,19 @@
-{% extends "base.html" %}
-{% load static i18n %}
+{% extends "base_learning.html" %}
+{% load static i18n versioned_assets %}
+{% block basket_assets_js %}{% include 'partials/variant_basket_js.html' %}{% endblock %}
 
-{% block title %}{{ exam.subject.name }} - {{ exam.name }} - {% trans "Тип" %} {{ task_type.name }}{% endblock %}
+{% block title %}{{ task_type.name|capfirst }} — {{ exam.subject.name }} · {{ exam.name }}{% endblock %}
 {% block meta_description %}{{ exam.subject.name }} - {{ exam.name }}. {% trans "Задания типа" %} {{ task_type.name }}.{% endblock %}
-{% block og_title %}{{ exam.subject.name }} - {{ exam.name }} - {% trans "Тип" %} {{ task_type.name }} | Фрактал{% endblock %}
+{% block og_title %}{{ task_type.name|capfirst }} — {{ exam.subject.name }} · {{ exam.name }} | Фрактал{% endblock %}
 {% block og_description %}{{ exam.subject.name }} - {{ exam.name }}. {% trans "Задания типа" %} {{ task_type.name }}.{% endblock %}
 {% block canonical_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}
 {% block og_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}
-{% block twitter_title %}{{ exam.subject.name }} - {{ exam.name }} - {% trans "Тип" %} {{ task_type.name }} | Фрактал{% endblock %}
+{% block twitter_title %}{{ task_type.name|capfirst }} — {{ exam.subject.name }} · {{ exam.name }} | Фрактал{% endblock %}
 {% block twitter_description %}{{ exam.subject.name }} - {{ exam.name }}. {% trans "Задания типа" %} {{ task_type.name }}.{% endblock %}
 
 {% block extra_head %}
-  <link rel="stylesheet" href="{% static 'css/exam-detail.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'css/exam-detail.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'css/training-builder.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -20,20 +22,26 @@
   <div class="container exam-type-detail__container">
     <header class="exam-type-detail__header">
       <a class="exam-type-detail__back" href="{% url 'exam-page' exam_slug %}">&larr; {{ exam.subject.name }} {{ exam.name }}</a>
-      <h1 class="exam-type-detail__title">{{ exam.subject.name }} - {{ exam.name }}</h1>
-      <p class="exam-type-detail__meta muted">{% trans "Тип" %} {{ task_type.name }} — {% trans "все задания этого типа" %}; найдено {{ task_count }} заданий.</p>
+      <h1 class="exam-type-detail__title">{{ task_type.name|capfirst }}{% if task_type.description %} · {{ task_type.description }}{% endif %}</h1>
+      <p class="exam-type-detail__meta muted">{% if request.user.is_staff %}В банке: {{ task_count }} · {% endif %}Доступно для тренировки: {{ available_task_count }}{% if request.user.is_staff and draft_task_count %} · Черновиков: {{ draft_task_count }}{% endif %}</p>
     </header>
 
+    {% include 'exams/_type_training_tools.html' %}
+    <p class="muted type-selected-empty" data-type-selected-empty hidden>Выбранных задач этого типа пока нет.</p>
     <div class="exam-type-detail__tasks">
       {% for row in task_rows %}
         {% with task=row.task statement=row.statement %}
-          <article class="card task-card exam-type-detail__task">
-            {% if request.user.is_authenticated and request.user.teacherprofile %}
-              <div class="task-card__add">
-                {% include "accounts/includes/add_to_variant_button.html" with task_id=task.id %}
-              </div>
-            {% endif %}
+          <article class="card task-card exam-type-detail__task" data-training-task-card="{{ task.pk }}">
+            <div class="exam-type-detail__task-heading">
             <h2 class="exam-type-detail__task-title">{{ task.title }}</h2>
+            {% if request.user.is_authenticated and exam.status != 'archived' and row.can_train %}
+              <label class="training-task-select"><input type="checkbox" data-training-task="{{ task.pk }}" data-training-task-type="{{ task_type.pk }}" disabled> В тренировку</label>
+            {% elif request.user.is_staff and task.status == 'draft' %}
+              <span class="exam-type-detail__task-status">Черновик</span>
+            {% elif request.user.is_authenticated and not row.can_train %}
+              <span class="exam-type-detail__task-status">Недоступно для тренировки</span>
+            {% endif %}
+            </div>
             {% with tags=task.tags.all %}
               {% if tags %}
                 <div class="exam-type-detail__tags">
@@ -68,4 +76,5 @@
     });
   })();
 </script>
+<script src="{% versioned_static 'js/training-builder.js' %}" defer></script>
 {% endblock %}

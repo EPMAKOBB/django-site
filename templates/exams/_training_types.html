@@ -1,0 +1,70 @@
+{% load i18n %}
+  <section class="exam-layout-section" id="training-types">
+    {% if type_rows %}
+      <div class="exam-types-grid">
+        {% for row in type_rows %}
+          <article
+            class="exam-type-card exam-type-card--compact"
+            data-type-id="{{ row.type.id }}"
+            data-type-name="{{ row.type.name }}"
+            data-type-url="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}"
+          >
+            <div class="exam-type-card__header">
+              <div class="exam-type-card__heading">
+                {% if is_authenticated and exam.status != 'archived' %}
+                <span class="training-type-count training-type-count--inline" data-training-type-count="{{ row.type.id }}">
+                  <input type="number" min="0" max="100" data-type-count="{{ row.type.id }}" placeholder="—" disabled aria-label="Выбрано задач: {{ row.type.name }}">
+                  <span class="muted training-type-count__available" aria-label="Количество доступных задач загружается">/ —</span>
+                </span>
+                {% endif %}
+                <h3 class="exam-type-card__title"><a href="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}">{{ row.type.name }}</a></h3>
+                <p class="exam-type-card__description">
+                  {% if row.type.description %}
+                    {{ row.type.description }}
+                  {% else %}
+                    {% trans "Описание для этого типа пока не добавлено." %}
+                  {% endif %}
+                </p>
+              </div>
+              <div class="exam-type-card__meta">
+                <div class="exam-type-card__score">
+                  {% if is_authenticated %}
+                    <span class="exam-type-card__score-value">—</span>
+                  {% else %}
+                    <span class="exam-type-card__score-muted">—</span>
+                  {% endif %}
+                </div>
+                <button class="exam-type-card__toggle" type="button" data-type-toggle aria-expanded="false" aria-controls="type-panel-{{ row.type.id }}" aria-label="Раскрыть темы и теги: {{ row.type.name }}" title="Раскрыть темы и теги">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="progress-bar exam-type-card__progress" aria-hidden="true"><span class="fill" style="width:0%;"></span></div>
+            <div class="exam-type-card__panel" id="type-panel-{{ row.type.id }}" data-type-panel hidden>
+            {% if row.type.description %}<p class="exam-type-card__full-description">{{ row.type.description }}</p>{% endif %}
+            <div class="exam-type-card__details-meta"><span class="muted">Прогресс по типу</span><span class="badge exam-type-card__status" data-type-status>{% trans "Ждем данные" %}</span></div>
+
+            {% if row.required_tags and not is_authenticated or row.required_tags and exam.status == 'archived' %}
+              <div class="exam-type-card__tags">
+                {% for tag in row.required_tags %}
+                  <span class="type-tag" data-tag-id="{{ tag.id }}" style="--tag-progress:0%;">
+                    <span class="type-tag__label">{{ tag.name }}</span>
+                  </span>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if is_authenticated and exam.status != 'archived' %}
+            <div data-training-type="{{ row.type.id }}" class="training-type-controls"></div>
+            {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="card">
+        <p class="muted">{% trans "Пока нет типов заданий для этого экзамена." %}</p>
+      </div>
+    {% endif %}
+  </section>
+

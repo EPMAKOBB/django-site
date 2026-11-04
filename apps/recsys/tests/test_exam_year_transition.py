@@ -522,6 +522,74 @@ class ExamYearTransitionTests(TestCase):
         self.assertEqual(old_attempt.exam_snapshot["scale"], [0, 100])
         self.assertEqual(new_attempt.exam_snapshot["scale"], [0, 90])
 
+    def test_provisional_scale_estimates_old_work_without_rewriting_it(self):
+        from apps.recsys.api.serializers import VariantAttemptSerializer
+        from unittest.mock import patch
+        assignment = variants.build_personal_assignment_from_blueprint(user=self.user, exam_version=self.old)
+        attempt = variants.start_new_attempt(self.user, assignment.pk)
+        attempt.exam_snapshot["scale"] = None
+        attempt.save(update_fields=["exam_snapshot"])
+        original = deepcopy(attempt.exam_snapshot)
+        scale = self.old.score_scale
+        scale.is_provisional, scale.source_year = True, 2026
+        scale.save()
+        serializer = VariantAttemptSerializer()
+        with patch.object(serializer, "_get_primary_summary", return_value={"primary_total": 1}):
+            summary = serializer.get_secondary_summary(attempt)
+        self.assertEqual(summary["score"], 100)
+        self.assertTrue(summary["is_provisional"])
+        self.assertTrue(summary["estimated_from_current_scale"])
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.exam_snapshot, original)
+        scale.is_active = False
+        scale.save()
+        self.assertIsNone(serializer.get_secondary_summary(attempt))
+
+    def test_published_scale_edit_keeps_issued_mapping_and_provenance(self):
+        from apps.recsys.api.serializers import VariantAttemptSerializer
+        from unittest.mock import patch
+        exam, _ = self.next_year()
+        scale = exam.score_scale
+        scale.mapping, scale.is_active = [0, 90], True
+        scale.is_provisional, scale.source_year = True, 2026
+        scale.save()
+        assignment = variants.build_personal_assignment_from_blueprint(user=self.user, exam_version=exam)
+        attempt = variants.start_new_attempt(self.user, assignment.pk)
+        self.assertEqual(attempt.exam_snapshot["scale_metadata"]["source_year"], 2026)
+        scale.mapping, scale.is_provisional = [0, 95], False
+        scale.save()
+        serializer = VariantAttemptSerializer()
+        with patch.object(serializer, "_get_primary_summary", return_value={"primary_total": 1}):
+            summary = serializer.get_secondary_summary(attempt)
+        self.assertEqual(summary["score"], 90)
+        self.assertTrue(summary["is_provisional"])
+        self.assertFalse(summary["estimated_from_current_scale"])
+        scale.exam_version = self.old
+        with self.assertRaises(ValidationError):
+            scale.save()
+
+    def test_admin_can_update_published_scale_and_logs_change(self):
+        from django.urls import reverse
+        from django.contrib.admin.models import LogEntry, CHANGE
+        from django.contrib.contenttypes.models import ContentType
+        exam, _ = self.next_year()
+        scale = exam.score_scale
+        self.user.is_staff = self.user.is_superuser = True
+        self.user.save()
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("admin:recsys_examscorescale_change", args=[scale.pk]), {
+            "max_primary": 1, "mapping": "[0, 90]", "is_active": "on",
+            "is_provisional": "on", "source_year": 2026,
+            "source_url": "https://example.org/scale.pdf", "_save": "Save",
+        })
+        self.assertEqual(response.status_code, 302)
+        scale.refresh_from_db()
+        self.assertTrue(scale.is_active)
+        self.assertTrue(scale.is_provisional)
+        self.assertTrue(LogEntry.objects.filter(
+            object_id=str(scale.pk), action_flag=CHANGE,
+            content_type=ContentType.objects.get_for_model(ExamScoreScale)).exists())
+
 
 from django.test import TransactionTestCase
 from django.db import connection, connections

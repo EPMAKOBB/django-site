@@ -817,6 +817,12 @@ class TaskSkill(TimeStampedModel):
         return f"{self.task} - {self.skill}"
 
 
+class ExamCatalogRevision(models.Model):
+    """Shared generation for reference caches, including separate web workers."""
+
+    generation = models.UUIDField(default=uuid4, editable=False)
+
+
 class ExamVersion(TimeStampedModel):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
@@ -893,6 +899,21 @@ class ExamScoreScale(TimeStampedModel):
         help_text="List where index=primary score and value=secondary score.",
     )
     is_active = models.BooleanField(default=True)
+
+    source_year = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Год исходной шкалы")
+    source_url = models.URLField(max_length=1000, blank=True, verbose_name="Источник шкалы")
+    is_provisional = models.BooleanField(default=False, verbose_name="Предварительная шкала")
+
+    @property
+    def display_label(self):
+        if self.is_provisional:
+            return f"Предварительно, по шкале ЕГЭ-{self.source_year}" if self.source_year else "Предварительная шкала перевода"
+        return f"По шкале ЕГЭ-{self.source_year}" if self.source_year else ""
+
+    @property
+    def provenance(self):
+        return {"label": self.display_label, "is_provisional": self.is_provisional,
+                "source_year": self.source_year, "source_url": self.source_url}
 
     class Meta:
         ordering = ["exam_version"]
@@ -1537,6 +1558,15 @@ class VariantAssignment(TimeStampedModel):
 
 
 class VariantAttempt(TimeStampedModel):
+    class Mode(models.TextChoices):
+        EXAM = "exam", "Пробник"
+        TRAINING = "training", "Тренировка"
+
+    mode = models.CharField(max_length=16, choices=Mode.choices, default=Mode.EXAM)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    training_revision = models.PositiveIntegerField(default=0)
+    legacy_completed_at = models.DateTimeField(null=True, blank=True)
+    flagged_task_ids = models.JSONField(default=list, blank=True)
     exam_snapshot = models.JSONField(default=dict, blank=True)
     assignment = models.ForeignKey(
         VariantAssignment, on_delete=models.CASCADE, related_name="attempts"
@@ -1625,6 +1655,32 @@ class VariantTaskAttempt(TimeStampedModel):
             f"Task attempt {self.attempt_number} for {self.variant_task} "
             f"(variant attempt {self.variant_attempt.attempt_number})"
         )
+
+
+class TrainingDraft(TimeStampedModel):
+    """One editable selection per user and exam; started works live in VariantAttempt."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    exam_version = models.ForeignKey(ExamVersion, on_delete=models.CASCADE)
+    selections = models.JSONField(default=list, blank=True)
+    type_settings = models.JSONField(default=dict, blank=True)
+    revision = models.PositiveIntegerField(default=0)
+    lifecycle_revision = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "exam_version"], name="unique_training_draft_user_exam")]
+
+
+class TrainingOperation(TimeStampedModel):
+    """Durable receipts prevent delayed lifecycle retries from switching works again."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    operation_id = models.UUIDField()
+    fingerprint = models.CharField(max_length=64)
+    response = models.JSONField(default=dict)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "operation_id"], name="unique_training_operation")]
 
 
 class TaskPreGeneratedDataset(TimeStampedModel):

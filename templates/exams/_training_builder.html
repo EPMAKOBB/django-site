@@ -1,0 +1,60 @@
+{% load static %}
+<section id="training-builder" class="training-builder" data-exam-id="{{ exam.pk }}"
+         data-auth="{{ request.user.is_authenticated|yesno:'1,0' }}" data-csrf="{{ csrf_token }}"
+         data-readonly="{{ exam.status }}" data-progress-url="{% url 'exam-progress-data' exam.slug %}" data-type-id="{{ task_type.pk|default:'' }}">
+    <div class="training-builder__heading">
+      <div class="exam-mode-heading exam-mode-heading--training">
+        <h2 class="exam-section-heading__title">{% if include_types %}Тренировка{% else %}Моя тренировка{% endif %}</h2>
+        {% if include_types %}
+        <details class="exam-mode-help">
+          <summary aria-label="О режиме тренировки" aria-controls="training-mode-help-text">?</summary>
+          <div id="training-mode-help-text" class="exam-mode-help__text">Решать выбранные задачи без ограничения по времени. Ответы можно проверять сразу</div>
+        </details>
+        {% endif %}
+      </div>
+      {% if include_types %}
+      <div class="exam-progress-demo">
+        <button class="btn btn-secondary" type="button" data-progress-demo aria-pressed="false">Демонстрация</button>
+        <span class="muted" data-progress-demo-note role="status" aria-live="polite"></span>
+      </div>
+      {% endif %}
+    </div>
+    {% if request.user.is_authenticated %}
+    <section class="training-current" aria-label="Текущая тренировка">
+      <div data-current-training><p class="muted">Загружаем тренировку…</p></div>
+      {% if exam.status != 'archived' %}
+      <div class="training-builder__actions training-current__picker">
+        <label>До <input data-recommend-count type="number" min="1" max="100" value="10" aria-label="Количество задач для рекомендаций"> задач</label>
+        <button class="btn btn-secondary" type="button" data-training-recommend disabled>Подобрать</button>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+    {% if not include_types %}<p class="training-builder__hint muted">Выберите задачи для тренировки. Состав сохраняется между посещениями.</p>{% endif %}
+  {% if request.user.is_authenticated %}
+    {% if exam.status != 'archived' %}
+    <div class="training-dock">
+      <strong>В тренировке: <span data-training-count>0</span></strong>
+      <div class="training-builder__actions">
+        <button class="btn btn-secondary" type="button" data-training-clear disabled>Очистить</button>
+        <button class="btn btn-primary" type="button" data-training-start disabled>Начать тренировку</button>
+      </div>
+    </div>
+    {% endif %}
+  {% else %}
+    <p><a href="{% url 'accounts:login' %}?next={{ request.path|urlencode }}">Войдите</a>, чтобы собирать тренировки и сохранять ответы.</p>
+  {% endif %}
+  {% if include_types %}{% include "exams/_training_types.html" %}{% endif %}
+  {% if request.user.is_authenticated %}
+    {% if exam.status != 'archived' %}
+    <details class="training-composition">
+      <summary>Посмотреть и изменить состав · <span data-training-count>0</span> задач</summary>
+      <div data-training-selection></div>
+    </details>
+    {% endif %}
+    <section class="training-works" aria-label="Архив тренировок и пробники">
+      <div data-training-works><p class="muted">Загружаем сохранённые работы…</p></div>
+    </section>
+    <p data-training-message role="status" aria-live="polite" hidden></p>
+  {% endif %}
+</section>

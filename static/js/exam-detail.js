@@ -2,7 +2,52 @@
   const pageEl = document.getElementById("exam-page");
   if (!pageEl) return;
 
-  const publicUrl = pageEl.dataset.publicUrl;
+  const modeHelpSelector = 'details.exam-mode-help';
+  const positionModeHelp = help => {
+    const panel = help.querySelector('.exam-mode-help__text');
+    const trigger = help.querySelector('summary').getBoundingClientRect();
+    panel.style.position = 'fixed';
+    const size = panel.getBoundingClientRect();
+    panel.style.left = `${Math.max(12, Math.min(trigger.left, window.innerWidth - size.width - 12))}px`;
+    const below = trigger.bottom + 8;
+    panel.style.top = `${below + size.height <= window.innerHeight - 12 ? below : Math.max(12, trigger.top - size.height - 8)}px`;
+  };
+  document.addEventListener('click', event => {
+    const trigger = event.target.closest(`${modeHelpSelector} > summary`);
+    if (trigger) {
+      event.preventDefault();
+      const help = trigger.parentElement;
+      help.open = !help.open;
+      if (help.open) positionModeHelp(help);
+    }
+    document.querySelectorAll(`${modeHelpSelector}[open]`).forEach(help => {
+      if (!help.contains(event.target)) help.open = false;
+    });
+  });
+  document.addEventListener('toggle', event => {
+    if (!event.target.matches(modeHelpSelector) || !event.target.open) return;
+    document.querySelectorAll(`${modeHelpSelector}[open]`).forEach(help => {
+      if (help !== event.target) help.open = false;
+    });
+    positionModeHelp(event.target);
+  }, true);
+  window.addEventListener('resize', () => {
+    document.querySelectorAll(`${modeHelpSelector}[open]`).forEach(positionModeHelp);
+  });
+  document.addEventListener('scroll', event => {
+    document.querySelectorAll(`${modeHelpSelector}[open]`).forEach(help => {
+      if (!help.contains(event.target)) help.open = false;
+    });
+  }, true);
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    document.querySelectorAll(`${modeHelpSelector}[open]`).forEach(help => {
+      const returnFocus = help.contains(document.activeElement);
+      help.open = false;
+      if (returnFocus) help.querySelector('summary').focus();
+    });
+  });
+
   const progressUrl = pageEl.dataset.progressUrl;
   const isAuth = pageEl.dataset.auth === "1";
   const loginUrl = pageEl.dataset.loginUrl || "";
@@ -43,6 +88,69 @@
   };
 
   const getTypeCards = () => Array.from(blocksEl.querySelectorAll("[data-type-id]"));
+
+  let stopProgressDemo = () => {};
+  const bindProgressDemo = () => {
+    const button = blocksEl.querySelector('[data-progress-demo]');
+    const note = blocksEl.querySelector('[data-progress-demo-note]');
+    if (!button) return;
+    let running = false;
+    button.addEventListener('click', () => {
+      if (running) { stopProgressDemo(); return; }
+      const cards = getTypeCards();
+      if (!cards.length) return;
+      const rows = cards.map(card => ({
+        label: card.querySelector('.exam-type-card__score-value, .exam-type-card__score-muted'),
+        fill: card.querySelector('.progress-bar .fill'),
+      }));
+      const snapshots = rows.map(row => ({text: row.label?.textContent, width: row.fill?.style.width}));
+      const summarySnapshot = {text: progressValueEl?.textContent, width: progressFillEl?.style.width};
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let frame;
+      let started;
+      running = true;
+      cards.forEach(card => card.classList.add('is-progress-demo'));
+      button.textContent = 'Остановить демонстрацию';
+      button.setAttribute('aria-pressed', 'true');
+      note.textContent = 'Демонстрация · ваши результаты не изменяются';
+      stopProgressDemo = () => {
+        if (!running) return;
+        cancelAnimationFrame(frame);
+        cards.forEach(card => card.classList.remove('is-progress-demo'));
+        rows.forEach((row, index) => {
+          if (row.label) row.label.textContent = snapshots[index].text;
+          if (row.fill) row.fill.style.width = snapshots[index].width;
+        });
+        if (progressValueEl) progressValueEl.textContent = summarySnapshot.text;
+        if (progressFillEl) progressFillEl.style.width = summarySnapshot.width;
+        running = false;
+        button.textContent = 'Демонстрация';
+        button.setAttribute('aria-pressed', 'false');
+        note.textContent = '';
+      };
+      const tick = now => {
+        if (started === undefined) started = now;
+        const elapsed = now - started;
+        let total = 0;
+        rows.forEach((row, index) => {
+          // Different speeds, with every row complete before the final pause.
+          const duration = 2600 + (index * 613 % 1701);
+          const fraction = Math.min(1, elapsed / duration);
+          const percent = reducedMotion ? 100 : Math.round(100 * Math.pow(fraction, 0.8 + (index % 4) * 0.35));
+          total += percent;
+          if (row.label) row.label.textContent = `${percent}%`;
+          if (row.fill) row.fill.style.width = `${percent}%`;
+        });
+        const overall = Math.round(total / rows.length);
+        if (progressValueEl) progressValueEl.textContent = `${overall}%`;
+        if (progressFillEl) progressFillEl.style.width = `${overall}%`;
+        if (elapsed >= 5000) stopProgressDemo();
+        else frame = requestAnimationFrame(tick);
+      };
+      frame = requestAnimationFrame(tick);
+    });
+  };
+  window.addEventListener('pagehide', () => stopProgressDemo());
 
   const getTypeMeta = (card) => ({
     id: card.dataset.typeId,
@@ -87,16 +195,17 @@
   };
 
   const updateSummaryForAnonymous = () => {
-    if (forecastValueEl) forecastValueEl.textContent = "—";
+    if (forecastValueEl) { forecastValueEl.textContent = "После входа"; forecastValueEl.classList.add('is-empty'); }
     if (forecastNoteEl) forecastNoteEl.textContent = "Войдите, чтобы увидеть персональный прогноз.";
     if (progressValueEl) progressValueEl.textContent = "—";
     if (progressFillEl) progressFillEl.style.width = "0%";
     if (progressNoteEl) progressNoteEl.textContent = "Прогресс и рекомендации появятся после входа.";
-    setList(strengthsListEl, ["Данные появятся после входа", "После этого можно будет выделить сильные типы"]);
-    setList(weaknessesListEl, ["Данные появятся после входа", "После этого можно будет выделить слабые типы"]);
+    setList(strengthsListEl, ["Данные появятся после входа"]);
+    setList(weaknessesListEl, ["Данные появятся после входа"]);
   };
 
   const applyProgress = (payload) => {
+    stopProgressDemo();
     const historyEl = document.getElementById("exam-period-history");
     if (historyEl) {
       const rows = payload?.period_history?.types || [];
@@ -104,14 +213,6 @@
         ? '<table><thead><tr><th>Тип</th><th>Ответов</th><th>Полностью верных</th><th>Время, мин</th></tr></thead><tbody>'
           + rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${row.attempts}</td><td>${row.correct}</td><td>${row.time_spent_seconds == null ? "—" : Math.round(row.time_spent_seconds / 60)}</td></tr>`).join("") + '</tbody></table>'
         : "В этом периоде ответов нет.";
-    }
-    const annualEl = document.getElementById("exam-annual-history");
-    const annualTypes = Object.values(payload?.annual_report?.types || {});
-    if (annualEl) {
-      const attempts = annualTypes.reduce((sum, row) => sum + row.attempts, 0);
-      annualEl.textContent = payload?.archived
-        ? (payload.as_of ? `Состояние на ${new Date(payload.as_of).toLocaleDateString("ru-RU")}. Попыток в этом формате: ${attempts}.` : "Снимок показателей для этого ученика ещё не сохранён.")
-        : `Попыток в этом формате: ${attempts}. Готовность учитывает совместимый опыт прошлых лет.`;
     }
     const typeProgress = payload?.type_progress || {};
     const tagProgress = payload?.tag_progress || {};
@@ -157,33 +258,44 @@
     }
 
     const overall = Math.round(entries.reduce((sum, entry) => sum + entry.percent, 0) / entries.length);
-    const strongest = [...entries]
+    const reports = payload?.annual_report?.types || {};
+    const answerCount = Object.values(reports).reduce((sum, row) => sum + Number(row.attempts || 0) + Number(row.previous_year_evidence || 0), 0);
+    // Preserve forecasts backed by compatible prior experience; avoid a numeric range before initial evidence.
+    const hasEvidence = answerCount >= 5;
+    const namedEntries = entries.filter(entry => entry.name.trim());
+    const strongest = [...namedEntries]
       .filter((entry) => entry.percent > 0)
       .sort((a, b) => b.percent - a.percent)
       .slice(0, 2);
-    const weakest = [...entries].sort((a, b) => a.percent - b.percent).slice(0, 2);
+    const weakest = [...namedEntries].filter(entry => Number(reports[entry.id]?.attempts || 0) > 0 || entry.percent > 0)
+      .sort((a, b) => a.percent - b.percent).slice(0, 2);
     const forecast = payload?.score_forecast || null;
 
     if (forecastValueEl) {
-      if (forecast && forecast.has_scale && forecast.secondary_range_label) {
-        forecastValueEl.textContent = forecast.secondary_range_label;
+      forecastValueEl.classList.toggle('is-empty', !forecast || !hasEvidence);
+      if (!hasEvidence) {
+        forecastValueEl.textContent = "Нужно больше решений";
+      } else if (forecast && forecast.has_scale && forecast.secondary_range_label) {
+        forecastValueEl.textContent = `${forecast.secondary_range_label} баллов`;
       } else if (forecast) {
         forecastValueEl.textContent = formatRange(
           forecast.primary_range_min,
           forecast.primary_range_max,
           forecast.primary_range_label
-        );
+        ) + " первичных";
       } else {
         forecastValueEl.textContent = "—";
       }
     }
     if (forecastNoteEl) {
-      if (forecast && forecast.has_scale) {
+      if (!hasEvidence) {
+        forecastNoteEl.textContent = "Для прогноза нужно больше решений. Результаты появятся по мере подготовки.";
+      } else if (forecast && forecast.has_scale) {
         forecastNoteEl.textContent = `${formatRange(
           forecast.primary_range_min,
           forecast.primary_range_max,
           forecast.primary_range_label
-        )} первичных из ${formatScore(forecast.primary_max)}.`;
+        )} первичных из ${formatScore(forecast.primary_max)}. ${forecast.scale_label || ""}`;
       } else if (forecast) {
         forecastNoteEl.textContent = `${formatRange(
           forecast.primary_range_min,
@@ -202,9 +314,10 @@
       strengthsListEl,
       strongest.length
         ? strongest.map((entry) => `${entry.name} (${entry.percent}%)`)
-        : ["Пока нет устойчивых сильных сторон", "Решите ещё несколько задач, чтобы прогноз стал точнее"]
+        : [hasEvidence ? "Пока нет устойчивых сильных сторон" : "Пока недостаточно данных"]
     );
-    setList(weaknessesListEl, weakest.map((entry) => `${entry.name} (${entry.percent}%)`));
+    setList(weaknessesListEl, hasEvidence && weakest.length
+      ? weakest.map((entry) => `${entry.name} (${entry.percent}%)`) : ["Пока недостаточно данных"]);
   };
 
   document.getElementById("exam-history-filter")?.addEventListener("submit", async (event) => {
@@ -223,24 +336,36 @@
     }
   });
 
-  fetch(publicUrl, { credentials: "same-origin" })
-    .then((resp) => (resp.ok ? resp.json() : null))
-    .then((payload) => {
-      if (!payload || !payload.html) return;
-      blocksEl.innerHTML = payload.html;
-      bindPersonalForm();
+  blocksEl.addEventListener('click', event => {
+    const card = event.target.closest('.exam-type-card--compact');
+    if (!card) return;
+    const toggle = event.target.closest('[data-type-toggle]');
+    if (!toggle && event.target.closest('a, input, button, label, select, textarea, [data-type-panel]')) return;
+    if (!toggle && window.getSelection()?.toString()) return;
+    const button = card.querySelector('[data-type-toggle]');
+    const panel = card.querySelector('[data-type-panel]');
+    const expanded = button.getAttribute('aria-expanded') !== 'true';
+    button.setAttribute('aria-expanded', String(expanded));
+    button.title = expanded ? 'Свернуть темы и теги' : 'Раскрыть темы и теги';
+    button.setAttribute('aria-label', `${expanded ? 'Свернуть' : 'Раскрыть'} темы и теги: ${card.dataset.typeName}`);
+    panel.hidden = !expanded;
+    card.classList.toggle('is-expanded', expanded);
+  });
 
-      if (!isAuth) {
-        updateSummaryForAnonymous();
-        return null;
-      }
-
-      return fetch(progressUrl, { credentials: "same-origin" })
-        .then((resp) => (resp.ok ? resp.json() : null))
-        .then((progressPayload) => applyProgress(progressPayload));
-    })
-    .catch(() => {
-      blocksEl.innerHTML = '<div class="alert alert-warning">Не удалось загрузить данные экзамена.</div>';
-      updateSummaryForAnonymous();
-    });
+  // Share the same response with the training builder instead of fetching twice.
+  window.examProgressReady = isAuth
+    ? fetch(progressUrl, { credentials: "same-origin" })
+        .then(response => {
+          if (!response.ok) throw new Error("Progress unavailable");
+          return response.json();
+        })
+        .then(payload => { applyProgress(payload); return payload; })
+        .catch(() => {
+          if (progressValueEl) progressValueEl.textContent = "?";
+          return null;
+        })
+    : Promise.resolve(null);
+  bindPersonalForm();
+  bindProgressDemo();
+  if (!isAuth) updateSummaryForAnonymous();
 })();

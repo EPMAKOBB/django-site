@@ -1,5 +1,6 @@
-{% extends 'base.html' %}
+{% extends 'base_learning.html' %}
 {% load i18n %}
+{% block basket_assets_js %}{% include 'partials/variant_basket_js.html' %}{% endblock %}
 
 {% block title %}{% trans 'Задачи' %}{% endblock %}
 {% block meta_robots %}noindex,nofollow{% endblock %}
@@ -60,7 +61,7 @@
             {% endif %}
             <div class="section-title">{{ task.title }}</div>
             {% if task.display_placements %}
-              {% for placement in task.display_placements %}<div class="hint">{{ placement.task_type.exam_version.name }} ? {{ placement.task_type.name }}</div>{% endfor %}
+              {% for placement in task.display_placements %}<div class="hint">{{ placement.task_type.exam_version.name }} · {{ placement.task_type.name }}</div>{% endfor %}
             {% elif task.exam_version %}
               <div class="hint">{{ task.subject.name }} — {{ task.exam_version.name }}</div>
             {% else %}

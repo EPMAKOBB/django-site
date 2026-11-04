@@ -1,0 +1,4 @@
+{% extends 'base.html' %}
+{% load versioned_assets %}
+{% block extra_head %}<link rel="stylesheet" href="{% versioned_static 'css/tutors.css' %}">{% endblock %}
+{% block content %}<div class="container tutors-page">{% block tutors_content %}{% endblock %}</div>{% endblock %}

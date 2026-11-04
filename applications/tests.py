@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -83,8 +84,9 @@ class ApplicationPriceTests(TestCase):
         self.assertContains(response, "price-new")
         self.assertContains(response, "при записи до 30 сентября")
 
+    @patch("applications.utils.PROMO_UNTIL", date(2027, 9, 30))
     def test_get_price_changes_with_subjects(self) -> None:
-        expected_date = date(date.today().year, 9, 30)
+        expected_date = date(2027, 9, 30)
         cases = {
             0: {"original": 5000, "current": 3000, "promo_until": expected_date},
             1: {"original": 5000, "current": 3000, "promo_until": expected_date},
@@ -113,9 +115,10 @@ class ApplicationPriceTests(TestCase):
         global.document = {{
           getElementById: (id) => inputs[id],
           querySelector: (sel) => sel === '.price-old' ? priceOld : sel === '.price-new' ? priceNew : priceNote,
+          querySelectorAll: () => [],
           addEventListener: () => {{}},
         }};
-        const {{ updatePrice }} = require('./static/js/main.js');
+        const {{ updatePrice }} = require('./static/js/application-price.js');
         updatePrice();
         console.log(JSON.stringify({{
           old: priceOld.textContent,

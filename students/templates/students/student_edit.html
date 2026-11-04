@@ -15,7 +15,7 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="edit_student">
       {{ form.as_p }}
-      <button class="btn" type="submit">Сохранить</button>
+      <button class="btn btn-primary" type="submit">Сохранить</button>
     </form>
   </section>
 
@@ -31,7 +31,7 @@
             <input type="hidden" name="action" value="edit_lesson_defaults">
             <input type="hidden" name="link_id" value="{{ link.pk }}">
             {{ link.defaults_form.as_p }}
-            <button class="btn" type="submit">Сохранить условия — {{ link.subject.name }}</button>
+            <button class="btn btn-primary" type="submit">Сохранить условия — {{ link.subject.name }}</button>
           </form>
         </li>
       {% empty %}<li>Предметы пока не добавлены.</li>{% endfor %}

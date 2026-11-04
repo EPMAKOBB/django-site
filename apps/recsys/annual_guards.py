@@ -41,6 +41,10 @@ def protect_annual_write(sender, instance, raw=False, **kwargs):
         return
     if sender is TaskType and old and old.exam_version_id != instance.exam_version_id and old.recorded_attempts.exists():
         raise ValidationError("Тип с сохранёнными ответами нельзя переносить в другой экзамен.")
+    if sender is ExamScoreScale and old and old.exam_version_id == instance.exam_version_id:
+        # Scale revisions are independent of the published task catalog. Issued
+        # attempts retain their scale snapshot; Django admin records each edit.
+        return
     if sender in FROZEN:
         path = FROZEN[sender]
         if published_parent(instance, path) or (old and published_parent(old, path)):

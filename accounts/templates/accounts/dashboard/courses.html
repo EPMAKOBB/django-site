@@ -1,9 +1,14 @@
 {% extends 'accounts/dashboard/base.html' %}
-{% load i18n static l10n %}
+{% load i18n static l10n versioned_assets %}
 
 {% block dashboard_title %}{% trans "Курсы" %}{% endblock %}
 
+{% block extra_head %}
+  <link rel="stylesheet" href="{% versioned_static 'css/courses.css' %}">
+{% endblock %}
+
 {% block dashboard_content %}
+  <h1 class="page-title">{% trans "Курсы" %}</h1>
   {% if enrollments %}
     <div class="courses-grid" role="list">
       {% for enrollment in enrollments %}

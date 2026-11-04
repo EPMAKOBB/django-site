@@ -1,0 +1,49 @@
+<section id="training-builder" class="training-builder training-builder--type" data-view="type"
+         data-exam-id="{{ exam.pk }}" data-type-id="{{ task_type.pk }}"
+         data-exam-url="{% url 'exam-page' exam_slug %}#training-builder"
+         data-auth="{{ request.user.is_authenticated|yesno:'1,0' }}" data-csrf="{{ csrf_token }}"
+         data-readonly="{{ exam.status }}" data-progress-url="{% url 'exam-progress-data' exam_slug %}">
+  {% if request.user.is_authenticated %}
+    <div class="type-current-training" data-type-current hidden role="status"></div>
+    {% if exam.status != 'archived' %}
+      <div class="type-training-toolbar">
+        <div class="type-training-toolbar__count">
+          <span>В тренировку:</span>
+          <span class="training-type-count training-type-count--inline" data-training-type-count="{{ task_type.pk }}">
+            <input type="number" min="0" max="100" data-type-count="{{ task_type.pk }}" disabled aria-label="Выбрано задач: {{ task_type.name }}">
+            <span class="muted">из {{ available_task_count }}</span>
+          </span>
+        </div>
+        <div class="training-builder__actions type-training-toolbar__recommend">
+          <label>До <input data-recommend-count type="number" min="1" max="100" value="10" aria-label="Количество задач этого типа для подбора"></label>
+          <button type="button" class="btn btn-secondary" data-training-recommend disabled>Подобрать</button>
+        </div>
+        <details class="type-topic-picker" data-type-topics>
+          <summary>Темы и теги</summary>
+          <div class="training-type-controls" data-training-type="{{ task_type.pk }}"></div>
+        </details>
+        <label class="training-only-selected"><input type="checkbox" data-training-only-selected> Только выбранные</label>
+      </div>
+      <p class="muted" data-type-shortage hidden></p>
+      <div class="training-dock">
+        <button type="button" class="training-dock__composition" data-type-composition-toggle aria-controls="type-training-composition" aria-expanded="false" disabled>
+          В тренировке: <span data-training-count>0</span> <span aria-hidden="true">↗</span>
+        </button>
+        <div class="training-builder__actions">
+          <button class="btn btn-secondary" type="button" data-training-clear disabled>Очистить</button>
+          <button class="btn btn-primary" type="button" data-training-start disabled>Начать тренировку</button>
+        </div>
+      </div>
+      <dialog id="type-training-composition" class="type-composition" aria-labelledby="type-composition-title">
+        <div class="type-composition__heading">
+          <h2 id="type-composition-title">Состав тренировки · <span data-training-count>0</span></h2>
+          <button class="btn btn-secondary" type="button" data-type-composition-close aria-label="Закрыть состав тренировки">×</button>
+        </div>
+        <div data-training-selection></div>
+      </dialog>
+    {% endif %}
+    <p data-training-message role="status" aria-live="polite" hidden></p>
+  {% else %}
+    <p class="muted"><a href="{% url 'accounts:login' %}?next={{ request.path|urlencode }}">Войдите</a>, чтобы выбирать задачи для тренировки.</p>
+  {% endif %}
+</section>

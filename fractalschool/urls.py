@@ -21,23 +21,24 @@ from django.conf import settings
 from urllib.parse import urlparse
 
 from apps.recsys import views as recsys_views
-from .views import HomeDraftView, HomeView, KrylovView, krylov_download, robots_txt, media_download
-from .sitemaps import ExamVersionSitemap, StaticViewSitemap
+from .views import HomeView, KrylovView, krylov_download, robots_txt, media_download
+from .sitemaps import ExamVersionSitemap, StaticViewSitemap, TutorSitemap
 
 sitemaps = {
     "static": StaticViewSitemap,
     "exams": ExamVersionSitemap,
+    "tutors": TutorSitemap,
 }
 
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
-    path('home-v2/', HomeDraftView.as_view(), name='home-v2'),
     path("krylov/", KrylovView.as_view(), name="krylov"),
     path("krylov/download/<slug:kind>/", krylov_download, name="krylov-download"),
     path("robots.txt", robots_txt, name="robots-txt"),
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap"),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
+    path('tutors/', include('tutors.urls')),
     path('students/', include(('students.urls', 'students'), namespace='students')),
     path('courses/', include(('courses.urls', 'courses'), namespace='courses')),
     path('lessons/', include(('lessons.urls', 'lessons'), namespace='lessons')),

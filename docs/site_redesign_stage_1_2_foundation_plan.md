@@ -1,3 +1,6 @@
+> Исторический документ. Направление на основе home-v2 отменено 19.10.2026.
+> Актуальные правила: [design_system.md](design_system.md). Маршрут home-v2 удалён.
+
 # Site Redesign Stage 1-2 Plan: Audit and Foundation Extraction
 
 ## 1. Purpose

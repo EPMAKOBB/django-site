@@ -30,6 +30,7 @@ class ModuleDetailTaskAnswerTests(TestCase):
         self.skill = Skill.objects.create(subject=self.subject, name="Алгебра")
         self.task_type = TaskType.objects.create(subject=self.subject, name="База")
         self.task = Task.objects.create(
+            slug="course-addition",
             subject=self.subject,
             type=self.task_type,
             title="Сложение",

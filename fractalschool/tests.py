@@ -1,28 +1,22 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from applications.utils import get_application_price
-
-
 class HomeViewTests(TestCase):
-    def test_default_price_in_context(self) -> None:
+    def test_home_has_direct_contact_and_compact_sections(self) -> None:
         response = self.client.get(reverse("home"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.context.get("application_price"), get_application_price(0)
-        )
-        self.assertContains(response, 'class="home-after-hero"')
-        self.assertContains(response, "О проекте")
-        self.assertContains(response, "О нас")
-        self.assertContains(response, "Соцсети")
+        self.assertContains(response, 'href="https://t.me/EPMAKO"')
+        self.assertContains(response, 'href="https://wa.me/79296435092"')
+        self.assertContains(response, 'href="tel:+79296435092"')
+        self.assertContains(response, "О школе")
         self.assertContains(response, "Отзывы")
-        self.assertContains(response, "Готовы начать?")
+        self.assertNotContains(response, "Готовы начать?")
+        self.assertNotContains(response, '<form')
+        self.assertNotIn("form", response.context)
+        self.assertNotIn("application_price", response.context)
 
-    def test_price_static_with_second_subject(self) -> None:
+    def test_legacy_application_query_does_not_change_home(self) -> None:
         response = self.client.get(reverse("home"), {"subjects": ["1", "2"]})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context.get("subjects_count"), 2)
-        self.assertEqual(
-            response.context.get("application_price"), get_application_price(2)
-        )
-        self.assertContains(response, 'class="home-after-hero"')
+        self.assertContains(response, "Готовиться с учителем")
+        self.assertNotIn("subjects_count", response.context)

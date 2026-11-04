@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import escape
 
 from apps.recsys.models import (
     Attempt,
@@ -242,7 +243,7 @@ class DashboardAssignmentsViewTests(TestCase):
         self.assertEqual(len(response.context["past_training_sessions"]), 1)
         self.assertContains(response, "Training task")
         self.assertContains(response, "Training exam")
-        self.assertContains(response, '"value": "42"')
+        self.assertContains(response, escape('"value": "42"'))
 
     def test_assignment_detail_permissions_and_context(self):
         assignment, _ = self._create_assignment()

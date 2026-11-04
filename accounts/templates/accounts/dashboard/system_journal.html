@@ -1,7 +1,11 @@
 {% extends 'accounts/dashboard/base.html' %}
-{% load i18n %}
+{% load i18n static versioned_assets %}
 
 {% block dashboard_title %}{% trans "Журнал системы" %}{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% versioned_static 'css/system-journal.css' %}">
+{% endblock %}
 
 {% block dashboard_content %}
   <div class="journal-header">

@@ -28,8 +28,10 @@ class AnnualPairGradingTests(SimpleTestCase):
 
     def test_previous_rubrics_keep_their_semantics(self):
         for grader in (grade_answer, _grade_answer):
-            self.assertEqual(grader("partial_pairs", [10, 20], [20, 10], max_score=2), (0, False))
+            self.assertEqual(grader("partial_pairs", [10, 20], [20, 10], max_score=2), (1, False))
             self.assertEqual(grader("partial_rows", [[1, 2], [3, 4]], [[1, 2], [0, 0]], max_score=2), (1, False))
+            self.assertEqual(grader("partial_rows", [[1, 2], [3, 4]], [[3, 4], [1, 2]], max_score=2), (1, False))
+            self.assertEqual(grader("partial_rows", [[1, 2], [3, 4]], [[2, 1], [4, 3]], max_score=2), (0, False))
             self.assertEqual(grader("ege_pairs_2027", [10, 10], [10, 10], max_score=2), (2, True))
 
 

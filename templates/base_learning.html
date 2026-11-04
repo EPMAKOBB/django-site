@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block content_assets_head %}{% include 'partials/task_assets_head.html' %}{% endblock %}
+{% block content_assets_js %}
+  {% include 'partials/task_assets_js.html' %}
+  {% block task_interaction_js %}{% endblock %}
+{% endblock %}

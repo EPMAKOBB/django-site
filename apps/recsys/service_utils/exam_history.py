@@ -33,11 +33,14 @@ def attempt_history(user, exam, *, since=None, until=None):
     return {"types": rows, "since": since.isoformat() if since else None, "until": until.isoformat() if until else None}
 
 
-def exam_report(user, exam, *, as_of=None):
+def exam_report(user, exam, *, as_of=None, type_progress_map=None):
     from .type_progress import build_type_progress_map
     now = as_of or timezone.now()
     types = list(exam.task_types.prefetch_related("required_tags"))
-    progress = build_type_progress_map(user=user, task_type_ids=[t.pk for t in types], as_of=now)
+    progress = dict(type_progress_map) if type_progress_map is not None else {}
+    missing = [t.pk for t in types if t.pk not in progress]
+    if missing:
+        progress.update(build_type_progress_map(user=user, task_type_ids=missing, as_of=now))
     attempts = Attempt.objects.filter(user=user, exam_version=exam, created_at__lte=now, is_valid_attempt=True)
     counts = {r["task_type_id"]: r for r in attempts.values("task_type_id").annotate(total=Count("pk"), correct=Count("pk", filter=Q(is_correct=True)))}
     result = {}

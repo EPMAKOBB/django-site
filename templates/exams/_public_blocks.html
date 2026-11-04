@@ -1,127 +1,42 @@
 {% load i18n %}
 
 <div class="exam-blocks">
-  <section class="exam-layout-section">
-    <div class="exam-actions-grid">
-      <article class="exam-action-card exam-action-card--primary">
-        <div class="exam-action-card__body">
-          <h3 class="exam-action-card__title">{% trans "Тренировочный режим" %}</h3>
-          <p class="exam-action-card__text">
-            {% trans "Решать рекомендованные задачи по одной" %}
-          </p>
-        </div>
-        <a class="btn btn-primary exam-action-card__button" href="{% url 'exam-training-page' exam.slug %}">
-          {% trans "Открыть тренировку" %}
-        </a>
-      </article>
-
-      <article class="exam-action-card">
-        <div class="exam-action-card__body">
-          <h3 class="exam-action-card__title">{% trans "Собрать персональный вариант" %}</h3>
-          <p class="exam-action-card__text">
-            {% trans "Решать вариант в режиме экзамена" %}
-          </p>
-        </div>
-
-        {% if blueprint %}
-          <div id="exam-auth-alert" class="alert alert-warning" style="display:none;">
-            {% trans "Чтобы собрать персональный вариант, войдите или зарегистрируйтесь." %}
-            <a href="{% url 'accounts:login' %}">{% trans "Войти" %}</a>
-            {% trans "или" %}
-            <a href="{% url 'accounts:signup' %}">{% trans "создать аккаунт" %}</a>.
-          </div>
-          <form method="post" data-exam-personal-form data-auth="{{ is_authenticated|yesno:'1,0' }}">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="build_personal">
-            <button type="submit" class="btn btn-secondary exam-action-card__button">
-              {% trans "Собрать персональный пробник" %}
-            </button>
-          </form>
+  <section class="exam-layout-section exam-ready-variants" aria-labelledby="exam-ready-variants-title">
+    <div class="exam-mode-heading exam-mode-heading--exam">
+      <h2 id="exam-ready-variants-title" class="exam-section-heading__title">{% trans "Режим экзамена" %}</h2>
+      <details class="exam-mode-help">
+        <summary aria-label="О режиме экзамена" aria-controls="exam-mode-help-text">?</summary>
+        <div id="exam-mode-help-text" class="exam-mode-help__text">Решать полноценный пробник с ограничением времени. Результат проверяется только после завершения всего варианта</div>
+      </details>
+    </div>
+    <div class="variant-buttons">
+      {% for variant in static_variants %}
+        {% if variant.page %}
+          <a class="btn btn-secondary" href="{% url 'variant-page' variant.page.slug %}">{{ variant.name }}</a>
         {% else %}
-          <div class="alert alert-warning">
-            {% trans "Пока нет активной спецификации экзамена для персонального пробника." %}
-          </div>
+          <button class="btn btn-secondary" disabled>{{ variant.name }}</button>
         {% endif %}
-      </article>
+      {% endfor %}
+      {% if blueprint and exam.status != 'archived' %}
+        <form method="post" class="exam-personal-form" data-exam-personal-form data-auth="{{ is_authenticated|yesno:'1,0' }}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="build_personal">
+          <button type="submit" class="btn btn-primary">{% trans "Собрать персональный пробник" %}</button>
+        </form>
+      {% endif %}
     </div>
-
-    {% if static_variants %}
-      <div class="exam-secondary-actions">
-        <p class="exam-secondary-actions__title">{% trans "Готовые варианты" %}</p>
-        <div class="variant-buttons">
-          {% for variant in static_variants %}
-            {% if variant.page %}
-              <a class="btn btn-secondary" href="{% url 'variant-page' variant.page.slug %}">{{ variant.name }}</a>
-            {% else %}
-              <button class="btn btn-secondary" disabled>{{ variant.name }}</button>
-            {% endif %}
-          {% endfor %}
-        </div>
+    {% if not static_variants and not blueprint %}
+      <p class="muted">{% trans "Готовых вариантов пока нет." %}</p>
+    {% endif %}
+    {% if blueprint and exam.status != 'archived' %}
+      <div id="exam-auth-alert" class="alert alert-warning" style="display:none;">
+        {% trans "Чтобы собрать персональный вариант, войдите или зарегистрируйтесь." %}
+        <a href="{% url 'accounts:login' %}">{% trans "Войти" %}</a>
+        {% trans "или" %}
+        <a href="{% url 'accounts:signup' %}">{% trans "создать аккаунт" %}</a>.
       </div>
     {% endif %}
   </section>
 
-  <section class="exam-layout-section">
-    <div class="exam-section-heading">
-      <h2 class="exam-section-heading__title">{% trans "Типы заданий" %}</h2>
-    </div>
-
-    {% if blueprint and type_rows %}
-      <div class="exam-types-grid">
-        {% for row in type_rows %}
-          <a
-            class="exam-type-card"
-            href="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}"
-            data-type-id="{{ row.type.id }}"
-            data-type-name="{{ row.type.name }}"
-            data-type-url="{% if row.type.slug %}{% url 'exam-type-page' exam.slug row.type.slug %}{% else %}{% url 'exam-type-page' exam.slug row.type.name|slugify %}{% endif %}"
-          >
-            <div class="exam-type-card__header">
-              <div class="exam-type-card__heading">
-                <h3 class="exam-type-card__title">{{ row.type.name }}</h3>
-                <span class="exam-type-card__separator" aria-hidden="true">:</span>
-                <p class="exam-type-card__description">
-                  {% if row.type.description %}
-                    {{ row.type.description }}
-                  {% else %}
-                    {% trans "Описание для этого типа пока не добавлено." %}
-                  {% endif %}
-                </p>
-              </div>
-              <div class="exam-type-card__meta">
-                <span class="badge exam-type-card__status" data-type-status>{% trans "Ждем данные" %}</span>
-                <div class="exam-type-card__score">
-                  {% if is_authenticated %}
-                    <span class="exam-type-card__score-value">0%</span>
-                  {% else %}
-                    <span class="exam-type-card__score-muted">—</span>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-
-            <div class="progress-bar">
-              <span class="fill" style="width:0%;"></span>
-            </div>
-
-            {% if row.required_tags %}
-              <div class="exam-type-card__tags">
-                {% for tag in row.required_tags %}
-                  <span class="type-tag" data-tag-id="{{ tag.id }}" style="--tag-progress:0%;">
-                    <span class="type-tag__label">{{ tag.name }}</span>
-                  </span>
-                {% endfor %}
-              </div>
-            {% endif %}
-          </a>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="card">
-        <p class="muted">{% trans "Пока нет типов заданий для этого экзамена." %}</p>
-      </div>
-    {% endif %}
-  </section>
-
-  <!-- Reserved future support area: quick theory, achievements, exam info. -->
+  {% include "exams/_training_builder.html" with include_types=True %}
 </div>

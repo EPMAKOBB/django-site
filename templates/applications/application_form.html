@@ -1,22 +1,23 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
   {% if request.GET.ok %}
     <div class="container">
-      <div class="block block--futuristic" style="max-width:640px;margin:48px auto;text-align:center;">
+      <div class="block form-page form-page--confirmation">
         <h1 class="mb-16">Заявка успешно отправлена</h1>
         <a href="{% url 'home' %}" class="btn btn-large">Назад на главную</a>
       </div>
     </div>
   {% else %}
   <div class="container">
-    <div class="block block--futuristic" style="max-width:760px;margin:28px auto;">
+    <div class="block form-page">
       <h1 class="mb-16">Заявка на обучение</h1>
       <form id="application-form" method="post">
     {% csrf_token %}
     <input type="hidden" name="source_offer" value="{{ form.initial.source_offer }}">
     {{ form.as_p }}
-    <button id="submit-btn" type="submit">Отправить заявку</button>
+    <button id="submit-btn" class="btn btn-primary" type="submit">Отправить заявку</button>
     <div id="form-message"></div>
     <p id="form-note" style="display:none" class="hint">Чтобы отправить новую заявку, измените данные формы.</p>
     <p class="application-price">
@@ -90,3 +91,5 @@
   </script>
   {% endif %}
 {% endblock %}
+
+{% block extra_js %}<script src="{% static 'js/application-price.js' %}?v=cleanup-20261019" defer></script>{% endblock %}

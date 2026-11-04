@@ -432,6 +432,11 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
         model = VariantAttempt
         fields = [
             "id",
+            "mode",
+            "archived_at",
+            "training_revision",
+            "legacy_completed_at",
+            "flagged_task_ids",
             "assignment",
             "attempt_number",
             "started_at",
@@ -467,6 +472,7 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
         progress = []
         is_completed = obj.completed_at is not None
         for item in variant_service.build_tasks_progress(obj):
+            reveal = is_completed or (obj.mode == VariantAttempt.Mode.TRAINING and item["is_completed"])
             attempts_serializer = VariantTaskAttemptSerializer(
                 item["attempts"], many=True, context=self.context
             )
@@ -476,8 +482,8 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
             attempts_data = attempts_serializer.data
             task_snapshot = item.get("task_snapshot")
             from ..service_utils.exam_context import public_snapshot
-            task_snapshot = public_snapshot(task_snapshot, reveal=is_completed) if task_snapshot else None
-            if not is_completed:
+            task_snapshot = public_snapshot(task_snapshot, reveal=reveal) if task_snapshot else None
+            if not reveal:
                 for attempt_data in attempts_data:
                     task_payload = attempt_data.get("task")
                     if isinstance(task_payload, dict):
@@ -525,17 +531,31 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
         return self._get_primary_summary(obj)
 
     def get_secondary_summary(self, obj: VariantAttempt):
+        if obj.mode == VariantAttempt.Mode.TRAINING:
+            return None
         summary = self._get_primary_summary(obj)
         primary_total = summary.get("primary_total", 0)
+        metadata = {}
+        estimated = False
         if obj.exam_snapshot:
             mapping = obj.exam_snapshot.get("scale")
+            metadata = obj.exam_snapshot.get("scale_metadata") or {}
+            if not mapping:
+                # Display-only estimate for old work; never rewrite its snapshot.
+                exam_id = obj.exam_snapshot.get("exam_version_id")
+                scale = variant_service.get_active_score_scale(exam_id) if exam_id else None
+                if scale and scale.is_provisional:
+                    mapping, metadata, estimated = scale.mapping, scale.provenance, True
         else:
             scale = variant_service.get_active_score_scale(obj.assignment.template.exam_version)
             mapping = scale.mapping if scale else None
+            metadata = scale.provenance if scale else {}
         if not mapping:
             return None
         over_limit = primary_total >= len(mapping)
-        return {"score": None if over_limit else mapping[max(0, int(primary_total))], "over_limit": over_limit, "max": max(mapping)}
+        return {"score": None if over_limit else mapping[max(0, int(primary_total))],
+                "over_limit": over_limit, "max": max(mapping),
+                "estimated_from_current_scale": estimated, **metadata}
 
 
 

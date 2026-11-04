@@ -1,3 +1,6 @@
+> Исторический документ. Направление на основе home-v2 отменено 19.10.2026.
+> Актуальные правила: [design_system.md](design_system.md). Маршрут home-v2 удалён.
+
 # Site Redesign Master Plan: Outline
 
 ## 1. Purpose of This Document

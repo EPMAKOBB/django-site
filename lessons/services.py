@@ -121,7 +121,21 @@ def find_schedule_conflicts(
     )
     if exclude_lesson_id:
         candidates = candidates.exclude(pk=exclude_lesson_id)
-    return [item for item in candidates if item.scheduled_end > scheduled_start]
+    conflicts = [item for item in candidates if item.scheduled_end > scheduled_start]
+    # Public reservations share the same teacher User lock as lesson writes.
+    from tutors.models import Booking
+    reservations = Booking.objects.filter(
+        tutor__profile__user_id=link.teacher_id,
+        status=Booking.Status.PENDING,
+        expires_at__gt=timezone.now(),
+        start__lt=scheduled_end + timedelta(hours=3),
+        end__gt=scheduled_start - timedelta(hours=3),
+    ).select_related('tutor')
+    conflicts.extend(item for item in reservations if (
+        item.start < scheduled_end + timedelta(minutes=item.tutor.break_minutes)
+        and item.end + timedelta(minutes=item.tutor.break_minutes) > scheduled_start
+    ))
+    return conflicts
 
 
 def _record_event(lesson: Lesson, event_type: str, actor=None, **payload) -> LessonEvent:

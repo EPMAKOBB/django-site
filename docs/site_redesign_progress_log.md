@@ -1,3 +1,6 @@
+> Исторический документ. Направление на основе home-v2 отменено 19.10.2026.
+> Актуальные правила: [design_system.md](design_system.md). Маршрут home-v2 удалён.
+
 # Site Redesign Progress Log
 
 ## 1. Purpose
@@ -639,3 +642,13 @@ Use this structure for each update:
 ### Next
 - Browser-review the new training states for clarity: initial answer form, correct feedback, incorrect feedback, retry, and exhausted-task completion.
 - Consider adding a compact per-step review drawer in history once the main training loop is stable.
+
+## 2026-10-23 — Training variants supersede the step-by-step page
+
+The training-page entries above describe historical iterations. The current student
+flow builds a training variant on the exam page and solves it in the shared variant
+solver. The unused `templates/exams/training.html` and `static/css/training-page.css`
+were removed; the old URL redirects to the builder, while legacy APIs and history
+remain available. Current behavior and limitations: [training_variants.md](training_variants.md).
+Current design and cleanup evidence: [design_system.md](design_system.md),
+[frontend_cleanup.md](frontend_cleanup.md).

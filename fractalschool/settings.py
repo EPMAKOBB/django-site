@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "applications",
     "courses",
     "lessons",
+    "tutors",
     "parser_tasks",
     # Storage backends (for S3/Yandex Object Storage)
     "storages",

@@ -1,4 +1,4 @@
-{% load static %}
+{% load static versioned_assets %}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -31,22 +31,21 @@
   <meta name="twitter:title" content="{% block twitter_title %}[F] Fractal - exam preparation{% endblock %}">
   <meta name="twitter:description" content="{% block twitter_description %}Personalized tasks, progress analytics, tutors, and exam preparation.{% endblock %}">
   <meta name="twitter:image" content="{% block twitter_image %}{{ request.scheme }}://{{ request.get_host }}{% static 'og.png' %}{% endblock %}">
-  <meta name="theme-color" content="#061727">
+  <meta name="theme-color" content="#080e16">
+  <script src="{% static 'js/theme-init.js' %}"></script>
   <link rel="icon" href="{% static 'favicon/favicon.ico' %}" sizes="any">
   <link rel="icon" type="image/svg+xml" href="{% static 'favicon/favicon.svg' %}">
   <link rel="icon" type="image/png" sizes="96x96" href="{% static 'favicon/favicon-96x96.png' %}">
   <link rel="apple-touch-icon" sizes="180x180" href="{% static 'favicon/apple-touch-icon.png' %}">
   <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
   <title>{% block title %}[F] Fractal - exam preparation{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/site-foundation.css' %}?v=game-site-black-1">
-  <link rel="stylesheet" href="{% static 'css/task-statement.css' %}?v=task-statement-3">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="{% static 'css/markdown-code-blocks.css' %}">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="{% versioned_static 'css/site-foundation.css' %}">
+  {% block content_assets_head %}{% endblock %}
   {% block extra_head %}{% endblock %}
 </head>
 <body>
   <div class="site-shell">
+    {% block site_header %}
     <header class="site-header">
       <div class="container">
         <div class="row">
@@ -54,17 +53,11 @@
             <span class="brand__mark" aria-hidden="true">[&#1060;]</span>
             <span class="brand__text">
               <span class="brand__eyebrow">&#1060;&#1056;&#1040;&#1050;&#1058;&#1040;&#1051;</span>
-              <span
-                class="brand__title brand__title--typewriter"
-                data-typewriter-text="&#1064;&#1082;&#1086;&#1083;&#1072; &#1073;&#1091;&#1076;&#1091;&#1097;&#1077;&#1075;&#1086;"
-              >
-                <span class="brand__title-text">&#1064;&#1082;&#1086;&#1083;&#1072; &#1073;&#1091;&#1076;&#1091;&#1097;&#1077;&#1075;&#1086;</span>
-                <span class="brand__cursor" aria-hidden="true"></span>
-              </span>
+              <span class="brand__title">Школа будущего</span>
             </span>
           </a>
           <nav class="toolbar">
-            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle theme"></button>
+            {% include 'partials/theme_toggle.html' %}
             <a
               href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}"
               class="btn"
@@ -80,6 +73,7 @@
         </div>
       </div>
     </header>
+    {% endblock %}
     {% if messages %}
     <div class="container">
       <ul class="messages">
@@ -92,28 +86,25 @@
     <main class="site-main">
       {% block content %}{% endblock %}
     </main>
+    {% block site_footer %}
     <footer class="site-footer">
       <div class="container site-footer__inner">
         <div class="site-footer__links">
-          <span>Contacts:</span>
+          <span>Контакты:</span>
           <a href="mailto:schoolfractal@gmail.com">schoolfractal@gmail.com</a>
-          <a href="https://t.me/v_IT_ek" target="_blank" rel="noopener">Telegram</a>
+          <a href="https://t.me/fractalschool" target="_blank" rel="noopener">Канал школы</a>
           <a href="https://vk.com/schoolfractal" target="_blank" rel="noopener">VK</a>
+          <a href="https://www.youtube.com/@CRAZYMATIC" target="_blank" rel="noopener">YouTube</a>
         </div>
         <div>&copy; 2026</div>
       </div>
     </footer>
+    {% endblock %}
     {% include 'accounts/includes/variant_basket_widget.html' %}
   </div>
-  <script src="{% static 'js/site-theme.js' %}"></script>
-  <script src="{% static 'js/site-main.js' %}"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
-  <script src="{% static 'js/markdown-code-blocks.js' %}" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-  <script src="{% static 'js/katex-init.js' %}" defer></script>
-  <script src="{% static 'js/task-statement-renderer.js' %}?v=task-statement-2" defer></script>
-  <script src="{% static 'js/task-response-panel.js' %}" defer></script>
+  <script src="{% static 'js/site-theme.js' %}?v=progress-demo-20261025"></script>
+  {% block basket_assets_js %}{% endblock %}
+  {% block content_assets_js %}{% endblock %}
   {% block extra_js %}{% endblock %}
 </body>
 </html>

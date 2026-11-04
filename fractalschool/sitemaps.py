@@ -10,7 +10,7 @@ class StaticViewSitemap(Sitemap):
     priority = 1.0
 
     def items(self):
-        return ["home"]
+        return ["home", "tutors:catalog"]
 
     def location(self, item):
         return reverse(item)
@@ -29,3 +29,12 @@ class ExamVersionSitemap(Sitemap):
 
     def lastmod(self, obj):
         return obj.updated_at
+
+
+class TutorSitemap(Sitemap):
+    changefreq = "weekly"
+    priority = 0.6
+
+    def items(self):
+        from tutors.models import Tutor
+        return Tutor.objects.filter(status=Tutor.Status.PUBLISHED, profile__user__is_active=True)

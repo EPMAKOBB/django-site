@@ -1,4 +1,5 @@
 from django.urls import path
+from .training_builder_views import TrainingDraftView, ExamWorksView, WorkArchiveView, TrainingTaskCheckView, TrainingTaskFlagView, TrainingPauseView, TrainingStateView
 
 
 from .views import (
@@ -32,6 +33,13 @@ from .views import (
 
 
 urlpatterns = [
+    path("api/variants/attempts/<int:attempt_id>/state/", TrainingStateView.as_view(), name="training-state"),
+    path("api/variants/attempts/<int:attempt_id>/pause/", TrainingPauseView.as_view(), name="training-pause"),
+    path("api/variants/attempts/<int:attempt_id>/tasks/<int:variant_task_id>/flag/", TrainingTaskFlagView.as_view(), name="training-task-flag"),
+    path("api/exams/<int:exam_id>/training-draft/", TrainingDraftView.as_view(), name="training-draft"),
+    path("api/exams/<int:exam_id>/works/", ExamWorksView.as_view(), name="exam-works"),
+    path("api/variants/attempts/<int:attempt_id>/archive/", WorkArchiveView.as_view(), name="work-archive"),
+    path("api/variants/attempts/<int:attempt_id>/tasks/<int:variant_task_id>/check/", TrainingTaskCheckView.as_view(), name="training-task-check"),
     path("api/skills/", SkillListView.as_view(), name="skill-list"),
     path("api/task-types/", TaskTypeListView.as_view(), name="task-type-list"),
     path("api/attempts/", AttemptCreateView.as_view(), name="attempt-create"),

@@ -8,8 +8,6 @@ from django.core.files.storage import default_storage
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
-from applications.forms import ApplicationForm
-from applications.utils import get_application_price
 from apps.recsys.models import ExamVersion
 
 
@@ -19,33 +17,12 @@ class HomeView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        form = ApplicationForm(self.request.GET or None)
-        context["form"] = form
-
-        data = form.data if form.is_bound else form.initial
-        if hasattr(data, "getlist"):
-            subjects_count = len([value for value in data.getlist("subjects") if value])
-        else:
-            raw_subjects = data.get("subjects")
-            if isinstance(raw_subjects, (list, tuple)):
-                subjects_count = len([value for value in raw_subjects if value])
-            else:
-                subjects_count = 1 if raw_subjects else 0
-
-        context["subjects_count"] = subjects_count
-        context["application_price"] = get_application_price(subjects_count)
         context["active_exams"] = (
             ExamVersion.objects.filter(status=ExamVersion.Status.ACTIVE)
             .select_related("subject")
             .order_by("subject__name", "name")
         )
         return context
-
-
-class HomeDraftView(HomeView):
-    """Render the draft landing page."""
-
-    template_name = "home_v2.html"
 
 
 class KrylovView(TemplateView):

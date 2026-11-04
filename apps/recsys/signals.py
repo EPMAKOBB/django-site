@@ -14,6 +14,27 @@ from .services import update_mastery
 from . import annual_guards  # noqa: F401; register publication guards
 
 
+def _invalidate_catalog(sender, using="default", raw=False, **kwargs):
+    if not raw:
+        from .service_utils.exam_catalog import invalidate_exam_catalog
+        invalidate_exam_catalog(using=using)
+
+
+def _invalidate_catalog_tags(sender, action, using="default", **kwargs):
+    if action in {"post_add", "post_remove", "post_clear"}:
+        _invalidate_catalog(sender, using=using)
+
+
+from django.db.models.signals import post_delete, m2m_changed
+from subjects.models import Subject
+from .models import ExamVersion, TaskType, TaskTag, ExamBlueprint, ExamBlueprintItem, ExamScoreScale
+
+for _model in (Subject, ExamVersion, TaskType, TaskTag, ExamBlueprint, ExamBlueprintItem, ExamScoreScale):
+    post_save.connect(_invalidate_catalog, sender=_model, dispatch_uid=f"catalog-save-{_model._meta.label}")
+    post_delete.connect(_invalidate_catalog, sender=_model, dispatch_uid=f"catalog-delete-{_model._meta.label}")
+m2m_changed.connect(_invalidate_catalog_tags, sender=TaskType.required_tags.through, dispatch_uid="catalog-tags")
+
+
 @receiver(post_save, sender=Attempt)
 def handle_attempt_post_save(sender, instance: Attempt, created: bool, **kwargs) -> None:
     """Update attempt aggregates and mastery after creation."""
@@ -42,9 +63,8 @@ def handle_attempt_post_save(sender, instance: Attempt, created: bool, **kwargs)
         attempts_count=total_attempts or 1,
         attempt_number=total_attempts or 1,
         mode=(
-            Attempt.Mode.VARIANT
-            if instance.variant_task_attempt_id is not None
-            else Attempt.Mode.TRAINING
+            Attempt.Mode.VARIANT if instance.variant_task_attempt_id is not None
+            and instance.variant_task_attempt.variant_attempt.mode != "training" else Attempt.Mode.TRAINING
         ),
         checked_at=instance.checked_at or instance.created_at,
         weight=weight,

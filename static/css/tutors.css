@@ -1,0 +1,48 @@
+/* Tutors use the shared site palette and controls. */
+.tutors-page { padding-top: 32px; padding-bottom: 48px; }
+.tutors-heading { margin-bottom: 28px; max-width: 850px; }
+.tutors-heading h1, .tutor-profile-heading h1 { margin: 0 0 12px; }
+.tutors-heading p, .tutor-meta { color: var(--color-text-secondary); }
+.tutors-filters { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; margin-bottom: 28px; }
+.tutors-filters label, .tutors-filters > div { display: grid; gap: 8px; flex: 1 1 180px; min-width: 0; }
+.tutors-filters select { width: 100%; max-width: 100%; }
+.tutors-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); gap: 24px; }
+.tutor-card, .tutor-panel { padding: 24px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); background: var(--color-surface-1); min-width: 0; overflow-wrap: anywhere; }
+.tutor-card { display: flex; flex-direction: column; gap: 16px; }
+.tutor-card p, .tutor-card h2 { margin: 0; }
+.tutor-card > .btn { margin-top: auto; }
+.tutor-card__top { display: flex; gap: 16px; align-items: center; }
+.tutor-card h2 { font-size: 21px; }
+.tutor-card h2 a { color: inherit; }
+.tutor-meta { font-size: 14px; }
+.tutor-portrait { width: 96px; height: 96px; flex: 0 0 96px; border-radius: 50%; object-fit: cover; background: var(--color-surface-2); }
+.tutor-portrait--initials { display: grid; place-items: center; font-size: 28px; color: var(--color-text-secondary); border: 1px solid var(--color-border-subtle); }
+.tutor-offerings { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; }
+.tutor-offerings li { display: grid; gap: 6px; }
+.tutor-offerings span { color: var(--color-text-secondary); }
+.tutor-card__subjects { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; line-height: 1.5; }
+.tutor-card__subjects span { color: var(--color-text-secondary); }
+.tutor-card__price { font-weight: 600; }
+.tutor-card .tutor-portrait { width: 72px; height: 72px; flex-basis: 72px; }
+.tutor-empty { grid-column: 1 / -1; padding: 32px 0; }
+.tutor-pagination { display: flex; gap: 16px; align-items: center; justify-content: center; margin-top: 28px; }
+.tutor-back { display: inline-block; margin-bottom: 24px; }
+.tutor-profile-heading { display: flex; gap: 24px; align-items: center; margin-bottom: 32px; }
+.tutor-profile-heading > div { min-width: 0; }
+.tutor-profile-grid { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 24px; }
+.tutor-panel { margin-bottom: 24px; }
+.tutor-panel h2 { margin-top: 0; }
+.tutor-contacts { margin-bottom: 20px; }
+.tutor-contacts a { overflow-wrap: anywhere; }
+.tutor-days { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: 16px; }
+.tutor-slots { display: flex; gap: 10px; flex-wrap: wrap; }
+.tutor-form { max-width: 680px; margin-inline: auto; }
+.tutor-form form, .tutor-settings { display: grid; gap: 20px; }
+.tutor-form form > div, .tutor-settings .tutor-panel > div:not([data-rows]) { display: grid; gap: 8px; margin-bottom: 16px; }
+.tutor-form input, .tutor-settings input, .tutor-settings select { max-width: 100%; }
+.tutor-settings input[type=checkbox], .tutor-form input[type=checkbox] { width: auto; justify-self: start; }
+.tutor-formset-row { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,160px),1fr)); gap: 16px; border-bottom: 1px solid var(--color-border-subtle); padding: 16px 0; margin-bottom: 12px; }
+.tutor-formset-row > div { min-width: 0; display: grid; gap: 8px; align-content: start; }
+.tutor-booking { padding: 16px 0; border-bottom: 1px solid var(--color-border-subtle); }
+.tutor-booking form { display: flex; flex-wrap: wrap; gap: 12px; }
+@media(max-width:760px) { .tutor-profile-grid { grid-template-columns: minmax(0,1fr); } .tutor-profile-heading { align-items: flex-start; } .tutor-card,.tutor-panel { padding: 18px; } .tutor-portrait { width: 72px; height: 72px; flex-basis: 72px; } .tutors-filters > .btn { flex: 1 1 120px; } }

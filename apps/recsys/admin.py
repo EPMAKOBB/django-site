@@ -442,7 +442,10 @@ class ExamVersionAdmin(ExamYearAdminMixin, admin.ModelAdmin):
 
 @admin.register(ExamScoreScale)
 class ExamScoreScaleAdmin(FrozenAnnualAdminMixin, admin.ModelAdmin):
-    list_display = ("exam_version", "max_primary", "is_active", "updated_at")
+    def get_readonly_fields(self, request, obj=None):
+        return ("created_at", "updated_at", "exam_version") if obj else ()
+
+    list_display = ("exam_version", "max_primary", "is_active", "is_provisional", "source_year", "updated_at")
     list_filter = ("is_active", "exam_version__subject")
     search_fields = ("exam_version__name", "exam_version__subject__name")
     formfield_overrides = {

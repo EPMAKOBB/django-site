@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static i18n %}
+{% load static i18n versioned_assets %}
 
 {% block title %}{{ exam.subject.name }} - {{ exam.name }}{% endblock %}
 {% block meta_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к экзамену.{% endblock %}
@@ -11,7 +11,8 @@
 {% block twitter_description %}Экзамен {{ exam.subject.name }} — {{ exam.name }}. Персональные задания, аналитика прогресса и подготовка к экзамену.{% endblock %}
 
 {% block extra_head %}
-  <link rel="stylesheet" href="{% static 'css/exam-detail.css' %}?v=game-site-3">
+  <link rel="stylesheet" href="{% versioned_static 'css/exam-detail.css' %}">
+  <link rel="stylesheet" href="{% versioned_static 'css/training-builder.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -20,19 +21,34 @@
     <div
       class="exam-page__workspace"
       id="exam-page"
-      data-public-url="{% url 'exam-public-blocks' exam_slug %}"
       data-progress-url="{% url 'exam-progress-data' exam_slug %}"
       data-auth="{{ is_authenticated|yesno:'1,0' }}"
       data-exam-slug="{{ exam_slug }}"
       data-login-url="{% url 'accounts:login' %}?next={{ request.path|urlencode }}"
     >
       <header class="exam-page__header">
-        <h1 class="exam-page__title">{{ exam.subject.name }} {{ exam.name }}</h1>
-        <nav aria-label="Версия экзамена">
-          {% for version in exam_years %}<a href="{% url 'exam-page' version.slug %}" {% if version.pk == exam.pk %}aria-current="page"{% endif %}>{{ version.name }}{% if version.is_default %} · рекомендуется{% endif %}{% if version.status == 'archived' %} · архив{% endif %}</a>{% if not forloop.last %} | {% endif %}{% endfor %}
-        </nav>
+        <details class="exam-heading-card exam-overview">
+          <summary class="exam-heading-card__summary">
+          <h1 class="exam-page__title">{{ exam.subject.name }} {{ exam.name }}</h1>
+          <span class="exam-overview__metric">
+            <span class="exam-overview__label">Прогноз</span>
+            <strong class="exam-overview__value" id="exam-forecast-value">—</strong>
+          </span>
+          <strong class="exam-heading-card__percent" id="exam-progress-value" aria-label="Общий прогресс по экзамену" aria-describedby="exam-progress-note">—</strong>
+          <svg class="exam-heading-card__chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="exam-heading-card__progress" aria-hidden="true"><span id="exam-progress-fill" style="width:0%"></span></span>
+          </summary>
+        <div class="exam-overview__body">
+          <section><h2>Сильные стороны</h2><ul id="exam-strengths-list"><li>Загрузка…</li></ul></section>
+          <section><h2>На что обратить внимание</h2><ul id="exam-weaknesses-list"><li>Загрузка…</li></ul></section>
+          <div class="exam-overview__notes">
+            <p id="exam-forecast-note">{% if is_authenticated %}Загружаем данные для прогноза.{% else %}Войдите, чтобы увидеть персональный прогноз.{% endif %}</p>
+            <p id="exam-progress-note">Прогресс учитывает покрытие типов заданий этого экзамена.</p>
+          </div>
+        </div>
+        </details>
         {% if exam.status == 'archived' %}<p>Архив экзамена. Выполненные работы и сохранённые показатели доступны для просмотра.</p>{% endif %}
-        <p id="exam-annual-history" aria-live="polite"></p>
+        {% comment "История временно скрыта при упрощении страницы; сохраняем для возможного возвращения." %}
         {% if is_authenticated %}
         <details>
           <summary>История ответов в этом формате</summary>
@@ -45,58 +61,22 @@
           <div id="exam-period-history" aria-live="polite"></div>
         </details>
         {% endif %}
-        {% if is_authenticated and exam.status != 'archived' %}
-        <form method="post">{% csrf_token %}
-          {% if preparing_for_exam %}<span>Выбран для подготовки</span> <button class="btn" name="action" value="unselect_year">Убрать из выбранных</button>
-          {% else %}<button class="btn" name="action" value="select_year">Готовиться к этому экзамену</button>{% endif %}
-        </form>
+        {% endcomment %}
+        {% if not preparing_for_exam and exam.status != 'archived' %}
+        <div class="exam-page__follow">
+          {% if is_authenticated %}
+          <form method="post">{% csrf_token %}
+            <button class="btn btn-secondary" name="action" value="select_year" aria-describedby="exam-follow-note">Добавить в мои экзамены</button>
+          </form>
+          {% else %}
+          <a class="btn btn-secondary" href="{% url 'accounts:login' %}?next={{ request.path|urlencode }}" aria-describedby="exam-follow-note">Добавить в мои экзамены</a>
+          {% endif %}
+          <p id="exam-follow-note" class="muted">Добавит экзамен в список актуальных для вас. Вы всегда сможете удалить его из списка актуальных или вернуть обратно.</p>
+        </div>
         {% endif %}
       </header>
 
-      <div class="exam-summary-grid">
-        <article class="exam-summary-card">
-          <p class="exam-summary-card__label">{% trans "Прогноз баллов на экзамене" %}</p>
-          <div class="exam-summary-card__value" id="exam-forecast-value">—</div>
-          <p class="exam-summary-card__note" id="exam-forecast-note">
-            {% if is_authenticated %}
-              {% trans "Будет рассчитан в первичных и вторичных баллах после загрузки прогресса." %}
-            {% else %}
-              {% trans "Войдите, чтобы увидеть персональный прогноз." %}
-            {% endif %}
-          </p>
-        </article>
 
-        <article class="exam-summary-card">
-          <p class="exam-summary-card__label">{% trans "Общий прогресс" %}</p>
-          <div class="exam-summary-card__value" id="exam-progress-value">—</div>
-          <div class="progress-bar exam-summary-card__progress">
-            <span class="fill" id="exam-progress-fill" style="width:0%;"></span>
-          </div>
-          <p class="exam-summary-card__note" id="exam-progress-note">
-            {% if is_authenticated %}
-              {% trans "Среднее покрытие по типам заданий." %}
-            {% else %}
-              {% trans "Прогресс станет доступен после входа." %}
-            {% endif %}
-          </p>
-        </article>
-
-        <article class="exam-summary-card">
-          <p class="exam-summary-card__label">{% trans "Сильные стороны" %}</p>
-          <ul class="exam-summary-list" id="exam-strengths-list">
-            <li>{% trans "Загрузка аналитики..." %}</li>
-            <li>{% trans "Загрузка аналитики..." %}</li>
-          </ul>
-        </article>
-
-        <article class="exam-summary-card">
-          <p class="exam-summary-card__label">{% trans "Слабые стороны" %}</p>
-          <ul class="exam-summary-list" id="exam-weaknesses-list">
-            <li>{% trans "Загрузка аналитики..." %}</li>
-            <li>{% trans "Загрузка аналитики..." %}</li>
-          </ul>
-        </article>
-      </div>
     </div>
   </div>
 </section>
@@ -104,26 +84,26 @@
 <section class="section exam-page__content">
   <div class="container">
     <div id="exam-public-blocks">
-      <div class="exam-skeleton">
-        <div class="skeleton skeleton-title"></div>
-        <div class="exam-skeleton__grid">
-          <div class="skeleton skeleton-card"></div>
-          <div class="skeleton skeleton-card"></div>
-          <div class="skeleton skeleton-card"></div>
-          <div class="skeleton skeleton-card"></div>
-        </div>
-        <div class="skeleton skeleton-row"></div>
-        <div class="skeleton skeleton-row"></div>
-        <div class="skeleton skeleton-card"></div>
-        <div class="skeleton skeleton-card"></div>
-      </div>
+      {% include "exams/_public_blocks.html" %}
     </div>
 
-    <!-- Reserved for the future support layer: quick theory, achievements, exam info. -->
+    <footer class="exam-page__secondary-actions">
+      <nav class="exam-page__versions" aria-label="Версия экзамена">
+        {% for version in exam_years %}
+          <a href="{% url 'exam-page' version.slug %}" {% if version.pk == exam.pk %}aria-current="page"{% endif %}>{{ version.name }}{% if version.is_default %} · рекомендуется{% endif %}{% if version.status == 'archived' %} · архив{% endif %}</a>
+        {% endfor %}
+      </nav>
+      {% if is_authenticated and preparing_for_exam and exam.status != 'archived' %}
+      <form method="post">{% csrf_token %}
+        <button class="btn btn-secondary" name="action" value="unselect_year">Убрать из моих экзаменов</button>
+      </form>
+      {% endif %}
+    </footer>
   </div>
 </section>
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/exam-detail.js' %}?v=score-forecast-range-1"></script>
+  <script src="{% versioned_static 'js/exam-detail.js' %}"></script>
+  <script src="{% versioned_static 'js/training-builder.js' %}" defer></script>
 {% endblock %}

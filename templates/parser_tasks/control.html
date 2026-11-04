@@ -19,12 +19,12 @@
       {% endif %}
       {{ form.source_url.errors }}
     </div>
-    <button type="submit" class="btn primary">Запустить парсер</button>
+    <button type="submit" class="btn btn-primary">Запустить парсер</button>
   </form>
 
   <h2>Последние запуски</h2>
   {% if runs %}
-  <table class="table">
+  <div class="table-responsive"><table class="table">
     <thead>
       <tr>
         <th>Дата</th>
@@ -45,7 +45,7 @@
       </tr>
       {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}
   <p>Запусков пока не было.</p>
   {% endif %}

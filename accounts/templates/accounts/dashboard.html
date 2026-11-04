@@ -1,15 +1,13 @@
 {% extends 'accounts/dashboard/base.html' %}
 {% load i18n %}
 
-{% block dashboard_title %}{% trans "История" %}{% endblock %}
+{% block dashboard_title %}{% trans "Мои работы" %}{% endblock %}
 
 {% block dashboard_content %}
   <header class="history-dashboard__header">
     <div>
-      <h1 class="history-dashboard__title">{% trans "История работы" %}</h1>
-      <p class="history-dashboard__lead">
-        {% trans "Здесь собраны активные варианты и завершённые попытки. Активное можно продолжить, а по прошлым работам быстро открыть результаты." %}
-      </p>
+      <h1 class="history-dashboard__title">{% trans "Мои работы" %}</h1>
+      <p class="history-dashboard__lead">Тренировки и пробники: продолжайте начатое или просматривайте результаты. Новую тренировку можно собрать на странице экзамена.</p>
     </div>
     <div class="history-dashboard__summary" aria-label="{% trans 'Сводка по работам' %}">
       <div class="history-dashboard__summary-item">
@@ -69,7 +67,7 @@
           <article class="active-work-card active-work-card--variant{% if item.deadline_passed %} active-work-card--overdue{% endif %}">
             <header class="active-work-card__header">
               <div class="active-work-card__title-group">
-                <span class="active-work-card__eyebrow">Вариант</span>
+                <span class="active-work-card__eyebrow">{% if item.work_mode == 'training' %}Тренировка{% else %}Пробник{% endif %}</span>
                 <h3 class="active-work-card__title">{{ item.assignment.template.name }}</h3>
               </div>
               <span class="active-work-card__badge">{{ item.progress_percentage }}%</span>
@@ -221,6 +219,9 @@
                   </div>
                 </div>
                 <div class="history-list__actions">
+                  {% if item.archived_attempt and item.assignment.template.exam_version.slug %}
+                    <a class="btn btn-secondary" href="{% url 'exam-page' item.assignment.template.exam_version.slug %}#training-builder">В архиве · вернуть к решению</a>
+                  {% endif %}
                   {% if item.latest_completed_attempt %}
                     <a class="btn btn-primary" href="{% url 'accounts:variant-attempt-solver' item.latest_completed_attempt.id %}">{% trans "Открыть результат" %}</a>
                   {% endif %}

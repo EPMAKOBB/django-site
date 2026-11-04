@@ -70,7 +70,7 @@ def grade_answer(
                     score += 1
             except Exception:
                 continue
-        if scoring_scheme == TaskType.ScoringScheme.EGE_PAIRS_2027 and score == 0 and len(expected) == len(actual) == 2:
+        if score == 0 and len(expected) == len(actual) == 2:
             try:
                 if compare_answers(expected[0], actual[1]) and compare_answers(expected[1], actual[0]):
                     score = 1
@@ -99,6 +99,12 @@ def grade_answer(
                     break
             if row_ok:
                 score += 1
+        if score == 0 and len(expected_rows) == len(actual_rows) == 2:
+            try:
+                if compare_answers(expected_rows[0], actual_rows[1]) and compare_answers(expected_rows[1], actual_rows[0]):
+                    score = 1
+            except Exception:
+                pass
         score = min(score, max_score)
         return score, score == max_score
 

@@ -1,0 +1,58 @@
+.krylov-page {
+    padding: 48px 0 72px;
+  }
+
+  .krylov-card {
+    margin: 0 auto;
+    max-width: 980px;
+    border-radius: var(--radius-md);
+    padding: var(--panel-padding);
+    background: var(--color-surface-1);
+    box-shadow: none;
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  .krylov-title {
+    margin: 0 0 20px;
+    font-size: var(--font-size-page-title);
+    line-height: 1.25;
+    letter-spacing: 0.2px;
+    color: var(--color-text-primary);
+  }
+
+  .krylov-link {
+    margin: 0 0 14px;
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+  }
+
+  .krylov-link:last-child {
+    margin-bottom: 0;
+  }
+
+  .krylov-card a {
+    color: var(--color-accent-primary);
+    text-decoration: none;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .krylov-card a:hover {
+    color: var(--color-accent-primary-hover);
+    border-bottom-color: var(--color-accent-primary-hover);
+  }
+
+  @media (max-width: 720px) {
+    .krylov-card {
+      padding: 24px;
+      border-radius: var(--radius-md);
+    }
+
+    .krylov-title {
+      font-size: 24px;
+    }
+
+    .krylov-link {
+      font-size: 16px;
+    }
+  }

@@ -9,8 +9,15 @@ from dotenv import load_dotenv
 
 def main():
     """Run administrative tasks."""
-    load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fractalschool.settings')
+    root = Path(__file__).resolve().parent
+    local_env = root / ".env.local"
+    load_dotenv(dotenv_path=root / ".env")
+    if local_env.is_file():
+        load_dotenv(dotenv_path=local_env, override=True)
+    default_settings = (
+        "fractalschool.local_settings" if local_env.is_file() else "fractalschool.settings"
+    )
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

@@ -390,56 +390,7 @@ def _grade_answer(
     *,
     max_score: int,
 ) -> tuple[Optional[int], Optional[bool]]:
-    if scoring_scheme == TaskType.ScoringScheme.EGE_PAIRS_2027:
-        return grade_answer(scoring_scheme, correct_answer, response_value, max_score=max_score)
-    if scoring_scheme == TaskType.ScoringScheme.MANUAL_SCALED:
-        return None, None
-
-    if scoring_scheme == TaskType.ScoringScheme.PARTIAL_PAIRS:
-        expected = _as_list(correct_answer)[:2]
-        actual = _as_list(response_value)[:2]
-        score = 0
-        for idx in range(min(len(expected), len(actual))):
-            try:
-                if compare_answers(expected[idx], actual[idx]):
-                    score += 1
-            except Exception:
-                continue
-        score = min(score, max_score)
-        return score, score == max_score
-
-    if scoring_scheme == TaskType.ScoringScheme.PARTIAL_ROWS:
-        expected_rows = _as_rows(correct_answer)[:2]
-        actual_rows = _as_rows(response_value)[:2]
-        score = 0
-        for idx in range(min(len(expected_rows), len(actual_rows))):
-            exp_row = expected_rows[idx][:2]
-            act_row = actual_rows[idx][:2]
-            if len(act_row) < len(exp_row):
-                continue
-            row_ok = True
-            for value_idx in range(len(exp_row)):
-                try:
-                    if not compare_answers(exp_row[value_idx], act_row[value_idx]):
-                        row_ok = False
-                        break
-                except Exception:
-                    row_ok = False
-                    break
-            if row_ok:
-                score += 1
-        score = min(score, max_score)
-        return score, score == max_score
-
-    # Default/binary scoring
-    try:
-        is_correct = compare_answers(
-            _trim_trailing_blank_rows(correct_answer),
-            _trim_trailing_blank_rows(response_value),
-        )
-    except Exception:
-        is_correct = False
-    return (max_score if is_correct else 0), bool(is_correct)
+    return grade_answer(scoring_scheme, correct_answer, response_value, max_score=max_score)
 
 
 def _base_assignment_queryset():
@@ -519,7 +470,7 @@ def split_assignments(assignments: Iterable[VariantAssignment]):
     past: list[VariantAssignment] = []
 
     for assignment in assignments:
-        if _active_attempts(assignment) or can_start_attempt(assignment):
+        if any(a.archived_at is None for a in _active_attempts(assignment)) or can_start_attempt(assignment):
             current.append(assignment)
         else:
             past.append(assignment)
@@ -538,8 +489,12 @@ def get_assignment_or_404(user, assignment_id: int) -> VariantAssignment:
 
 
 def _ensure_active_attempt(attempt: VariantAttempt) -> None:
+    from .training_lifecycle import ensure_writable
+    ensure_writable(attempt)
     if attempt.completed_at is not None:
         raise exceptions.ValidationError("Попытка уже завершена")
+    if attempt.archived_at is not None:
+        raise exceptions.ValidationError("Сначала верните работу из архива.")
 
 
 def _ensure_time_limit_allows_submission(attempt: VariantAttempt) -> None:
@@ -554,7 +509,7 @@ def _ensure_time_limit_allows_submission(attempt: VariantAttempt) -> None:
 
 
 @transaction.atomic
-def start_new_attempt(user, assignment_id: int) -> VariantAttempt:
+def start_new_attempt(user, assignment_id: int, *, mode=VariantAttempt.Mode.EXAM) -> VariantAttempt:
     """Start a new attempt for ``assignment_id`` owned by ``user``."""
 
     @transaction.atomic
@@ -565,10 +520,14 @@ def start_new_attempt(user, assignment_id: int) -> VariantAttempt:
         attempt = VariantAttempt.objects.create(
             assignment=assignment,
             attempt_number=next_number,
+            mode=mode,
         )
         _materialize_tasks_for_attempt(attempt)
         return attempt
 
+    if mode == VariantAttempt.Mode.TRAINING:
+        from . import training_lifecycle as lifecycle
+        lifecycle.lock_user(user)
     try:
         assignment = (
             VariantAssignment.objects.select_for_update()
@@ -578,6 +537,11 @@ def start_new_attempt(user, assignment_id: int) -> VariantAttempt:
     except VariantAssignment.DoesNotExist as exc:
         raise exceptions.NotFound("Назначение варианта не найдено") from exc
 
+    if mode == VariantAttempt.Mode.TRAINING:
+        if lifecycle.current_training(user, assignment.template.exam_version).exists():
+            raise lifecycle.TrainingConflict("Сначала отправьте текущую тренировку в архив.")
+        if assignment.template.template_tasks.count() > 100:
+            raise exceptions.ValidationError("В тренировке допускается до 100 задач.")
     if assignment.deadline and assignment.deadline < timezone.now():
         raise exceptions.ValidationError("Дедлайн по варианту истёк")
 
@@ -689,6 +653,7 @@ def _materialize_tasks_for_attempt(attempt: VariantAttempt) -> None:
         "template_name": template.name, "items": manifest,
         "time_limit_seconds": template.time_limit.total_seconds() if template.time_limit else None,
         "scale": deepcopy(scale.mapping) if scale else None,
+        "scale_metadata": scale.provenance if scale else None,
     }
     attempt.save(update_fields=["exam_snapshot", "updated_at"])
 
@@ -784,6 +749,8 @@ def _generate_task_snapshot(
         }
         if generation.answers is not None:
             snapshot["answers"] = _normalise_answers(generation.answers)
+            if attempt.mode == VariantAttempt.Mode.TRAINING:
+                snapshot["correct_answer"] = deepcopy(snapshot["answers"])
         if generation.meta is not None:
             snapshot["meta"] = dict(generation.meta)
         if attachments:
@@ -838,6 +805,7 @@ def _sync_attempt_from_variant_task_attempt(task_attempt: VariantTaskAttempt) ->
     if not _variant_task_attempt_has_response(task_attempt):
         return None
     user = task_attempt.variant_attempt.assignment.user
+    mode = Attempt.Mode.TRAINING if task_attempt.variant_attempt.mode == VariantAttempt.Mode.TRAINING else Attempt.Mode.VARIANT
     checked_at = task_attempt.checked_at or timezone.now()
     attempt, created = Attempt.objects.get_or_create(
         variant_task_attempt=task_attempt,
@@ -849,7 +817,7 @@ def _sync_attempt_from_variant_task_attempt(task_attempt: VariantTaskAttempt) ->
             "max_score": task_attempt.max_score,
             "time_spent": task_attempt.time_spent,
             "is_valid_attempt": task_attempt.is_valid_attempt,
-            "mode": Attempt.Mode.VARIANT,
+            "mode": mode,
             "checked_at": checked_at,
         },
     )
@@ -863,7 +831,7 @@ def _sync_attempt_from_variant_task_attempt(task_attempt: VariantTaskAttempt) ->
             "max_score": task_attempt.max_score,
             "time_spent": task_attempt.time_spent,
             "is_valid_attempt": task_attempt.is_valid_attempt,
-            "mode": Attempt.Mode.VARIANT,
+            "mode": mode,
             "checked_at": checked_at,
         }
         for field, value in field_values.items():
@@ -909,7 +877,7 @@ def _get_time_spent_map(attempt: VariantAttempt) -> dict[int, timedelta]:
 
 
 def _should_track_time(attempt: VariantAttempt) -> bool:
-    return bool(_attempt_time_limit(attempt))
+    return attempt.mode == VariantAttempt.Mode.TRAINING or bool(_attempt_time_limit(attempt))
 
 
 def _apply_attempt_timeout(attempt: VariantAttempt, *, now=None) -> bool:
@@ -947,6 +915,10 @@ def _stop_active_task_timer(
 
     now = now or timezone.now()
     start_ts = attempt.active_started_at
+    if attempt.mode == VariantAttempt.Mode.TRAINING:
+        # A suspended browser must not add a whole night to task time.
+        last_seen = max(start_ts, attempt.last_seen_at or start_ts)
+        now = min(now, last_seen + timedelta(seconds=90))
     duration = now - start_ts
     VariantTaskTimeLog.objects.create(
         variant_attempt=attempt,
@@ -968,7 +940,8 @@ def _start_task_timer(attempt: VariantAttempt, variant_task: VariantTask, *, now
     now = now or timezone.now()
     attempt.active_variant_task = variant_task
     attempt.active_started_at = now
-    attempt.save(update_fields=["active_variant_task", "active_started_at", "updated_at"])
+    attempt.last_seen_at = now
+    attempt.save(update_fields=["active_variant_task", "active_started_at", "last_seen_at", "updated_at"])
 
 
 @transaction.atomic
@@ -1100,6 +1073,7 @@ def save_task_response(
     variant_task = _validate_variant_task(assignment, variant_task_id, attempt=attempt)
 
     now = timezone.now()
+    was_active = attempt.active_variant_task_id == variant_task.pk
     _stop_active_task_timer(
         attempt,
         reason=VariantTaskTimeLog.StopReason.SAVE,
@@ -1121,14 +1095,29 @@ def save_task_response(
         if base_snapshot is not None:
             snapshot["task"] = base_snapshot
 
-    snapshot["response"] = {
-        "value": deepcopy(answer),
-        "saved_at": timezone.now().isoformat(),
-    }
+    if attempt.mode == VariantAttempt.Mode.TRAINING and answer_is_blank(answer):
+        snapshot.pop("response", None)
+    else:
+        snapshot["response"] = {
+            "value": deepcopy(answer),
+            "saved_at": timezone.now().isoformat(),
+        }
 
     generation_attempt.task_snapshot = snapshot
     generation_attempt.save(update_fields=["task_snapshot", "updated_at"])
+    if attempt.mode == VariantAttempt.Mode.TRAINING and was_active:
+        _start_task_timer(attempt, variant_task, now=now)
     return generation_attempt
+
+
+def answer_is_blank(value):
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return True
+    if isinstance(value, (list, tuple)):
+        return all(answer_is_blank(cell) for cell in value)
+    if isinstance(value, Mapping):
+        return all(answer_is_blank(cell) for cell in value.values())
+    return False
 
 
 def _validate_variant_task(assignment: VariantAssignment, variant_task_id: int, *, attempt=None) -> VariantTask:
@@ -1181,6 +1170,10 @@ def submit_task_answer(
     task_attempts_qs = attempt.task_attempts.filter(
         variant_task=variant_task, attempt_number__gt=0
     )
+    if attempt.mode == VariantAttempt.Mode.TRAINING:
+        previous = task_attempts_qs.order_by("-attempt_number").first()
+        if previous and previous.task_snapshot.get("response", {}) == (task_snapshot or {}):
+            return TaskSubmissionResult(attempt=attempt, task_attempt=previous)
     next_number = task_attempts_qs.count() + 1
     task_limit = variant_task.max_attempts
     if attempt.exam_snapshot:
@@ -1242,6 +1235,8 @@ def submit_task_answer(
 
     computed_score = None
     computed_is_correct = None
+    if attempt.mode == VariantAttempt.Mode.TRAINING and isinstance(correct_answer, Mapping) and set(correct_answer) == {"value"} and not isinstance(response_value, Mapping):
+        correct_answer = correct_answer["value"]
     if correct_answer is not None and response_value is not None:
         computed_score, computed_is_correct = _grade_answer(
             scoring_scheme,
@@ -1264,6 +1259,7 @@ def submit_task_answer(
         task_snapshot=snapshot,
         time_spent=time_spent,
         checked_at=now,
+        is_valid_attempt=not (attempt.mode == VariantAttempt.Mode.TRAINING and computed_score is None),
     )
     _sync_attempt_from_variant_task_attempt(task_attempt)
 
@@ -1284,6 +1280,8 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
     except VariantAttempt.DoesNotExist as exc:
         raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
 
+    if attempt.mode == VariantAttempt.Mode.TRAINING:
+        raise exceptions.ValidationError("Тренировку можно отправить в архив без проверки оставшихся ответов.")
     _ensure_active_attempt(attempt)
     _stop_active_task_timer(
         attempt,
@@ -1301,6 +1299,13 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
         variant_task = generation_attempt.variant_task
         task = variant_task.task
         snapshot = deepcopy(generation_attempt.task_snapshot or {})
+        if attempt.mode == VariantAttempt.Mode.TRAINING:
+            response = snapshot.get("response")
+            if response is not None:
+                previous = attempt.task_attempts.filter(variant_task=variant_task, attempt_number__gt=0).order_by("-attempt_number").first()
+                if previous is None or previous.task_snapshot.get("response", {}).get("value") != response.get("value"):
+                    submit_task_answer(user, attempt.pk, variant_task.pk, is_correct=False, task_snapshot={"value": response.get("value")})
+            continue
         task_snapshot = snapshot.get("task", snapshot)
         if not task_snapshot:
             base_snapshot = _get_generated_snapshot(attempt, variant_task)
@@ -1397,7 +1402,9 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
 
     now = timezone.now()
     time_limit = _attempt_time_limit(attempt)
-    if time_limit and now - attempt.started_at > time_limit:
+    if attempt.mode == VariantAttempt.Mode.TRAINING:
+        attempt.time_spent = sum(_get_time_spent_map(attempt).values(), timedelta())
+    elif time_limit and now - attempt.started_at > time_limit:
         attempt.time_spent = time_limit
     else:
         attempt.time_spent = now - attempt.started_at
@@ -1436,6 +1443,8 @@ def heartbeat_attempt(
     except VariantAttempt.DoesNotExist as exc:
         raise exceptions.NotFound("Attempt does not exist or is unavailable.") from exc
 
+    if attempt.mode == VariantAttempt.Mode.TRAINING:
+        _ensure_active_attempt(attempt)
     now = timezone.now()
     update_fields = ["last_seen_at", "updated_at"]
     attempt.last_seen_at = now
@@ -1579,7 +1588,9 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
                 "max_attempts": issued_items.get(variant_task.pk, {}).get("max_attempts", variant_task.max_attempts),
                 "attempts": actual_attempts,
                 "attempts_used": len(actual_attempts),
-                "is_completed": any(attempt.is_correct for attempt in actual_attempts),
+                "is_completed": bool(actual_attempts and actual_attempts[-1].is_correct and
+                                     (attempt.mode != VariantAttempt.Mode.TRAINING or
+                                      actual_attempts[-1].task_snapshot.get("response", {}).get("value") == saved_response)),
                 "task_snapshot": deepcopy(generated_snapshot) if generated_snapshot else None,
                 "saved_response": deepcopy(saved_response) if saved_response is not None else None,
                 "saved_response_updated_at": saved_response_updated_at,

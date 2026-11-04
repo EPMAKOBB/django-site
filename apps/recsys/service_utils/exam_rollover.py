@@ -59,7 +59,8 @@ def create_next_year(source, *, year, exam_kind="ege", new_revision=False):
                                              count=item.count, order=item.order, section=item.section, score_override=item.score_override)
     old_scale = ExamScoreScale.objects.filter(exam_version=source).first()
     if old_scale:
-        ExamScoreScale.objects.create(exam_version=target, max_primary=old_scale.max_primary, mapping=deepcopy(old_scale.mapping), is_active=False)
+        ExamScoreScale.objects.create(exam_version=target, max_primary=old_scale.max_primary, mapping=deepcopy(old_scale.mapping), is_active=False,
+                                      source_year=old_scale.source_year, source_url=old_scale.source_url, is_provisional=True)
     for old_group in source.skill_groups.all():
         group = SkillGroup.objects.create(exam_version=target, title=old_group.title)
         for item in old_group.items.all():

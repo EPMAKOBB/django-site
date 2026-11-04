@@ -1,7 +1,11 @@
-{% extends 'base.html' %}
-{% load i18n markdown_extras %}
+{% extends 'base_learning.html' %}
+{% load i18n static markdown_extras versioned_assets %}
 
 {% block title %}{{ module.title }} — {{ course.title }}{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% versioned_static 'css/course-module.css' %}">
+{% endblock %}
 
 {% block content %}
   <div class="container module-detail">
@@ -239,7 +243,7 @@
                             {% endfor %}
                           </fieldset>
                           <div class="module-detail__action-buttons module-detail__action-buttons--inline">
-                            <button type="submit" class="btn btn--primary">
+                            <button type="submit" class="btn btn-primary">
                               {{ task_answer_submit_label }}
                             </button>
                           </div>
@@ -261,10 +265,10 @@
                   {% csrf_token %}
                   <input type="hidden" name="item_id" value="{{ current_item.id }}">
                   <div class="module-detail__action-buttons">
-                    <button type="submit" name="action" value="success" class="btn btn--success">
+                    <button type="submit" name="action" value="success" class="btn btn-primary">
                       {% trans 'Отметить карточку как пройденную' %}
                     </button>
-                    <button type="submit" name="action" value="failure" class="btn btn--secondary">
+                    <button type="submit" name="action" value="failure" class="btn btn-secondary">
                       {% trans 'Нужна повторная попытка' %}
                     </button>
                   </div>

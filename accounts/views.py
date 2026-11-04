@@ -109,7 +109,7 @@ def _format_duration(value: timedelta) -> str:
 
 def _active_attempt(assignment):
     for attempt in assignment.attempts.all():
-        if attempt.completed_at is None:
+        if attempt.completed_at is None and attempt.archived_at is None:
             return attempt
     return None
 
@@ -142,6 +142,8 @@ def _build_assignment_context(assignment):
 
     return {
         "assignment": assignment,
+        "work_mode": next((a.mode for a in assignment.attempts.all()), "exam"),
+        "archived_attempt": next((a for a in assignment.attempts.all() if a.archived_at and a.completed_at is None), None),
         "progress": progress,
         "progress_percentage": progress_percentage,
         "active_attempt": active_attempt,
@@ -198,7 +200,7 @@ def _build_training_session_context(session):
     steps = [
         _build_training_step_context(step)
         for step in session.steps.all()
-        if step.status == "answered"
+        if step.status == "answered" or step.attempt_id
     ]
     type_names = []
     for item in steps:
@@ -207,7 +209,7 @@ def _build_training_session_context(session):
             type_names.append(name)
 
     status_labels = {
-        TrainingSession.Status.ACTIVE: _("в работе"),
+        TrainingSession.Status.ACTIVE: _("прежний формат"),
         TrainingSession.Status.COMPLETED: _("завершена"),
         TrainingSession.Status.ABANDONED: _("прервана"),
     }
@@ -215,14 +217,14 @@ def _build_training_session_context(session):
     return {
         "session": session,
         "exam": exam,
-        "title": _("Тренировка"),
+        "title": _("Тренировка (прежний формат)"),
         "status_label": status_labels.get(session.status, session.status),
         "steps": steps,
         "type_names": type_names,
         "accuracy_percentage": accuracy_percentage,
         "progress_label": f"{correct_steps}/{completed_steps}" if completed_steps else "0/0",
         "activity_at": session.last_activity_at or session.ended_at or session.started_at,
-        "continue_url": reverse("exam-training-page", args=[exam.slug]) if exam and exam.slug else "",
+        "continue_url": "",
     }
 
 
@@ -296,12 +298,9 @@ def progress(request):
         .prefetch_related("steps", "steps__task", "steps__task__type", "steps__attempt")
         .order_by("-last_activity_at", "-started_at", "-id")[:50]
     )
-    active_training_sessions = [
-        session for session in training_sessions if session.status == TrainingSession.Status.ACTIVE
-    ]
-    past_training_sessions = [
-        session for session in training_sessions if session.status != TrainingSession.Status.ACTIVE
-    ]
+    # The sequential trainer remains readable in history; new works use variants.
+    active_training_sessions = []
+    past_training_sessions = training_sessions
     current_assignment_contexts = [
         _build_assignment_context(assignment) for assignment in current_assignments
     ]

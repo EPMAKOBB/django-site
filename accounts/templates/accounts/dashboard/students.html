@@ -7,6 +7,7 @@
   {% if role != 'teacher' %}
     <section class="card"><p>{% trans "Доступно только учителям." %}</p></section>
   {% else %}
+    <h1 class="page-title">{% trans "Мои ученики" %}</h1>
     <section class="card mb-16">
       <h2 class="mb-8">Добавить ученика без регистрации</h2>
       <p class="hint">Карточка сразу станет доступна в расписании. Аккаунт ученика можно подключить позже.</p>

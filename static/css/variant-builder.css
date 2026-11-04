@@ -1,0 +1,41 @@
+.builder-wrapper {
+    max-width: var(--container-max);
+    margin: 0 auto var(--space-6);
+    padding: 0;
+  }
+  .builder-card {
+    padding: var(--panel-padding);
+  }
+  .builder-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  .builder-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .builder-field select {
+    width: 100%;
+  }
+  .tasks-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .tasks-table th,
+  .tasks-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--color-border-subtle);
+    vertical-align: top;
+  }
+  .tasks-table th {
+    text-align: left;
+    opacity: 0.8;
+    font-weight: 600;
+  }
+  .muted-line {
+    opacity: 0.75;
+    font-size: 0.95rem;
+  }

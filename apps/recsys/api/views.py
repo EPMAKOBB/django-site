@@ -1,3 +1,4 @@
+from .training_guards import TrainingMutationView
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -286,7 +287,7 @@ class VariantAttemptDetailView(APIView):
         return Response(serializer.data)
 
 
-class VariantAttemptHeartbeatView(APIView):
+class VariantAttemptHeartbeatView(TrainingMutationView):
     """Lightweight heartbeat for keeping timed attempts in sync."""
 
     permission_classes = [permissions.IsAuthenticated]
@@ -310,7 +311,7 @@ class VariantAttemptHeartbeatView(APIView):
         return Response(payload)
 
 
-class VariantTaskFocusView(APIView):
+class VariantTaskFocusView(TrainingMutationView):
     """Mark a task as opened to start/stop per-task timers."""
 
     permission_classes = [permissions.IsAuthenticated]
@@ -322,7 +323,7 @@ class VariantTaskFocusView(APIView):
         return Response(serializer.data)
 
 
-class VariantTaskSaveView(APIView):
+class VariantTaskSaveView(TrainingMutationView):
     """Save draft answer for a task (without scoring)."""
 
     permission_classes = [permissions.IsAuthenticated]
@@ -344,7 +345,7 @@ class VariantTaskSaveView(APIView):
         return Response(response_serializer.data)
 
 
-class VariantTaskClearView(APIView):
+class VariantTaskClearView(TrainingMutationView):
     """Clear saved draft answer and restart timer."""
 
     permission_classes = [permissions.IsAuthenticated]
@@ -360,7 +361,7 @@ class VariantTaskClearView(APIView):
         return Response(serializer.data)
 
 
-class VariantTaskSubmitView(APIView):
+class VariantTaskSubmitView(TrainingMutationView):
     """Persist an answer for a single task inside the attempt."""
 
     permission_classes = [permissions.IsAuthenticated]
@@ -386,7 +387,7 @@ class VariantTaskSubmitView(APIView):
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
-class VariantAttemptFinalizeView(APIView):
+class VariantAttemptFinalizeView(TrainingMutationView):
     """Mark an attempt as finished."""
 
     permission_classes = [permissions.IsAuthenticated]
