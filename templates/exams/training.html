@@ -649,6 +649,17 @@
     feedbackEl.hidden = false;
     responseEl.hidden = true;
     submitBtn.disabled = true;
+      if (result.result === "unknown" && result.score == null) {
+        feedbackTitleEl.textContent = "Ответ сохранён. Требуется ручная проверка.";
+        feedbackScoreEl.textContent = "Баллы пока не выставлены.";
+        feedbackReasonEl.hidden = true;
+        feedbackFieldsEl.innerHTML = "";
+        feedbackFieldsEl.hidden = true;
+        feedbackCorrectEl.hidden = true;
+        feedbackCorrectEl.textContent = "";
+        if (nextTaskBtn) nextTaskBtn.hidden = false;
+        return;
+      }
     feedbackEl.classList.add(result.is_correct ? "training-feedback--correct" : "training-feedback--incorrect");
     taskPanelEl?.classList.add(result.is_correct ? "training-task--correct" : "training-task--incorrect");
     if (isPreviousStep) {

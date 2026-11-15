@@ -68,6 +68,40 @@ class TrainingApiFlowTests(TestCase):
         self.foreign_task.tags.add(self.other_tag)
         Task.objects.update(status=Task.Status.PUBLISHED)
 
+    def test_manual_answer_stays_ungraded_and_preserves_multiline_text(self):
+        import uuid
+        from apps.recsys.services import recompute_task_difficulty
+        schema = AnswerSchema.objects.create(name='long', config={
+            'rows': 1, 'cols': 1, 'input_type': 'text', 'ui_hint': 'textarea', 'manual_check': True})
+        self.task_type.answer_schema = schema
+        self.task_type.scoring_scheme = 'manual_scaled'
+        self.task_type.max_score = 2
+        self.task_type.save()
+        response = self.client.post('/api/training/sessions/',
+            data=json.dumps({'exam_version_id': self.exam_version.pk}), content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        session_id = payload['session']['id']
+        step_id = payload['current_task']['step_id']
+        answer = 'a) First line.\nb) Full reasoning and selected roots.'
+        request = {'step_id': step_id, 'answer': answer, 'submission_key': str(uuid.uuid4())}
+        for _ in range(2):
+            response = self.client.post(f'/api/training/sessions/{session_id}/submit/',
+                data=json.dumps(request), content_type='application/json')
+            self.assertIn(response.status_code, (200, 201))
+            result = response.json()['submission_result']
+            self.assertIsNone(result['score'])
+            self.assertIsNone(result['is_correct'])
+            self.assertEqual(result['result'], 'unknown')
+        attempt = Attempt.objects.get()
+        self.assertTrue(attempt.awaits_manual_grading)
+        self.assertEqual(attempt.response_snapshot['answer'], answer)
+        attempt.task.refresh_from_db()
+        self.assertEqual(attempt.task.attempts_total, 0)
+        recompute_task_difficulty(attempt.task)
+        attempt.task.refresh_from_db()
+        self.assertEqual(attempt.task.attempts_total, 0)
+
     def test_training_session_start_submit_and_end(self):
         resp = self.client.get(
             "/api/training/sessions/current/",

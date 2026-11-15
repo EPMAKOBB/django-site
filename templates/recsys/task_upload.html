@@ -1231,12 +1231,15 @@
           wrap.className = "answer-cell";
           const label = document.createElement("label");
           label.textContent = rows > 1 ? `Строка ${r + 1}, поле ${c + 1}` : `Поле ${c + 1}`;
-          const input = document.createElement("input");
+          const isLongText = cfg.ui_hint === "textarea";
+          const input = document.createElement(isLongText ? "textarea" : "input");
           input.name = `answer_r${r}_c${c}`;
           input.dataset.row = String(r);
           input.dataset.col = String(c);
           input.className = "answer-input";
-          if (inputType === "uint" || inputType === "int" || inputType === "float") {
+          if (isLongText) {
+            input.rows = 8;
+          } else if (inputType === "uint" || inputType === "int" || inputType === "float") {
             input.type = "number";
             if (inputType === "uint") input.min = "0";
             if (inputType === "float") input.step = "any";
@@ -1263,7 +1266,7 @@
       setupAutoAdvance(cfg);
       setupPasteFill(rows, cols);
       syncAnswerPayload();
-      Array.from(fields.querySelectorAll("input")).forEach((input) => {
+      Array.from(fields.querySelectorAll("input, textarea")).forEach((input) => {
         input.addEventListener("input", syncAnswerPayload);
       });
     }
@@ -1333,7 +1336,7 @@
       const inputType = cfg.input_type || "string";
 
       const fetchCell = (r, c) => {
-        const input = fields.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
+        const input = fields.querySelector(`[data-row="${r}"][data-col="${c}"]`);
         return input ? input.value : "";
       };
 

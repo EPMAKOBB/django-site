@@ -1009,6 +1009,18 @@ class Attempt(TimeStampedModel):
             models.UniqueConstraint(fields=["variant_task_attempt"], condition=models.Q(variant_task_attempt__isnull=False, context_origin="issued"), name="attempt_variant_answer_unique"),
         ]
 
+    @property
+    def awaits_manual_grading(self):
+        if self.score is not None:
+            return False
+        scheme = (self.task_snapshot or {}).get("scoring_scheme")
+        if not scheme:
+            scheme = (
+                self.placement.scoring_scheme or self.placement.task_type.scoring_scheme
+                if self.placement_id else self.task.get_scoring_scheme()
+            )
+        return scheme == TaskType.ScoringScheme.MANUAL_SCALED
+
     def save(self, *args, **kwargs):
         from .service_utils.exam_context import prepare_attempt_context
         if self._state.adding:

@@ -311,9 +311,11 @@ def submit_step_answer(
             payload = session_payload(get_session_or_404(user, session_id))
             payload["submission_result"] = {"step_id": step_id, "attempt_id": previous.pk, "is_correct": previous.is_correct,
                                             "score": previous.score, "max_score": previous.max_score, "answer": answer,
-                                            "result": "correct" if previous.is_correct else ("partial" if previous.score else "incorrect"),
+                                            "result": "unknown" if previous.awaits_manual_grading else ("correct" if previous.is_correct else ("partial" if previous.score else "incorrect")),
                                             "correct_answer": previous.task_snapshot.get("correct_answer") if previous.is_correct else None,
                                             "answered_at": previous.checked_at}
+            if previous.awaits_manual_grading:
+                payload["submission_result"]["is_correct"] = None
             payload["next_step_id"] = None
             return payload
     if session.status != TrainingSession.Status.ACTIVE:
@@ -411,7 +413,7 @@ def submit_step_answer(
     payload["submission_result"] = {
         "step_id": step.id,
         "attempt_id": attempt.id,
-        "is_correct": bool(is_correct),
+        "is_correct": is_correct,
         "score": score,
         "max_score": max_score,
         "result": result,

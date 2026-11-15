@@ -35,7 +35,7 @@
     if (!container || payload === null || payload === undefined) return;
     const { rows, cols } = getGridSize(schema);
     const setCell = (r, c, value) => {
-      const input = container.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
+      const input = container.querySelector(`[data-row="${r}"][data-col="${c}"]`);
       if (input) input.value = normaliseDisplayValue(value);
     };
 
@@ -158,12 +158,19 @@
       for (let col = 0; col < cols; col += 1) {
         const cell = document.createElement("div");
         cell.className = cellClassName;
-        const input = document.createElement("input");
+        const isLongText = cfg.ui_hint === "textarea";
+        const input = document.createElement(isLongText ? "textarea" : "input");
         input.name = `answer_r${row}_c${col}`;
         input.dataset.row = String(row);
         input.dataset.col = String(col);
         input.className = inputClassName;
-        input.type = opts.htmlInputType || "text";
+        if (isLongText) {
+          input.rows = 8;
+          input.style.width = "100%";
+          input.setAttribute("aria-label", "Развёрнутый ответ");
+        } else {
+          input.type = opts.htmlInputType || "text";
+        }
         if (inputType === "uint" || inputType === "int" || inputType === "number") {
           input.inputMode = "numeric";
         } else if (inputType === "float") {
@@ -201,7 +208,7 @@
     const allowBlankRows = !!cfg.allow_blank_rows;
     const inputType = cfg.input_type || "string";
     const getCell = (row, col) => {
-      const input = container.querySelector(`input[data-row="${row}"][data-col="${col}"]`);
+      const input = container.querySelector(`[data-row="${row}"][data-col="${col}"]`);
       return input ? input.value : "";
     };
 
