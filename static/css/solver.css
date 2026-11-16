@@ -377,6 +377,26 @@
   font-size: var(--font-size-sm);
 }
 
+.solver__answer-builder .answer-row.answer-row--single-character {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.solver__answer-builder .answer-row--single-character .answer-cell {
+  flex: 0 0 34px;
+  min-width: 0;
+}
+
+.solver__answer-builder .answer-row--single-character .answer-input {
+  box-sizing: border-box;
+  width: 34px;
+  height: 44px;
+  padding: 6px 2px;
+  text-align: center;
+  font-size: 20px;
+}
+
 .solver__answer-builder .answer-input {
   width: 100%;
 

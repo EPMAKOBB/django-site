@@ -163,6 +163,7 @@
     for (let row = 0; row < rows; row += 1) {
       const rowEl = document.createElement("div");
       rowEl.className = rowClassName;
+      if (perCellMax === 1) rowEl.classList.add("answer-row--single-character");
       for (let col = 0; col < cols; col += 1) {
         const cell = document.createElement("div");
         cell.className = cellClassName;
