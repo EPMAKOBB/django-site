@@ -1,0 +1,9 @@
+{% extends 'recsys/solution_base.html' %}
+{% block content %}<h1>Развёрнутые решения</h1><p>{{ work.assignment.template.name }}</p>
+<p><a href="{% url 'accounts:variant-attempt-solver' work.pk %}">← Вернуться к работе</a> · <a href="{% url 'accounts:dashboard' %}">Личный кабинет</a></p>
+{% if work.mode == 'exam' and not work.completed_at %}<p>Загрузите и отправьте решения до завершения пробника. Образцы и критерии будут доступны после его завершения.</p>{% endif %}
+{% for row in rows %}<section class="solution-panel"><h2>Задание {{ row.order }} · {{ row.task_type_name }}</h2>
+{% if row.assessment_source == 'self' %}<p>Самооценка: {{ row.assessed_score }} из {{ row.max_score }}</p>
+{% elif row.solution.submitted_at %}<p>Ожидает проверки</p>{% else %}<p>Решение ещё не отправлено</p>{% endif %}
+<a class="btn btn-primary" href="{{ row.solution_url }}">Фото решения и проверка</a></section>{% empty %}<p>В этой работе нет заданий с оцениванием по критериям.</p>{% endfor %}
+{% endblock %}

@@ -23,6 +23,7 @@ MIGRATION_MODULES = {
     "recsys": None,
     "subjects": None,
     "students": None,
+    "tutors": None,
 }
 
 LOGGING = {

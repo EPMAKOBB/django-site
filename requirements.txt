@@ -6,6 +6,7 @@ python-dotenv
 psycopg2-binary
 djangorestframework
 Pillow==10.3.0
+qrcode
 requests
 beautifulsoup4
 Markdown

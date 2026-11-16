@@ -28,11 +28,20 @@ def _invalidate_catalog_tags(sender, action, using="default", **kwargs):
 from django.db.models.signals import post_delete, m2m_changed
 from subjects.models import Subject
 from .models import ExamVersion, TaskType, TaskTag, ExamBlueprint, ExamBlueprintItem, ExamScoreScale
+from .models import SolutionPhoto
+
+
+@receiver(post_delete, sender=SolutionPhoto)
+def delete_solution_photo_file(sender, instance, **kwargs):
+    if instance.image:
+        storage, name = instance.image.storage, instance.image.name
+        transaction.on_commit(lambda: storage.delete(name))
 
 for _model in (Subject, ExamVersion, TaskType, TaskTag, ExamBlueprint, ExamBlueprintItem, ExamScoreScale):
     post_save.connect(_invalidate_catalog, sender=_model, dispatch_uid=f"catalog-save-{_model._meta.label}")
     post_delete.connect(_invalidate_catalog, sender=_model, dispatch_uid=f"catalog-delete-{_model._meta.label}")
 m2m_changed.connect(_invalidate_catalog_tags, sender=TaskType.required_tags.through, dispatch_uid="catalog-tags")
+m2m_changed.connect(_invalidate_catalog_tags, sender=TaskType.allowed_tags.through, dispatch_uid="catalog-allowed-tags")
 
 
 @receiver(post_save, sender=Attempt)

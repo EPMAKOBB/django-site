@@ -12,6 +12,7 @@ from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 import re
 import json
+import math
 
 from subjects.models import Subject
 from .models import (
@@ -249,7 +250,7 @@ def compare_answers(expected: Any, actual: Any) -> bool:
         return expected.strip().casefold() == str(actual).strip().casefold()
     if isinstance(expected, float):
         try:
-            actual_value = float(actual)
+            actual_value = float(str(actual).replace(",", "."))
         except (TypeError, ValueError):
             return False
         return abs(expected - actual_value) <= 1e-9
@@ -404,7 +405,7 @@ class TaskUploadForm(forms.ModelForm):
     tags = forms.ModelMultipleChoiceField(
         queryset=TaskTag.objects.none(),
         required=False,
-        help_text="Только обязательные теги выбранного типа.",
+        help_text="Обязательные и дополнительные допустимые темы выбранных типов.",
         widget=forms.SelectMultiple(attrs={"size": 5}),
     )
     skills = forms.ModelMultipleChoiceField(
@@ -433,6 +434,8 @@ class TaskUploadForm(forms.ModelForm):
             "title",
             "description",
             "correct_answer",
+            "reference_solution",
+            "assessment_criteria",
             "tags",
             "rendering_strategy",
             "difficulty_level",
@@ -560,7 +563,10 @@ class TaskUploadForm(forms.ModelForm):
                 raise forms.ValidationError(f"Поле «{label}» должно быть целым числом.")
         if input_type == "float":
             try:
-                return float(value)
+                number = float(str(value).replace(",", "."))
+                if not math.isfinite(number):
+                    raise ValueError
+                return number
             except (TypeError, ValueError):
                 raise forms.ValidationError(f"Поле «{label}» должно быть числом.")
         # string / text / char fallback
@@ -656,8 +662,10 @@ class TaskUploadForm(forms.ModelForm):
             self.add_error("type", "Тип задачи должен совпадать с предметом.")
         if task_type and "tags" in cleaned:
             required_ids = set(task_type.required_tags.values_list("id", flat=True))
+            required_ids.update(task_type.allowed_tags.values_list("id", flat=True))
             for additional_type in cleaned.get("additional_types", []):
                 required_ids.update(additional_type.required_tags.values_list("id", flat=True))
+                required_ids.update(additional_type.allowed_tags.values_list("id", flat=True))
             selected_ids = (
                 set(cleaned.get("tags").values_list("id", flat=True))
                 if cleaned.get("tags")
@@ -665,7 +673,7 @@ class TaskUploadForm(forms.ModelForm):
             )
             extra = selected_ids - required_ids
             if extra:
-                self.add_error("tags", "Можно выбрать только учебные темы выбранных типов.")
+                self.add_error("tags", "Можно выбрать только допустимые учебные темы выбранных типов.")
         for additional_type in cleaned.get("additional_types", []):
             if subject and additional_type.subject_id != subject.pk:
                 self.add_error("additional_types", "Дополнительные типы должны относиться к тому же предмету.")

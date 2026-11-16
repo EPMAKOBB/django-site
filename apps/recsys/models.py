@@ -15,6 +15,7 @@ from django.utils.text import slugify
 
 from subjects.models import Subject
 from apps.recsys.utils.sanitize import sanitize_html
+from .solution_storage import solution_storage, solution_photo_path
 
 
 class TimeStampedModel(models.Model):
@@ -141,6 +142,8 @@ class AnswerSchema(TimeStampedModel):
 class TaskType(TimeStampedModel):
     class ScoringScheme(models.TextChoices):
         BINARY = "binary", "Binary (0/1)"
+        ORDERED_ONE_ERROR = "ordered_one_error", "Последовательность: одна ошибка (0–2)"
+        UNORDERED_TWO_PARTIAL = "unordered_two_partial", "Выбор двух: порядок не важен (0–2)"
         PARTIAL_PAIRS = "partial_pairs", "Partial pairs (0-2)"
         EGE_PAIRS_2027 = "ege_pairs_2027", "ЕГЭ 2027: пара чисел, перестановка — 1 балл"
         PARTIAL_ROWS = "partial_rows", "Partial rows (0-2)"
@@ -175,6 +178,11 @@ class TaskType(TimeStampedModel):
         "TaskTag",
         blank=True,
         related_name="required_for_task_types",
+    )
+    allowed_tags = models.ManyToManyField(
+        "TaskTag", blank=True, related_name="allowed_for_task_types",
+        verbose_name="Дополнительные допустимые темы",
+        help_text="Темы для разметки банка без требования покрыть каждую из них перед публикацией.",
     )
     answer_schema = models.ForeignKey(
         AnswerSchema,
@@ -240,6 +248,8 @@ class TaskType(TimeStampedModel):
 
         if self.exam_version and self.exam_version.subject_id != self.subject_id:
             raise ValidationError({"exam_version": "Exam version must match task subject."})
+        if self.scoring_scheme in {self.ScoringScheme.ORDERED_ONE_ERROR, self.ScoringScheme.UNORDERED_TWO_PARTIAL} and self.max_score != 2:
+            raise ValidationError({"max_score": "Для этого правила максимальный балл должен быть равен 2."})
 
     def save(self, *args, **kwargs):
         self._normalize_slug()
@@ -418,6 +428,10 @@ class Task(TimeStampedModel):
     default_payload = models.JSONField(default=dict, blank=True)
     image = models.ImageField(upload_to=task_image_upload_to, blank=True)
     correct_answer = models.JSONField(blank=True, default=dict)
+    reference_solution = models.TextField(blank=True, verbose_name="Образец решения",
+        help_text="Markdown и формулы. Один из допустимых способов решения.")
+    assessment_criteria = models.TextField(blank=True, verbose_name="Критерии оценивания",
+        help_text="Условия получения каждого балла, включая частичные решения.")
     level_band = models.CharField(
         max_length=16,
         choices=LevelBand.choices,
@@ -499,6 +513,12 @@ class Task(TimeStampedModel):
                     {"correct_answer": "Правильный ответ должен быть объектом JSON"}
                 )
         self.correct_answer = deepcopy(answer)
+        from .answer_rules import validate_digit_reference
+        try:
+            if not self.is_dynamic:
+                validate_digit_reference(self.get_scoring_scheme(), self.correct_answer, self.get_max_score())
+        except ValueError as exc:
+            raise ValidationError({"correct_answer": str(exc)}) from exc
 
         if not 0 <= self.difficulty_level <= 100:
             raise ValidationError(
@@ -708,6 +728,14 @@ class TaskPlacement(TimeStampedModel):
                 raise ValidationError("Предмет экзамена не совпадает с задачей.")
         if self.max_score is not None and self.max_score < 1:
             raise ValidationError({"max_score": "Максимум должен быть положительным."})
+        if self.task_id and self.task_type_id and not self.task.is_dynamic:
+            from .answer_rules import validate_digit_reference
+            scheme = self.scoring_scheme or self.task.scoring_scheme or self.task_type.scoring_scheme
+            maximum = self.max_score or self.task.max_score or self.task_type.max_score
+            try:
+                validate_digit_reference(scheme, self.task.correct_answer, maximum)
+            except ValueError as exc:
+                raise ValidationError({"scoring_scheme": str(exc)}) from exc
         if self.pk:
             old = type(self).objects.get(pk=self.pk)
             if (old.task_id, old.task_type_id) != (self.task_id, self.task_type_id):
@@ -906,9 +934,11 @@ class ExamScoreScale(TimeStampedModel):
 
     @property
     def display_label(self):
+        kind = self.exam_version.exam_kind.casefold()
+        label = "ОГЭ" if kind in {"oge", "огэ"} or self.exam_version.name.startswith("ОГЭ") else "ЕГЭ"
         if self.is_provisional:
-            return f"Предварительно, по шкале ЕГЭ-{self.source_year}" if self.source_year else "Предварительная шкала перевода"
-        return f"По шкале ЕГЭ-{self.source_year}" if self.source_year else ""
+            return f"Предварительно, по шкале {label}-{self.source_year}" if self.source_year else "Предварительная шкала перевода"
+        return f"По шкале {label}-{self.source_year}" if self.source_year else ""
 
     @property
     def provenance(self):
@@ -1036,6 +1066,16 @@ class Attempt(TimeStampedModel):
             models.UniqueConstraint(fields=["user", "submission_key"], name="attempt_submission_unique"),
             models.UniqueConstraint(fields=["variant_task_attempt"], condition=models.Q(variant_task_attempt__isnull=False, context_origin="issued"), name="attempt_variant_answer_unique"),
         ]
+
+    @property
+    def awaits_manual_grading(self):
+        if self.score is not None:
+            return False
+        scheme = (self.task_snapshot or {}).get("scoring_scheme")
+        if not scheme:
+            scheme = (self.placement.scoring_scheme or self.placement.task_type.scoring_scheme
+                      if self.placement_id else self.task.get_scoring_scheme())
+        return scheme == TaskType.ScoringScheme.MANUAL_SCALED
 
     def save(self, *args, **kwargs):
         from .service_utils.exam_context import prepare_attempt_context
@@ -1409,6 +1449,10 @@ class ExamBlueprintItem(TimeStampedModel):
                 and self.task_type.exam_version_id != self.blueprint.exam_version_id
             ):
                 raise ValidationError({"task_type": "Task type must match blueprint exam version."})
+        if self.task_type_id and self.task_type.scoring_scheme in {
+            TaskType.ScoringScheme.ORDERED_ONE_ERROR, TaskType.ScoringScheme.UNORDERED_TWO_PARTIAL
+        } and self.score_override not in (None, 2):
+            raise ValidationError({"score_override": "Для этого правила максимальный балл должен быть равен 2."})
 
 
 class VariantPage(TimeStampedModel):
@@ -1746,3 +1790,44 @@ class VariantTaskTimeLog(TimeStampedModel):
     def __str__(self) -> str:  # pragma: no cover - human readable
         task_label = f"{self.variant_task_id}" if self.variant_task_id else "?"
         return f"Time log for task {task_label} (attempt {self.variant_attempt_id})"
+
+
+class WrittenSolution(TimeStampedModel):
+    """One sealed submission per issued task; grading history is kept separately."""
+    variant_attempt = models.ForeignKey(VariantAttempt, on_delete=models.CASCADE, related_name="written_solutions")
+    variant_task = models.ForeignKey(VariantTask, on_delete=models.PROTECT, related_name="written_solutions")
+    text = models.TextField(blank=True, max_length=30000)
+    reference_snapshot = models.JSONField(default=dict)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    revealed_at = models.DateTimeField(null=True, blank=True)
+    upload_key = models.UUIDField(default=uuid4, editable=False)
+    task_attempt = models.OneToOneField(VariantTaskAttempt, null=True, blank=True,
+        on_delete=models.PROTECT, related_name="written_solution")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["variant_attempt", "variant_task"], name="written_solution_issued_unique")]
+
+
+class SolutionPhoto(TimeStampedModel):
+    solution = models.ForeignKey(WrittenSolution, on_delete=models.CASCADE, related_name="photos")
+    image = models.FileField(storage=solution_storage, upload_to=solution_photo_path)
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "pk"]
+
+
+class SolutionAssessment(TimeStampedModel):
+    class Source(models.TextChoices):
+        SELF = "self", "Самооценка"
+        TEACHER = "teacher", "Преподаватель"
+        AI = "ai", "Нейросеть"
+
+    solution = models.ForeignKey(WrittenSolution, on_delete=models.CASCADE, related_name="assessments")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    source = models.CharField(max_length=12, choices=Source.choices)
+    score = models.PositiveSmallIntegerField()
+    comment = models.TextField(blank=True, max_length=3000)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]

@@ -71,11 +71,13 @@ def protect_annual_delete(sender, instance, **kwargs):
 
 
 @receiver(m2m_changed, sender=TaskType.required_tags.through)
+@receiver(m2m_changed, sender=TaskType.allowed_tags.through)
 def protect_requirements(sender, instance, action, reverse, pk_set, **kwargs):
     if action not in {"pre_add", "pre_remove", "pre_clear"}:
         return
     if reverse:
-        types = instance.required_for_task_types.all() if pk_set is None else TaskType.objects.filter(pk__in=pk_set)
+        relation = instance.allowed_for_task_types if sender is TaskType.allowed_tags.through else instance.required_for_task_types
+        types = relation.all() if pk_set is None else TaskType.objects.filter(pk__in=pk_set)
         protected = types.filter(exam_version__published_at__isnull=False).exists()
     else:
         protected = bool(instance.exam_version_id and ExamVersion.objects.filter(pk=instance.exam_version_id, published_at__isnull=False).exists())

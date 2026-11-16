@@ -114,6 +114,8 @@ def snapshot_task(task, placement=None, *, exam_version=None, order=None, seed=N
         "title": task.title, "description": task.description,
         "rendering_strategy": task.rendering_strategy,
         "correct_answer": deepcopy(task.correct_answer),
+        "reference_solution": task.reference_solution,
+        "assessment_criteria": task.assessment_criteria,
         "context": context, "task_type_name": context["task_type_name"],
         **grading_context(task, placement),
         "storage_files": list(task.attachments.exclude(file="").values_list("file", flat=True)) + ([task.image.name] if task.image else []),
@@ -199,6 +201,10 @@ def display_tasks(queryset, *, exam_ids=None, task_type_id=None):
 
 def public_snapshot(snapshot, *, reveal=False):
     result = deepcopy(snapshot or {})
+    # References are revealed explicitly by the written-solution workflow, so
+    # opening them can be recorded independently of finishing a work.
+    result.pop("reference_solution", None)
+    result.pop("assessment_criteria", None)
     if not reveal:
         result.pop("correct_answer", None)
         result.pop("answers", None)

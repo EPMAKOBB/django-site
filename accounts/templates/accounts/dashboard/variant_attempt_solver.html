@@ -429,6 +429,10 @@
         userAnswer,
         correctAnswer,
         variantTaskId: task.variant_task_id,
+        solutionUrl: task.solution_url,
+        solutionSubmitted: task.solution_submitted,
+        assessmentSource: task.assessment_source,
+        pendingManual: !!task.solution_url && !!task.solution_submitted && latest?.score == null,
       };
     });
     return rows;
@@ -437,9 +441,13 @@
   function renderFinishTableRows(rows) {
     return rows.map((row) => {
       const order = row.order ?? "";
-      const scoreText = row.score ?? 0;
-      const userText = formatAnswer(row.userAnswer);
-      const correctText = formatAnswer(row.correctAnswer);
+      const escapeCell = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const scoreText = row.pendingManual ? 'Ожидает оценки'
+        : `${row.score ?? 0}${row.assessmentSource === 'self' ? ' · самооценка' : ''}`;
+      const userText = row.solutionUrl
+        ? (row.solutionSubmitted ? 'Решение прикреплено' : 'Решение не отправлено')
+        : escapeCell(formatAnswer(row.userAnswer));
+      const correctText = row.solutionUrl ? 'На странице проверки решения' : escapeCell(formatAnswer(row.correctAnswer));
       return (
         "<tr>" +
           "<td><button class='solver__result-link' data-variant-task-id='" + row.variantTaskId + "'>" +
@@ -472,7 +480,7 @@
         "<div class='solver__results-summary'>" +
           "<div class='solver__results-score'>" +
             "<p class='solver__results-caption'>{% trans 'Результаты экзамена' %}</p>" +
-            "<p class='solver__results-value'>" + secondaryValue + "/" + secondaryMax + "</p>" +
+            "<p class='solver__results-value'>" + (secondary ? secondaryValue + "/" + secondaryMax : "—") + "</p>" +
             (secondary && secondary.label ? "<p class='solver__results-sub'>" + secondary.label.replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])) + "</p>" : "") +
             "<p class='solver__results-sub'>{% trans 'Первичный балл' %}: " +
             summary.primaryTotal + "/" + summary.primaryMax + "</p>" +
@@ -484,6 +492,11 @@
       )
       : "<p>" + headline + "</p>";
 
+    const writtenSummary = attempt?.primary_summary;
+    const writtenNotice = writtenSummary?.is_provisional
+      ? `<p>Предварительный результат: не проверено развёрнутых решений — ${writtenSummary.pending_manual_count}.</p>`
+      : (writtenSummary?.self_assessed_count ? `<p>В результате учтены самооценки: ${writtenSummary.self_assessed_count}.</p>` : '');
+    const writtenLink = attempt ? `<p><a class="btn btn-secondary" href="/solutions/works/${attemptId}/">Развёрнутые решения и самооценка</a></p>` : '';
     let tableHtml = "";
     if (attempt && attempt.completed_at) {
       const tasks = [...(attempt.tasks_progress || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -507,7 +520,7 @@
       buttonHtml = "<button id='solver-finish-finalize' class='btn btn-primary'>" +
         "{% trans 'Завершить и отправить на проверку' %}</button>";
     }
-    bodyEl.innerHTML = metricsHtml + tableHtml + buttonHtml;
+    bodyEl.innerHTML = metricsHtml + writtenNotice + writtenLink + tableHtml + buttonHtml;
     bodyEl.removeAttribute("data-format");
     bodyEl.classList.remove("markdown-content");
     renderAttachments(null);
@@ -698,7 +711,10 @@
           ? Number(latest.score)
           : 0;
         btn.classList.add("is-completed");
-        if (Number.isFinite(maxScore)) {
+        if (task.solution_url && latest?.score == null && task.solution_submitted) {
+          btn.classList.add('is-saved');
+          btn.title = 'Ожидает оценки по критериям';
+        } else if (Number.isFinite(maxScore)) {
           if (score >= maxScore && maxScore > 0) {
             btn.classList.add("is-correct");
           } else if (score > 0 && score < maxScore) {
@@ -760,6 +776,22 @@
 
     renderTaskImage(task);
     renderAttachments(task);
+    if (task.solution_url) {
+      const panel = document.createElement('p');
+      const link = document.createElement('a'); link.className = 'btn btn-primary';
+      link.href = task.solution_url; link.textContent = 'Фото решения и самооценка';
+      panel.appendChild(link); bodyEl.appendChild(panel);
+      const label = document.createElement('p');
+      label.textContent = task.assessment_source === 'self'
+        ? `Самооценка: ${task.assessed_score} из ${task.max_score}`
+        : (task.solution_submitted ? 'Решение отправлено. Ожидает оценки по критериям.' : 'Добавьте и отправьте решение до завершения пробника.');
+      bodyEl.appendChild(label);
+      footerEl.hidden = true;
+      currentSchema = null;
+      return;
+    }
+    footerEl.hidden = false;
+
     const saved = task.saved_response !== null && task.saved_response !== undefined;
     isSaved = saved;
     isEditing = false;
@@ -1115,6 +1147,7 @@
 
   async function saveAnswer() {
     if (!currentVariantTaskId || typeof currentVariantTaskId !== "number") return;
+    if ([...answerFieldsEl.querySelectorAll('input,textarea')].some(input => !input.reportValidity())) return;
     if (isSaved && !isEditing) {
       isEditing = true;
       setAnswerLocked(false);

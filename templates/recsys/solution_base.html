@@ -1,0 +1,14 @@
+{% load static versioned_assets %}
+<!doctype html><html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin">
+<title>{% block title %}Развёрнутое решение{% endblock %} · Фрактал</title>
+<script src="{% static 'js/theme-init.js' %}"></script>
+<link rel="stylesheet" href="{% versioned_static 'css/site-foundation.css' %}">
+<link rel="stylesheet" href="{% versioned_static 'css/written-solutions.css' %}">
+{% block assets %}{% endblock %}
+</head><body><main class="solution-page">
+<header class="solution-header"><a href="{% url 'home' %}">[Ф] Фрактал</a>{% include 'partials/theme_toggle.html' %}</header>
+{% if error %}<p class="solution-error" role="alert">{{ error }}</p>{% endif %}
+{% block content %}{% endblock %}
+</main><script src="{% versioned_static 'js/site-theme.js' %}"></script>{% block scripts %}{% endblock %}</body></html>

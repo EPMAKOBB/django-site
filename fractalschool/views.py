@@ -108,6 +108,8 @@ def media_download(request, path):
     """
     Serve media files and force download in the browser.
     """
+    if "_private_solutions" in path.replace("\\", "/").split("/"):
+        raise Http404("File not found")
     response = static_serve(request, path, document_root=settings.MEDIA_ROOT)
     if response.status_code == 200:
         filename = Path(path).name

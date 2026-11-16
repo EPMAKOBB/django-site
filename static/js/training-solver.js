@@ -46,6 +46,8 @@
   const responseOf = task => pending.has(task.variant_task_id) ? pending.get(task.variant_task_id) : task.saved_response;
   const isBlank = value => value == null || value === '' || (Array.isArray(value) && value.every(isBlank));
   function taskState(task) {
+    if (task.assessment_source === 'self') return {label:`Самооценка: ${task.assessed_score} из ${task.max_score}`, className:'is-saved', solved:false};
+    if (task.solution_submitted) return {label:'Ожидает оценки по критериям', className:'is-saved', solved:false};
     const response = responseOf(task), last = latest(task);
     if (isBlank(response)) return {label:'Без ответа', className:'', solved:false};
     if (!last || !same(last.task_snapshot?.response?.value, response)) return {label:'Не проверено', className:'is-saved', solved:false};
@@ -91,7 +93,7 @@
   }
   function remember() {
     const task = current();
-    if (!task || blocked() || actionBusy) return;
+    if (!task || task.solution_url || blocked() || actionBusy) return;
     const value = collect();
     if (same(value, responseOf(task)) || (isBlank(value) && isBlank(responseOf(task)))) return;
     if (!pending.has(task.variant_task_id)) pendingBases.set(task.variant_task_id, task.saved_response);
@@ -147,6 +149,13 @@
     if (task.image && !body.querySelector('img')) {
       const img = document.createElement('img'); img.src = task.image; img.alt = 'Условие задания'; img.style.maxWidth = '100%'; body.appendChild(img);
     }
+    if (task.solution_url) {
+      const panel = document.createElement('p');
+      const link = document.createElement('a'); link.className = 'btn btn-primary';
+      link.href = task.solution_url; link.textContent = 'Фото решения и самооценка';
+      panel.appendChild(link); body.appendChild(panel);
+      const state = document.createElement('p'); state.textContent = taskState(task).label; body.appendChild(state);
+    }
     window.renderMathBlocks?.();
     attachments.hidden = !task.attachments?.length;
     attachments.innerHTML = (task.attachments || []).map(file => `<a href="${esc(file.url)}" target="_blank" rel="noopener">${esc(file.name || file.label || 'Скачать файл')}</a>`).join(' · ');
@@ -154,7 +163,7 @@
     if (task.answer_schema && window.FractalTaskResponse) {
       builder.hidden = false; answer.hidden = true;
       window.FractalTaskResponse.buildInputs(fields, task.answer_schema, response, {gridClassName:'answer-grid', rowClassName:'answer-row', cellClassName:'answer-cell', inputClassName:'answer-input', autoAdvance:true, pasteFill:true});
-      const inputs = fields.querySelectorAll('input');
+      const inputs = fields.querySelectorAll('input, textarea');
       inputs.forEach(input => input.setAttribute('aria-label', inputs.length === 1 ? 'Ответ' : `Ответ, строка ${Number(input.dataset.row) + 1}, столбец ${Number(input.dataset.col) + 1}`));
     } else {
       builder.hidden = true; fields.innerHTML = ''; answer.hidden = false;
@@ -172,8 +181,9 @@
     const last = latest(task);
     const checked = last && same(last.task_snapshot?.response?.value, response);
     feedback.hidden = !checked;
-    feedback.textContent = checked ? (last.score == null ? 'Ответ сохранён · нужна ручная проверка' : `${last.is_correct ? 'Верно' : 'Пока неверно'} · ${last.score} из ${last.max_score}`) : '';
+    feedback.textContent = checked ? (last.score == null ? 'Ответ сохранён · нужна ручная проверка' : `${last.is_correct ? 'Верно' : last.score > 0 ? 'Частично верно' : 'Пока неверно'} · ${last.score} из ${last.max_score}`) : '';
     feedback.dataset.kind = checked && last.is_correct ? 'success' : 'info';
+    footer.hidden = !!task.solution_url;
     const index = work.tasks_progress.findIndex(t => t.variant_task_id === currentId);
     byId('solver-prev').disabled = index <= 0;
     byId('solver-next').disabled = index >= work.tasks_progress.length - 1;
@@ -209,6 +219,7 @@
   }
   async function check() {
     if (actionBusy || blocked() || !current()) return;
+    if ([...fields.querySelectorAll('input,textarea')].some(input => !input.reportValidity())) return;
     remember();
     const taskId = currentId;
     const value = responseOf(current());

@@ -153,10 +153,10 @@ class TaskTypeAdmin(FrozenAnnualAdminMixin, admin.ModelAdmin):
     ordering = ("subject__name", "exam_version__name", "display_order", "name")
     list_editable = ("display_order",)
     search_fields = ("name", "slug", "subject__name", "exam_version__name")
-    filter_horizontal = ("required_tags",)
+    filter_horizontal = ("required_tags", "allowed_tags")
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name == "required_tags":
+        if db_field.name in {"required_tags", "allowed_tags"}:
             kwargs["queryset"] = TaskTag.objects.select_related("subject").order_by(
                 "subject__name", "name"
             )
@@ -247,6 +247,8 @@ class TaskAdmin(admin.ModelAdmin):
                     "image",
                     "image_preview",
                     "correct_answer",
+                    "reference_solution",
+                    "assessment_criteria",
                 )
             },
         ),

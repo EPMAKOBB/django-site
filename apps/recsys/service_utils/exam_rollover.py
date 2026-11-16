@@ -34,11 +34,12 @@ def create_next_year(source, *, year, exam_kind="ege", new_revision=False):
         exam_kind=exam_kind, year=year, revision=revision, copied_from=source, start_info=source.start_info,
     )
     type_map = {}
-    for old in source.task_types.prefetch_related("required_tags"):
+    for old in source.task_types.prefetch_related("required_tags", "allowed_tags"):
         new = TaskType.objects.create(subject=source.subject, exam_version=target, name=old.name, slug=old.slug,
                                       description=old.description, display_order=old.display_order,
                                       answer_schema=old.answer_schema, scoring_scheme=old.scoring_scheme, max_score=old.max_score)
         new.required_tags.set(old.required_tags.all())
+        new.allowed_tags.set(old.allowed_tags.all())
         type_map[old.pk] = new
         TaskTypeTransition.objects.create(target_exam=target, source_type=old, target_type=new)
         source_tasks = Task.objects.filter(task_filter(task_type_ids=[old.pk])).distinct()
