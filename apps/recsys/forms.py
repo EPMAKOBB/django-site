@@ -700,6 +700,17 @@ class TaskUploadForm(forms.ModelForm):
                 self.add_error("correct_answer", exc)
             else:
                 cleaned["correct_answer"] = normalized_answer
+                # Keep numeric reference validation when physics uses the same
+                # paper row as the other short-answer tasks.
+                if (task_type.exam_version_id and task_type.exam_version.slug == 'phys-oge-2027'
+                        and 6 <= task_type.display_order <= 11):
+                    from .answer_rules import paper_row_text
+                    paper = paper_row_text(normalized_answer)
+                    if paper is not None:
+                        try:
+                            self._coerce_cell('float', paper, label='Ответ')
+                        except forms.ValidationError as exc:
+                            self.add_error('correct_answer', exc)
         return cleaned
 
     def create_task_with_attachments(self) -> Task:

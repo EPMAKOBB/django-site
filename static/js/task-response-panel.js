@@ -72,6 +72,7 @@
     const tokenize = (text) => {
       const raw = String(text || "").trim();
       if (!raw) return [];
+      if (Number(cfg.per_cell_max_length) === 1) return Array.from(raw);
       if (cfg.digits_only && /^[0-9]+$/.test(raw)) return raw.split('');
       if (inputType === "int") {
         return raw.match(/-?\d+/g) || [];
@@ -100,8 +101,8 @@
         const tokens = tokenize(raw);
         if (tokens.length <= 1) return;
         event.preventDefault();
-        if (cfg.digits_only && tokens.length > total - index) {
-          input.setCustomValidity('Слишком много цифр для оставшихся полей.');
+        if (Number(cfg.per_cell_max_length) === 1 && tokens.length > total - index) {
+          input.setCustomValidity('Слишком много символов для оставшихся полей.');
           input.reportValidity();
           return;
         }

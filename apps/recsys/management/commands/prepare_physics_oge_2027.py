@@ -55,23 +55,16 @@ class Command(BaseCommand):
             raise CommandError('An active score scale already exists. Review its source before preparing this draft.')
 
         schemas = {}
-        configs = {
-            'digits3': {'cols': 3, 'input_type': 'char', 'per_cell_max_length': 1, 'digits_only': True},
-            'digits4': {'cols': 4, 'input_type': 'char', 'per_cell_max_length': 1, 'digits_only': True},
-            'ordered2': {'cols': 2, 'input_type': 'char', 'per_cell_max_length': 1, 'digits_only': True},
-            'choice2': {'cols': 2, 'input_type': 'char', 'per_cell_max_length': 1, 'digits_only': True, 'allow_blank_cells': True},
-            'choice1': {'cols': 1, 'input_type': 'char', 'per_cell_max_length': 1, 'digits_only': True},
-            'number': {'cols': 1, 'input_type': 'float'},
-            'written': {'cols': 1, 'input_type': 'text', 'ui_hint': 'textarea', 'manual_check': True},
-        }
-        labels = {'digits3': '3 цифры по порядку', 'digits4': '4 цифры по порядку',
-            'ordered2': '2 цифры по порядку', 'choice2': 'Выбор двух цифр',
-            'choice1': 'Одна цифра', 'number': 'Числовой ответ', 'written': 'Развёрнутый ответ'}
+        from apps.recsys.paper_schemas import PAPER_CONFIG, FREE_CONFIG
+        configs = {'paper': PAPER_CONFIG, 'written': FREE_CONFIG}
+        labels = {'paper': 'test_part_17_chars', 'written': 'free_form_long'}
         for key, config in configs.items():
-            schema, _ = matching(AnswerSchema, {'name': f'Физика ОГЭ 2027: {labels[key]}'},
-                {'config': {'rows': 1, **config}, 'is_active': True})
+            schema, _ = matching(AnswerSchema, {'name': labels[key]},
+                {'config': config, 'is_active': True})
             schema.full_clean()
             schemas[key] = schema
+        for key in ('digits3', 'digits4', 'ordered2', 'choice2', 'choice1', 'number'):
+            schemas[key] = schemas['paper']
 
         section_names = {1: 'Механические явления', 2: 'Тепловые явления',
             3: 'Электромагнитные явления', 4: 'Квантовые явления'}

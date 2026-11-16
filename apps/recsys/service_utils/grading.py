@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from apps.recsys.forms import compare_answers
 from apps.recsys.models import TaskType
-from apps.recsys.answer_rules import digit_sequence, validate_digit_reference
+from apps.recsys.answer_rules import digit_sequence, validate_digit_reference, paper_row_text
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -73,7 +73,7 @@ def grade_answer(
         else:
             # Extra slots are invalid even if normalization drops empty cells.
             raw = response_value.get("value") if isinstance(response_value, dict) else response_value
-            if isinstance(raw, (list, tuple)) and len(raw) > 2:
+            if isinstance(raw, (list, tuple)) and len(raw) > 2 and paper_row_text(raw) is None:
                 return 0, False
             actual = digit_sequence(response_value, allow_empty_cells=True)
             if actual is None or len(actual) > 2 or len(set(actual)) != len(actual):
@@ -128,6 +128,23 @@ def grade_answer(
                 pass
         score = min(score, max_score)
         return score, score == max_score
+
+    # The 17-cell paper widget and scalar computer widgets share grading rules.
+    expected_paper = paper_row_text(correct_answer)
+    actual_paper = paper_row_text(response_value)
+    if expected_paper is not None or actual_paper is not None:
+        if expected_paper is not None:
+            correct_answer = expected_paper
+        if actual_paper is not None:
+            response_value = actual_paper
+        # Numeric paper answers may use a comma or a dot. Do not apply this to
+        # computer arrays, pairs or matrices.
+        import re
+        from decimal import Decimal
+        numeric = r'-?\d+(?:[.,]\d+)?'
+        if re.fullmatch(numeric, str(correct_answer)) and re.fullmatch(numeric, str(response_value)):
+            is_correct = Decimal(str(correct_answer).replace(',', '.')) == Decimal(str(response_value).replace(',', '.'))
+            return (max_score if is_correct else 0), is_correct
 
     try:
         is_correct = compare_answers(

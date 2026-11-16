@@ -19,7 +19,26 @@ from apps.recsys.service_utils.exam_rollover import create_next_year, validate_r
 from apps.recsys.service_utils import variants
 
 
+def paper(text):
+    return list(text) + [''] * (17 - len(text))
+
+
 class OgeGradingTests(SimpleTestCase):
+    def test_paper_rows_preserve_partial_credit_numbers_and_interior_errors(self):
+        for rule, expected, actual, maximum, score in [
+            ('ordered_one_error', paper('345'), paper('349'), 2, 1),
+            ('ordered_one_error', paper('345'), paper('3 5'), 2, 0),
+            ('unordered_two_partial', paper('13'), paper('31'), 2, 2),
+            ('unordered_two_partial', paper('13'), paper('3'), 2, 1),
+            ('unordered_two_partial', paper('13'), paper('135'), 2, 0),
+            ('binary', paper('-2,5'), paper('-2.5'), 1, 1),
+            ('binary', 2.5, paper('2,5'), 1, 1),
+            ('binary', paper('4'), paper('5'), 1, 0),
+            ('binary', paper('СЛОВО'), paper('слово'), 1, 1),
+        ]:
+            with self.subTest(rule=rule, actual=actual):
+                self.assertEqual(grade_answer(rule, expected, actual, max_score=maximum), (score, score == maximum))
+
     def test_ordered_sequences_use_all_positions_and_exact_length(self):
         cases = [
             ('345', '345', 2), ('345', '349', 1), ('345', '354', 0),
@@ -62,6 +81,32 @@ class OgeGradingTests(SimpleTestCase):
 
 
 class PhysicsPreparationTests(TestCase):
+    def test_schema_cleanup_previews_and_keeps_schemas_used_elsewhere(self):
+        self.prepare()
+        from apps.recsys.models import AnswerSchema
+        from apps.recsys.paper_schemas import LEGACY_PHYSICS_SCHEMAS
+        old = AnswerSchema.objects.create(name='Физика ОГЭ 2027: 3 цифры по порядку',
+            config={'rows': 1, **LEGACY_PHYSICS_SCHEMAS['3 цифры по порядку']})
+        task_type = self.exam.task_types.get(display_order=1)
+        task_type.answer_schema = old
+        task_type.save()
+        other = TaskType.objects.create(subject=self.subject, name='Other catalog', answer_schema=old)
+        call_command('simplify_physics_answer_schemas', stdout=io.StringIO())
+        task_type.refresh_from_db()
+        self.assertEqual(task_type.answer_schema_id, old.pk)
+        call_command('simplify_physics_answer_schemas', apply=True,
+            expect_database=connection.settings_dict['NAME'], stdout=io.StringIO())
+        task_type.refresh_from_db(); other.refresh_from_db()
+        self.assertEqual(task_type.answer_schema.name, 'test_part_17_chars')
+        self.assertEqual(other.answer_schema_id, old.pk)
+        self.assertTrue(AnswerSchema.objects.filter(pk=old.pk).exists())
+        other.delete()
+        call_command('simplify_physics_answer_schemas', apply=True,
+            expect_database=connection.settings_dict['NAME'], stdout=io.StringIO())
+        self.assertFalse(AnswerSchema.objects.filter(pk=old.pk).exists())
+        self.prepare()  # The preparation command must not recreate retired forms.
+        self.assertFalse(AnswerSchema.objects.filter(name__startswith='Физика ОГЭ 2027:').exists())
+
     def setUp(self):
         self.subject = Subject.objects.create(name='Физика', slug='phys')
         self.exam = ExamVersion.objects.create(subject=self.subject, name='ОГЭ 2027',
@@ -128,6 +173,8 @@ class PhysicsPreparationTests(TestCase):
             expected = 2 if n in (1, 2, 4, 12, 13, 14, 16, 18, 19) else 3 if n >= 17 else 1
             self.assertEqual((task_type.scoring_scheme, task_type.max_score), (rule, expected))
         self.assertTrue(self.exam.task_types.get(display_order=14).answer_schema.config['allow_blank_cells'])
+        self.assertEqual(set(self.exam.task_types.filter(display_order__lte=16).values_list('answer_schema__name', flat=True)), {'test_part_17_chars'})
+        self.assertEqual(set(self.exam.task_types.filter(display_order__gte=17).values_list('answer_schema__name', flat=True)), {'free_form_long'})
 
     def test_editor_allows_detailed_topics_without_requiring_them_for_publication(self):
         self.prepare()
@@ -137,9 +184,9 @@ class PhysicsPreparationTests(TestCase):
         form = TaskUploadForm(data={'subject': self.subject.pk, 'exam_version': self.exam.pk,
             'type': task_type.pk, 'title': 'Example', 'slug': 'example', 'description': 'Question',
             'status': 'draft', 'rendering_strategy': 'markdown', 'difficulty_level': 0,
-            'correct_answer': json.dumps(['3', '4', '5']), 'tags': [tag.pk]})
+            'correct_answer': json.dumps(paper('345')), 'tags': [tag.pk]})
         self.assertTrue(form.is_valid(), form.errors)
-        bad = TaskUploadForm(data={**form.data, 'correct_answer': json.dumps(['3', '', '5'])})
+        bad = TaskUploadForm(data={**form.data, 'correct_answer': json.dumps(paper('3 5'))})
         self.assertFalse(bad.is_valid())
 
     def test_new_catalog_copies_and_freezes_allowed_topics(self):
@@ -159,11 +206,11 @@ class PhysicsPreparationTests(TestCase):
         self.prepare()
         task_type = self.exam.task_types.get(display_order=6)
         form = TaskUploadForm()
-        self.assertEqual(form._normalize_answer_by_schema(task_type.answer_schema, '2,5'), 2.5)
+        self.assertEqual(form._normalize_answer_by_schema(task_type.answer_schema, paper('2,5')), paper('2,5'))
         self.assertTrue(compare_answers(2.5, '2,5'))
         for invalid in ['nan', 'inf', '-inf']:
             with self.assertRaises(ValidationError):
-                form._normalize_answer_by_schema(task_type.answer_schema, invalid)
+                form._coerce_cell('float', invalid, label='Ответ')
         scale = ExamScoreScale.objects.create(exam_version=self.exam, max_primary=39,
             mapping=[2] * 40, is_active=False, source_year=2026, is_provisional=True)
         self.assertIn('ОГЭ-2026', scale.display_label)

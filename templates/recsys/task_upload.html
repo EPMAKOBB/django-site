@@ -1004,7 +1004,9 @@
       const total = Math.max(1, rows * cols);
 
       const digitFields = inputs.every(input => input.pattern === '[0-9]*');
+      const charFields = inputs.every(input => input.maxLength === 1);
       const tokenize = (text) => {
+        if (charFields) return Array.from(text.trim());
         if (digitFields && /^[0-9]+$/.test(text.trim())) return text.trim().split('');
         return text
           .replace(/\r\n/g, "\n")
@@ -1021,8 +1023,8 @@
           const tokens = tokenize(raw);
           if (tokens.length <= 1) return;
           e.preventDefault();
-          if (digitFields && tokens.length > total - idx) {
-            input.setCustomValidity('Слишком много цифр для оставшихся полей.');
+          if (charFields && tokens.length > total - idx) {
+            input.setCustomValidity('Слишком много символов для оставшихся полей.');
             input.reportValidity();
             return;
           }
