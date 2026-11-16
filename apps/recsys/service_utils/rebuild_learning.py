@@ -16,6 +16,7 @@ def rebuild_learning_state(user, *, now=None):
     now = now or timezone.now()
     get_user_model().objects.select_for_update().get(pk=user.pk)
     events = list(Attempt.objects.filter(user=user, is_valid_attempt=True).select_related("task__type", "task_type").order_by("created_at", "pk"))
+    events = [event for event in events if not event.awaits_manual_grading]
     events.sort(key=lambda event: (event.checked_at or event.created_at, event.pk))
     if events and (events[-1].checked_at or events[-1].created_at) > now:
         raise ValidationError("Момент пересчёта предшествует последнему ответу. Для истории используйте сохранённый снимок.")

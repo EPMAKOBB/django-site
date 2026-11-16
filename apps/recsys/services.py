@@ -230,7 +230,8 @@ def _update_type_mastery(attempt: Attempt) -> None:
         task_type=task_type,
         is_valid_attempt=True,
     )
-    type_mastery.attempts_total = valid_attempts.count()
+    valid_attempts = [item for item in valid_attempts if not item.awaits_manual_grading]
+    type_mastery.attempts_total = len(valid_attempts)
     successes_total = 0
     for valid_attempt in valid_attempts:
         score_norm, _ = _normalised_score(valid_attempt)
@@ -247,7 +248,7 @@ def _update_type_mastery(attempt: Attempt) -> None:
 
 def update_mastery(attempt: Attempt) -> None:
     """Update transition-era legacy mastery plus MVP tag/type/task analytics."""
-    if not attempt.is_valid_attempt:
+    if not attempt.is_valid_attempt or attempt.awaits_manual_grading:
         return
 
     apply_forgetting_to_tag_masteries(now=attempt.checked_at or attempt.created_at, queryset=TagMastery.objects.filter(user=attempt.user))
@@ -265,6 +266,7 @@ def recompute_task_difficulty(task: Task) -> None:
     valid_attempts = list(
         Attempt.objects.filter(task=task, is_valid_attempt=True).select_related("task")
     )
+    valid_attempts = [item for item in valid_attempts if not item.awaits_manual_grading]
     attempts_total = len(valid_attempts)
     score_norm_sum_total = 0.0
     time_spent_sum_seconds = 0.0

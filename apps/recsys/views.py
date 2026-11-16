@@ -1005,7 +1005,7 @@ def _build_task_upload_context(
     )
     task_types = list(
         TaskType.objects.select_related("subject", "exam_version")
-        .prefetch_related("required_tags")
+        .prefetch_related("required_tags", "allowed_tags")
         .order_by("subject__name", "exam_version__name", "name")
     )
     answer_schemas = {
@@ -1029,7 +1029,8 @@ def _build_task_upload_context(
         for t in task_types
     ]
     type_required_tags = {
-        t.id: [{"id": tag.id, "name": tag.name} for tag in t.required_tags.all()]
+        t.id: [{"id": tag.id, "name": tag.name} for tag in
+               {tag.pk: tag for tag in [*t.required_tags.all(), *t.allowed_tags.all()]}.values()]
         for t in task_types
     }
     skills = list(

@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from apps.recsys.forms import compare_answers
 from apps.recsys.models import TaskType
+from apps.recsys.answer_rules import digit_sequence, validate_digit_reference
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -59,6 +60,26 @@ def grade_answer(
 ) -> tuple[Optional[int], Optional[bool]]:
     if scoring_scheme == TaskType.ScoringScheme.MANUAL_SCALED:
         return None, None
+
+    if scoring_scheme in {TaskType.ScoringScheme.ORDERED_ONE_ERROR, TaskType.ScoringScheme.UNORDERED_TWO_PARTIAL}:
+        validate_digit_reference(scoring_scheme, correct_answer, max_score)
+        expected = digit_sequence(correct_answer)
+        if scoring_scheme == TaskType.ScoringScheme.ORDERED_ONE_ERROR:
+            actual = digit_sequence(response_value)
+            if actual is None or len(actual) != len(expected):
+                return 0, False
+            errors = sum(a != b for a, b in zip(expected, actual))
+            score = 2 if errors == 0 else (1 if errors == 1 else 0)
+        else:
+            # Extra slots are invalid even if normalization drops empty cells.
+            raw = response_value.get("value") if isinstance(response_value, dict) else response_value
+            if isinstance(raw, (list, tuple)) and len(raw) > 2:
+                return 0, False
+            actual = digit_sequence(response_value, allow_empty_cells=True)
+            if actual is None or len(actual) > 2 or len(set(actual)) != len(actual):
+                return 0, False
+            score = len(set(expected) & set(actual))
+        return score, score == 2
 
     if scoring_scheme in {TaskType.ScoringScheme.PARTIAL_PAIRS, TaskType.ScoringScheme.EGE_PAIRS_2027}:
         expected = _as_list(correct_answer)[:2]

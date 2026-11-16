@@ -111,6 +111,13 @@
         </div>
         {{ form.correct_answer }}{{ form.correct_answer.errors }}
         <span class="inline-note">JSON структура ответа, например {"value": 42}. При наличии схемы ответ можно ввести через поля выше.</span>
+        <p class="hint">Для развёрнутого задания здесь хранится итоговый ответ. Образец решения и критерии заполняются отдельно ниже.</p>
+      </div>
+      <div class="form-field">
+        {{ form.reference_solution.label_tag }}{{ form.reference_solution }}{{ form.reference_solution.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.assessment_criteria.label_tag }}{{ form.assessment_criteria }}{{ form.assessment_criteria.errors }}
       </div>
 
       <div class="form-grid" style="margin-top: 10px;">
@@ -808,7 +815,7 @@
         tagsSelect.disabled = true;
         const opt = document.createElement("option");
         opt.value = "";
-        opt.textContent = typeId ? "Для типа нет обязательных тегов" : "Выберите тип задачи";
+        opt.textContent = typeId ? "Для типа не заданы допустимые темы" : "Выберите тип задачи";
         tagsSelect.appendChild(opt);
         if (tagsHelper) tagsHelper.textContent = opt.textContent;
         return;
@@ -822,7 +829,7 @@
         if (selected.has(String(tag.id))) opt.selected = true;
         tagsSelect.appendChild(opt);
       });
-      if (tagsHelper) tagsHelper.textContent = "Выберите теги из обязательного списка типа.";
+      if (tagsHelper) tagsHelper.textContent = "Укажите только темы, которые проверяет эта задача.";
     }
 
     function updateSkillOptions() {
@@ -950,18 +957,21 @@
           wrap.className = "answer-cell";
           const label = document.createElement("label");
           label.textContent = rows > 1 ? `Строка ${r + 1}, поле ${c + 1}` : `Поле ${c + 1}`;
-          const input = document.createElement("input");
+          const isLongText = cfg.ui_hint === "textarea";
+          const input = document.createElement(isLongText ? "textarea" : "input");
           input.name = `answer_r${r}_c${c}`;
           input.dataset.row = String(r);
           input.dataset.col = String(c);
           input.className = "answer-input";
-          if (inputType === "uint" || inputType === "int" || inputType === "float") {
+          if (isLongText) { input.rows = 8; }
+          else if (inputType === "uint" || inputType === "int" || inputType === "float") {
             input.type = "number";
             if (inputType === "uint") input.min = "0";
             if (inputType === "float") input.step = "any";
           } else {
             input.type = "text";
           }
+          if (cfg.digits_only) { input.inputMode = 'numeric'; input.pattern = '[0-9]*'; }
           if (perCellMax) input.maxLength = perCellMax;
           wrap.appendChild(label);
           wrap.appendChild(input);
@@ -982,7 +992,7 @@
       setupAutoAdvance(cfg);
       setupPasteFill(rows, cols);
       syncAnswerPayload();
-      Array.from(fields.querySelectorAll("input")).forEach((input) => {
+      Array.from(fields.querySelectorAll("input, textarea")).forEach((input) => {
         input.addEventListener("input", syncAnswerPayload);
       });
     }
@@ -993,7 +1003,9 @@
       if (!inputs.length) return;
       const total = Math.max(1, rows * cols);
 
+      const digitFields = inputs.every(input => input.pattern === '[0-9]*');
       const tokenize = (text) => {
+        if (digitFields && /^[0-9]+$/.test(text.trim())) return text.trim().split('');
         return text
           .replace(/\r\n/g, "\n")
           .replace(/\t/g, " ")
@@ -1003,15 +1015,24 @@
       };
 
       inputs.forEach((input, idx) => {
+        input.addEventListener('input', () => input.setCustomValidity(''));
         input.addEventListener("paste", (e) => {
           const raw = (e.clipboardData || window.clipboardData)?.getData("text") || "";
           const tokens = tokenize(raw);
           if (tokens.length <= 1) return;
           e.preventDefault();
+          if (digitFields && tokens.length > total - idx) {
+            input.setCustomValidity('Слишком много цифр для оставшихся полей.');
+            input.reportValidity();
+            return;
+          }
           let cursor = idx;
           tokens.forEach((token) => {
             if (cursor >= total) return;
-            if (inputs[cursor]) inputs[cursor].value = token;
+            if (inputs[cursor]) {
+              inputs[cursor].setCustomValidity('');
+              inputs[cursor].value = token;
+            }
             cursor += 1;
           });
           syncAnswerPayload();
@@ -1052,7 +1073,7 @@
       const inputType = cfg.input_type || "string";
 
       const fetchCell = (r, c) => {
-        const input = fields.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
+        const input = fields.querySelector(`[data-row="${r}"][data-col="${c}"]`);
         return input ? input.value : "";
       };
 

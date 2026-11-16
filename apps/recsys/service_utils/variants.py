@@ -20,6 +20,7 @@ from django.db import transaction
 from django.db.models import Prefetch, Sum
 from django.utils import timezone
 from django.utils.text import slugify
+from django.urls import reverse
 from rest_framework import exceptions
 
 from apps.recsys.forms import compare_answers
@@ -197,6 +198,12 @@ def calculate_attempt_primary_summary(attempt: VariantAttempt) -> dict:
         except (TypeError, ValueError):
             continue
 
+    pending_manual_count = sum(
+        entry.score is None
+        and entry.task_snapshot.get("task", {}).get("scoring_scheme") == TaskType.ScoringScheme.MANUAL_SCALED
+        and not answer_is_blank(entry.task_snapshot.get("response", {}).get("value"))
+        for entry in latest_attempts.values()
+    )
     success_percent = (
         round((primary_total / primary_max_total) * 100, 1)
         if primary_max_total
@@ -207,6 +214,9 @@ def calculate_attempt_primary_summary(attempt: VariantAttempt) -> dict:
         "primary_total": primary_total,
         "primary_max_total": primary_max_total,
         "success_percent": success_percent,
+        "pending_manual_count": pending_manual_count,
+        "is_provisional": bool(pending_manual_count),
+        "self_assessed_count": attempt.written_solutions.filter(assessments__source="self").distinct().count(),
     }
 
 def build_personal_assignment_from_blueprint(
@@ -622,6 +632,7 @@ def _materialize_tasks_for_attempt(attempt: VariantAttempt) -> None:
         if snapshot is None:
             continue
         snapshot.update(grading_context(variant_task.task, placement))
+        snapshot.update(reference_solution=variant_task.task.reference_solution, assessment_criteria=variant_task.task.assessment_criteria)
         # Annual blueprint overrides the task/type default for this exam work.
         item = ExamBlueprintItem.objects.filter(blueprint__exam_version=attempt.assignment.template.exam_version,
                                                task_type_id=placement.task_type_id if placement else variant_task.task.type_id).first() if attempt.assignment.template.exam_version_id else None
@@ -967,6 +978,8 @@ def clear_task_response(
 
     assignment = attempt.assignment
     variant_task = _validate_variant_task(assignment, variant_task_id, attempt=attempt)
+    if attempt.written_solutions.filter(variant_task=variant_task, submitted_at__isnull=False).exists():
+        raise exceptions.ValidationError("Развёрнутое решение отправлено и зафиксировано. Откройте страницу проверки решения.")
     generation_attempt = _get_generation_attempt_for_update(attempt, variant_task)
     if generation_attempt is None:
         _materialize_tasks_for_attempt(attempt)
@@ -1071,6 +1084,8 @@ def save_task_response(
 
     assignment = attempt.assignment
     variant_task = _validate_variant_task(assignment, variant_task_id, attempt=attempt)
+    if attempt.written_solutions.filter(variant_task=variant_task, submitted_at__isnull=False).exists():
+        raise exceptions.ValidationError("Развёрнутое решение отправлено и зафиксировано. Откройте страницу проверки решения.")
 
     now = timezone.now()
     was_active = attempt.active_variant_task_id == variant_task.pk
@@ -1166,6 +1181,8 @@ def submit_task_answer(
 
     assignment = attempt.assignment
     variant_task = _validate_variant_task(assignment, variant_task_id, attempt=attempt)
+    if attempt.written_solutions.filter(variant_task=variant_task, submitted_at__isnull=False).exists():
+        raise exceptions.ValidationError("Развёрнутое решение отправлено и зафиксировано. Откройте страницу проверки решения.")
 
     task_attempts_qs = attempt.task_attempts.filter(
         variant_task=variant_task, attempt_number__gt=0
@@ -1259,7 +1276,7 @@ def submit_task_answer(
         task_snapshot=snapshot,
         time_spent=time_spent,
         checked_at=now,
-        is_valid_attempt=not (attempt.mode == VariantAttempt.Mode.TRAINING and computed_score is None),
+        is_valid_attempt=computed_score is not None,
     )
     _sync_attempt_from_variant_task_attempt(task_attempt)
 
@@ -1394,6 +1411,7 @@ def finalize_attempt(user, attempt_id: int) -> VariantAttempt:
                 is_correct=bool(computed_is_correct),
                 score=computed_score,
                 max_score=max_score,
+                is_valid_attempt=computed_score is not None,
                 task_snapshot=record_snapshot,
                 time_spent=time_spent,
                 checked_at=timezone.now(),
@@ -1498,6 +1516,7 @@ def calculate_assignment_progress(assignment: VariantAssignment) -> dict:
 
 
 def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
+    solutions = {s.variant_task_id: s for s in attempt.written_solutions.prefetch_related("assessments")}
     issued_items = {item["variant_task_id"]: item for item in (attempt.exam_snapshot or {}).get("items", [])}
     task_queryset = attempt.assignment.template.template_tasks.all()
     if attempt.exam_snapshot:
@@ -1573,9 +1592,18 @@ def build_tasks_progress(attempt: VariantAttempt) -> list[dict]:
         attachments = statement["attachments"]
         image = statement["image"]
 
+        scheme = (generated_snapshot or {}).get("scoring_scheme") or variant_task.task.get_scoring_scheme()
+        solution_url = reverse("written-solution", args=[attempt.pk, variant_task.pk]) if scheme == TaskType.ScoringScheme.MANUAL_SCALED else None
+        solution = solutions.get(variant_task.pk)
+        assessment = next(iter(solution.assessments.all()), None) if solution else None
+
         progress.append(
             {
                 "variant_task_id": variant_task.id,
+                "solution_url": solution_url,
+                "solution_submitted": bool(solution and solution.submitted_at),
+                "assessment_source": assessment.source if assessment else None,
+                "assessed_score": assessment.score if assessment else None,
                 "task_id": (generated_snapshot or {}).get("task_id", variant_task.task_id),
                 "order": (generated_snapshot or {}).get("context", {}).get("order", variant_task.order),
                 "task_type_name": task_type_name,

@@ -1,0 +1,209 @@
+import io
+import json
+
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.db import connection, transaction
+from django.test import SimpleTestCase, TestCase
+from django.utils import timezone
+
+from apps.recsys.answer_rules import validate_digit_reference
+from apps.recsys.forms import TaskUploadForm, compare_answers
+from apps.recsys.models import (Subject, ExamVersion, TaskType, TaskTag, Task,
+    ExamBlueprint, ExamBlueprintItem, ExamScoreScale, SourceVariant,
+    VariantTemplate, VariantTask, VariantAssignment)
+from apps.recsys.service_utils.grading import grade_answer
+from apps.recsys.service_utils.exam_rollover import create_next_year, validate_rollover
+from apps.recsys.service_utils import variants
+
+
+class OgeGradingTests(SimpleTestCase):
+    def test_ordered_sequences_use_all_positions_and_exact_length(self):
+        cases = [
+            ('345', '345', 2), ('345', '349', 1), ('345', '354', 0),
+            ('345', '34', 0), ('345', '3451', 0), ('345', '', 0),
+            ('12', '21', 0), ('7254', '7253', 1), ('7254', '7254', 2),
+            ('101', '101', 2), ('101', '111', 1),
+            (['3', '4', '5'], [3, 4, 9], 1), ({'value': '345'}, ['3', '4', '5'], 2),
+            ('345', ['3', '4', ''], 0), ('345', ['3', '4', None], 0),
+            ('345', '3 45', 0), ('345', '３４５', 0), ('345', True, 0),
+            ('345', {'value': '345', 'extra': 1}, 0), ('345', [3, 45], 0),
+        ]
+        for expected, actual, score in cases:
+            with self.subTest(expected=expected, actual=actual):
+                self.assertEqual(grade_answer('ordered_one_error', expected, actual, max_score=2), (score, score == 2))
+
+    def test_unordered_two_grants_one_point_for_a_single_correct_choice(self):
+        cases = [('13', 2), ('31', 2), ('15', 1), ('3', 1), ('1', 1),
+            ('5', 0), ('45', 0), ('135', 0), ('11', 0), ('33', 0), ('', 0),
+            (['1', ''], 1), (['', '3'], 1), ([' ', 3], 1), (['', ''], 0), ([1, 3], 2),
+            ([1, 3, ''], 0), ([1, 1], 0), ([True, 3], 0), (13.0, 0),
+            ({'value': '31'}, 2), ({'other': '13'}, 0)]
+        for answer, score in cases:
+            with self.subTest(answer=answer):
+                self.assertEqual(grade_answer('unordered_two_partial', '13', answer, max_score=2), (score, score == 2))
+
+    def test_invalid_references_and_maxima_are_configuration_errors(self):
+        for scheme, answer, maximum in [
+            ('ordered_one_error', '', 2), ('ordered_one_error', 'ab', 2),
+            ('ordered_one_error', '345', 3), ('unordered_two_partial', '11', 2),
+            ('unordered_two_partial', '1', 2), ('unordered_two_partial', [1, True], 2)]:
+            with self.subTest(scheme=scheme, answer=answer):
+                with self.assertRaises(ValueError):
+                    validate_digit_reference(scheme, answer, maximum)
+
+    def test_old_rules_and_decimal_answers_stay_compatible(self):
+        self.assertEqual(grade_answer('partial_pairs', [1, 2], [2, 1], max_score=2), (1, False))
+        self.assertEqual(grade_answer('binary', 2.5, '2,5', max_score=1), (1, True))
+        self.assertEqual(grade_answer('binary', 2.5, '2.5', max_score=1), (1, True))
+        self.assertEqual(grade_answer('manual_scaled', '', 'solution', max_score=3), (None, None))
+
+
+class PhysicsPreparationTests(TestCase):
+    def setUp(self):
+        self.subject = Subject.objects.create(name='Физика', slug='phys')
+        self.exam = ExamVersion.objects.create(subject=self.subject, name='ОГЭ 2027',
+            slug='phys-oge-2027', exam_kind='ОГЭ', year=2027, status='active')
+
+    def prepare(self, apply=True):
+        call_command('prepare_physics_oge_2027', apply=apply,
+            expect_database=connection.settings_dict['NAME'] if apply else None, stdout=io.StringIO())
+
+    def test_preview_rolls_back_and_apply_requires_explicit_database(self):
+        self.prepare(apply=False)
+        self.assertFalse(self.exam.task_types.exists())
+        self.assertFalse(TaskTag.objects.exists())
+        self.exam.refresh_from_db()
+        self.assertEqual(self.exam.exam_kind, 'ОГЭ')
+        with self.assertRaises(CommandError):
+            call_command('prepare_physics_oge_2027', apply=True, stdout=io.StringIO())
+
+    def test_prepares_draft_22_positions_39_points_and_83_topics_idempotently(self):
+        self.prepare()
+        self.exam.refresh_from_db()
+        self.assertEqual((self.exam.exam_kind, self.exam.status), ('oge', 'draft'))
+        self.assertIsNone(self.exam.published_at)
+        self.assertFalse(self.exam.is_default)
+        blueprint = self.exam.blueprint
+        self.assertEqual(blueprint.time_limit.total_seconds(), 180 * 60)
+        self.assertEqual(blueprint.items.count(), 22)
+        self.assertEqual(sum(item.count * item.task_type.max_score for item in blueprint.items.all()), 39)
+        self.assertEqual(TaskTag.objects.filter(slug__startswith='phys-oge-topic-').count(), 83)
+        self.assertEqual(self.exam.task_types.get(display_order=1).allowed_tags.count(), 83)
+        self.assertEqual(self.exam.task_types.get(display_order=17).allowed_tags.count(), 59)
+        self.assertEqual(SourceVariant.objects.count(), 1)
+        self.assertFalse(ExamScoreScale.objects.exists())
+        self.assertFalse(validate_rollover(self.exam)['ready'])
+        ids = list(self.exam.task_types.values_list('pk', flat=True))
+        self.prepare()
+        self.assertEqual(list(self.exam.task_types.values_list('pk', flat=True)), ids)
+        self.assertEqual(TaskTag.objects.count(), 87)
+
+    def test_existing_author_changes_are_not_overwritten(self):
+        self.prepare()
+        task_type = self.exam.task_types.get(display_order=1)
+        task_type.name = 'Author title'
+        task_type.save()
+        with self.assertRaises(CommandError):
+            self.prepare()
+        task_type.refresh_from_db()
+        self.assertEqual(task_type.name, 'Author title')
+
+    def test_refuses_published_or_already_authored_exam(self):
+        TaskType.objects.create(subject=self.subject, exam_version=self.exam, name='Existing type')
+        with self.assertRaises(CommandError):
+            self.prepare()
+        self.exam.task_types.all().delete()
+        ExamVersion.objects.filter(pk=self.exam.pk).update(published_at=timezone.now())
+        with self.assertRaises(CommandError):
+            self.prepare()
+
+    def test_scores_and_formats_match_each_position(self):
+        self.prepare()
+        for n in range(1, 23):
+            task_type = self.exam.task_types.get(display_order=n)
+            rule = 'ordered_one_error' if n in (1, 2, 4, 12, 13) else 'unordered_two_partial' if n in (14, 16) else 'manual_scaled' if n >= 17 else 'binary'
+            expected = 2 if n in (1, 2, 4, 12, 13, 14, 16, 18, 19) else 3 if n >= 17 else 1
+            self.assertEqual((task_type.scoring_scheme, task_type.max_score), (rule, expected))
+        self.assertTrue(self.exam.task_types.get(display_order=14).answer_schema.config['allow_blank_cells'])
+
+    def test_editor_allows_detailed_topics_without_requiring_them_for_publication(self):
+        self.prepare()
+        task_type = self.exam.task_types.get(display_order=1)
+        tag = task_type.allowed_tags.first()
+        self.assertFalse(task_type.required_tags.filter(pk=tag.pk).exists())
+        form = TaskUploadForm(data={'subject': self.subject.pk, 'exam_version': self.exam.pk,
+            'type': task_type.pk, 'title': 'Example', 'slug': 'example', 'description': 'Question',
+            'status': 'draft', 'rendering_strategy': 'markdown', 'difficulty_level': 0,
+            'correct_answer': json.dumps(['3', '4', '5']), 'tags': [tag.pk]})
+        self.assertTrue(form.is_valid(), form.errors)
+        bad = TaskUploadForm(data={**form.data, 'correct_answer': json.dumps(['3', '', '5'])})
+        self.assertFalse(bad.is_valid())
+
+    def test_new_catalog_copies_and_freezes_allowed_topics(self):
+        self.prepare()
+        next_exam = create_next_year(self.exam, year=2028, exam_kind='oge')
+        old_type = self.exam.task_types.get(display_order=1)
+        next_type = next_exam.task_types.get(display_order=1)
+        self.assertSetEqual(set(old_type.allowed_tags.values_list('pk', flat=True)),
+            set(next_type.allowed_tags.values_list('pk', flat=True)))
+        ExamVersion.objects.filter(pk=self.exam.pk).update(published_at=timezone.now())
+        with self.assertRaises(ValidationError), transaction.atomic():
+            old_type.allowed_tags.clear()
+        with self.assertRaises(ValidationError), transaction.atomic():
+            old_type.allowed_tags.first().allowed_for_task_types.remove(old_type)
+
+    def test_decimal_schema_normalization_and_oge_scale_labels(self):
+        self.prepare()
+        task_type = self.exam.task_types.get(display_order=6)
+        form = TaskUploadForm()
+        self.assertEqual(form._normalize_answer_by_schema(task_type.answer_schema, '2,5'), 2.5)
+        self.assertTrue(compare_answers(2.5, '2,5'))
+        for invalid in ['nan', 'inf', '-inf']:
+            with self.assertRaises(ValidationError):
+                form._normalize_answer_by_schema(task_type.answer_schema, invalid)
+        scale = ExamScoreScale.objects.create(exam_version=self.exam, max_primary=39,
+            mapping=[2] * 40, is_active=False, source_year=2026, is_provisional=True)
+        self.assertIn('ОГЭ-2026', scale.display_label)
+        self.assertNotIn('ЕГЭ', scale.display_label)
+
+    def test_new_rules_reject_incompatible_point_overrides(self):
+        self.prepare()
+        task_type = self.exam.task_types.get(display_order=1)
+        task_type.max_score = 3
+        with self.assertRaises(ValidationError):
+            task_type.full_clean()
+        item = self.exam.blueprint.items.get(order=1)
+        item.score_override = 3
+        with self.assertRaises(ValidationError):
+            item.full_clean()
+
+    def test_api_uses_server_owned_rules_and_preserves_them_in_issued_work(self):
+        self.prepare()
+        user = get_user_model().objects.create_user(username='oge-student')
+        self.client.force_login(user)
+        template = VariantTemplate.objects.create(name='OGE check', exam_version=self.exam)
+        for n, answer in [(1, ['3', '4', '5']), (14, ['1', '3']), (6, 2.5)]:
+            task_type = self.exam.task_types.get(display_order=n)
+            task = Task.objects.create(subject=self.subject, exam_version=self.exam, type=task_type,
+                title=f'Question {n}', slug=f'question-{n}', correct_answer=answer, status='published')
+            VariantTask.objects.create(template=template, task=task, order=n)
+        assignment = VariantAssignment.objects.create(template=template, user=user)
+        work = variants.start_new_attempt(user, assignment.pk)
+        ordered = template.template_tasks.get(order=1)
+        unordered = template.template_tasks.get(order=14)
+        numeric = template.template_tasks.get(order=6)
+        for row, answer, score in [(ordered, ['3', '4', '9'], 1), (unordered, ['3', '1'], 2),
+                                   (unordered, ['1', ''], 1), (numeric, '2,5', 1)]:
+            response = self.client.post(f'/api/variants/attempts/{work.pk}/tasks/{row.pk}/submit/',
+                json.dumps({'is_correct': True, 'task_snapshot': {'value': answer}}), content_type='application/json')
+            self.assertEqual(response.status_code, 201, response.content)
+            latest = work.task_attempts.filter(variant_task=row, attempt_number__gt=0).latest('attempt_number')
+            self.assertEqual(latest.score, score)
+        # A later draft edit must not change the rule of an already issued task.
+        TaskType.objects.filter(pk=ordered.task.type_id).update(scoring_scheme='binary')
+        result = variants.submit_task_answer(user, work.pk, ordered.pk, is_correct=True,
+            task_snapshot={'value': ['3', '4', '8']})
+        self.assertEqual(result.task_attempt.score, 1)

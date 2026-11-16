@@ -388,6 +388,9 @@ class VariantTaskAttemptSerializer(serializers.ModelSerializer):
         result = super().to_representation(instance)
         reveal = bool(instance.variant_attempt.completed_at)
         snapshot = result.get("task_snapshot") or {}
+        issued = snapshot.get("task", snapshot)
+        if instance.score is None and issued.get("scoring_scheme") == "manual_scaled":
+            result["is_correct"] = None
         if isinstance(snapshot.get("task"), dict):
             snapshot["task"] = public_snapshot(snapshot["task"], reveal=reveal)
         result["task_snapshot"] = public_snapshot(snapshot, reveal=reveal)
@@ -506,6 +509,10 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
             progress.append(
                 {
                     "variant_task_id": item["variant_task_id"],
+                    "solution_url": item.get("solution_url"),
+                    "solution_submitted": item.get("solution_submitted", False),
+                    "assessment_source": item.get("assessment_source"),
+                    "assessed_score": item.get("assessed_score"),
                     "task_id": item["task_id"],
                     "order": item["order"],
                     "task_type_name": item.get("task_type_name"),
@@ -534,6 +541,8 @@ class VariantAttemptSerializer(serializers.ModelSerializer):
         if obj.mode == VariantAttempt.Mode.TRAINING:
             return None
         summary = self._get_primary_summary(obj)
+        if summary.get("is_provisional"):
+            return None
         primary_total = summary.get("primary_total", 0)
         metadata = {}
         estimated = False

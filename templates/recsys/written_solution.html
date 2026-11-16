@@ -1,0 +1,60 @@
+{% extends 'recsys/solution_base.html' %}
+{% load markdown_extras static versioned_assets %}
+{% block assets %}{% include 'partials/task_assets_head.html' %}{% endblock %}
+{% block content %}
+<a href="{{ return_url }}">← Все развёрнутые задания работы</a>
+<h1>{{ title }}</h1>
+<p>Максимальный балл: {{ max_score }}. {{ solution.variant_attempt.assignment.template.name }}</p>
+<details class="solution-panel"><summary>Условие задания</summary><div class="task-body task-statement__body" data-format="html">{{ statement_html|safe }}</div></details>
+<section class="solution-panel" aria-labelledby="solution-heading"><h2 id="solution-heading">Ваше решение</h2>
+{% if editable %}
+<p>Решите задачу на бумаге и добавьте фото. Можно приложить до 12 страниц, до 10 МБ каждая.</p>
+{% include 'recsys/solution_upload.html' %}
+<details class="phone-link"><summary>Снять на телефоне</summary>
+{% if local_only %}<p>Этот адрес доступен только на компьютере. Для загрузки с телефона откройте сайт по доступному телефону адресу.</p>{% else %}
+<img class="solution-qr" src="{{ qr_url }}" alt="QR-код для добавления фото с телефона">
+<p><a href="{{ phone_url }}" rel="noreferrer">Открыть страницу загрузки</a>. Ссылка действует 15 минут и позволяет добавить фото только к этому заданию.</p>
+<form method="post">{% csrf_token %}<button class="btn btn-secondary" name="action" value="revoke">Обновить ссылку и отключить старую</button></form>
+{% endif %}</details>
+{% elif solution.submitted_at %}<p class="solution-notice">Решение отправлено {{ solution.submitted_at|date:"d.m.Y H:i" }}. Его содержание зафиксировано.</p>
+{% else %}<p>Работа завершена. Новое решение в эту попытку добавить нельзя.</p>{% endif %}
+<div id="solution-photos" class="solution-photos" data-status-url="{% url 'solution-status' solution.pk %}">
+{% for photo in photos %}<article class="solution-photo" data-photo-id="{{ photo.pk }}">
+<a href="{% url 'solution-photo' photo.pk %}" target="_blank" rel="noopener"><img src="{% url 'solution-photo' photo.pk %}" alt="Страница решения {{ forloop.counter }}"></a>
+<p>Страница {{ forloop.counter }}</p>
+{% if editable %}<form method="post" class="photo-actions">{% csrf_token %}<input type="hidden" name="photo" value="{{ photo.pk }}">
+<button class="btn btn-secondary" name="action" value="up" aria-label="Переместить страницу вверх">↑</button>
+<button class="btn btn-secondary" name="action" value="down" aria-label="Переместить страницу вниз">↓</button>
+<button class="btn btn-secondary" name="action" value="rotate">Повернуть</button>
+<button class="btn btn-secondary" name="action" value="delete">Удалить</button></form>{% endif %}</article>
+{% empty %}<p>Фотографии пока не добавлены.</p>{% endfor %}</div>
+{% if editable %}<form method="post" class="solution-text-form">{% csrf_token %}
+<label for="solution-text">Текст решения или комментарий (необязательно)</label>
+<textarea id="solution-text" name="text" rows="5" maxlength="30000">{{ solution.text }}</textarea>
+<div class="solution-actions"><button class="btn btn-secondary" name="action" value="save_text">Сохранить текст</button>
+<button class="btn btn-primary" name="action" value="submit">Отправить решение</button></div>
+<p>После отправки фотографии и текст нельзя изменить. {% if solution.variant_attempt.mode == 'exam' %}Образец и критерии откроются после завершения пробника.{% endif %}</p>
+</form>{% elif solution.text %}<div class="solution-text">{{ solution.text|linebreaksbr }}</div>{% endif %}
+</section>
+{% if solution.submitted_at %}<section class="solution-panel"><h2>Проверка по критериям</h2>
+{% if not solution.revealed_at %}
+{% if can_reveal %}<p>Открытие образца будет отмечено. Сравните своё решение с критериями: верный способ может отличаться от образца.</p>
+<form method="post">{% csrf_token %}<button class="btn btn-primary" name="action" value="reveal">Открыть образец и критерии</button></form>
+{% else %}<p>Решение ожидает проверки. Завершите пробник, чтобы открыть критерии и поставить самооценку.</p>{% endif %}
+{% else %}
+<p class="solution-notice">Образец открыт {{ solution.revealed_at|date:"d.m.Y H:i" }}.</p>
+<h3>Итоговый ответ</h3><div class="solution-reference" data-format="html">{{ reference.correct_answer }}</div>
+<h3>Образец решения</h3><div class="task-body task-statement__body" data-format="markdown">{{ reference.reference_solution|render_markdown|default:'Автор пока не добавил образец решения.' }}</div>
+<h3>Критерии оценивания</h3><div class="task-body task-statement__body" data-format="markdown">{{ reference.assessment_criteria|render_markdown|default:'Автор пока не добавил критерии оценивания.' }}</div>
+{% if reference.assessment_criteria %}<form method="post" class="solution-grade">{% csrf_token %}
+<label for="solution-score">Сколько баллов соответствует вашему решению?</label><select name="score" id="solution-score" required>
+<option value="">Выберите балл</option>{% for score in score_choices %}<option value="{{ score }}">{{ score }} из {{ max_score }}</option>{% endfor %}</select>
+<label for="solution-comment">Комментарий к самооценке</label><textarea name="comment" id="solution-comment" maxlength="3000" rows="3"></textarea>
+<button class="btn btn-primary" name="action" value="assess">Сохранить самооценку</button>
+<p>Самооценка отобразится в результате работы отдельно от автоматической проверки. История оценок сохраняется.</p></form>{% endif %}
+{% endif %}</section>{% endif %}
+{% if assessments %}<section class="solution-panel"><h2>История оценок</h2>{% for grade in assessments %}
+<article><strong>{{ grade.get_source_display }}: {{ grade.score }} из {{ max_score }}</strong> · {{ grade.created_at|date:"d.m.Y H:i" }}
+{% if grade.comment %}<p>{{ grade.comment|linebreaksbr }}</p>{% endif %}</article>{% endfor %}</section>{% endif %}
+{% endblock %}
+{% block scripts %}{% include 'partials/task_assets_js.html' %}<script src="{% versioned_static 'js/written-solutions.js' %}"></script>{% endblock %}

@@ -65,6 +65,7 @@ urlpatterns = [
     path('tasks/variant-map/', recsys_views.task_variant_map, name='tasks_variant_map'),
     path('tasks/variant-builder/', recsys_views.variant_builder, name='tasks_variant_builder'),
     path('tasks/', recsys_views.tasks_list, name='tasks_list'),
+    path('solutions/', include('apps.recsys.solution_urls')),
 
 ]
 

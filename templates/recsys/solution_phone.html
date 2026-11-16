@@ -1,0 +1,8 @@
+{% extends 'recsys/solution_base.html' %}{% load versioned_assets %}
+{% block title %}Добавить фото решения{% endblock %}
+{% block content %}<h1>Добавить фото решения</h1>
+<p>{{ solution.reference_snapshot.title }}</p><p>Фото попадут в открытое на компьютере задание. Отправить работу на проверку и открыть критерии можно в своём аккаунте.</p>
+{% include 'recsys/solution_upload.html' %}
+<div class="solution-photos">{% for photo in photos %}<article class="solution-photo"><img src="{% url 'solution-phone-photo' token photo.pk %}" alt="Страница решения {{ forloop.counter }}"><p>Страница {{ forloop.counter }} сохранена</p></article>{% empty %}<p>Добавьте первую страницу решения.</p>{% endfor %}</div>
+<p>Ссылка временная. Если она перестала работать, откройте новую на компьютере.</p>{% endblock %}
+{% block scripts %}<script src="{% versioned_static 'js/written-solutions.js' %}"></script>{% endblock %}

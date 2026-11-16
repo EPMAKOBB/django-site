@@ -1,0 +1,8 @@
+<form method="post" enctype="multipart/form-data" class="solution-upload">
+{% csrf_token %}<input type="hidden" name="action" value="upload">
+<div class="solution-actions">
+<label class="btn btn-primary">Снять фото<input class="solution-file" type="file" name="photos" accept="image/jpeg,image/png,image/webp" capture="environment" data-photo-input></label>
+<label class="btn btn-secondary">Выбрать фото<input class="solution-file" type="file" name="photos" accept="image/jpeg,image/png,image/webp" multiple data-photo-input></label>
+</div><p data-upload-status role="status">JPEG, PNG или WebP. Фото сохраняются сразу после выбора.</p>
+<noscript><button class="btn btn-primary" type="submit">Загрузить выбранные фото</button></noscript>
+</form>
