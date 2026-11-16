@@ -1,9 +1,15 @@
 {
-  "version": 1,
+  "version": 2,
   "exam_slug": "phys-oge-2027",
   "year": 2027,
   "exam_kind": "oge",
-  "source_document": "ФИПИ: Физика ОГЭ 2027, проект спецификации, кодификатора и демоверсии из комплекта fi_9_2027",
+  "source_document": "ФИПИ: Физика ОГЭ 2027, утверждённые спецификация, кодификатор и демоверсия; комплект fi_9_2027 (1), сверка 16.11.2026",
+  "document_status": "approved",
+  "document_sha256": {
+    "demo": "b80ecc31fa3dd1bf709171ef2564ac06f7aa853a7e88111a9ea111030b76e64c",
+    "spec": "04b5ca10bb4d11e2efacadefdeabc836ae4b413bd635d2170219dc4481c02098",
+    "codif": "db90089c8775418252911dd367578fd3d029e55a7e15bd4229211da27bdacb41"
+  },
   "topics": [
     {
       "code": "1.1",
@@ -550,8 +556,7 @@
       "sections": [
         1,
         2,
-        3,
-        4
+        3
       ],
       "level": "П",
       "minutes": 5

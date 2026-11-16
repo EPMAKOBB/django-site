@@ -81,6 +81,103 @@ class OgeGradingTests(SimpleTestCase):
 
 
 class PhysicsPreparationTests(TestCase):
+    def test_adopts_only_unused_first_type_and_preserves_author_labels(self):
+        first = TaskType.objects.create(subject=self.subject, exam_version=self.exam,
+            name='My first type', slug='type-1', description='My author description',
+            display_order=1, max_score=2)
+        options = {'adopt_existing_first_type': True, 'apply': True,
+                   'expect_database': connection.settings_dict['NAME'], 'stdout': io.StringIO()}
+        call_command('prepare_physics_oge_2027', **options)
+        first.refresh_from_db()
+        self.assertEqual((first.name, first.slug, first.description), ('My first type', 'type-1', 'My author description'))
+        self.assertEqual(first.scoring_scheme, 'ordered_one_error')
+        self.assertEqual(first.answer_schema.name, 'test_part_17_chars')
+        self.assertEqual(self.exam.task_types.count(), 22)
+        self.prepare()
+        call_command('update_physics_oge_2027_final', apply=True,
+            expect_database=connection.settings_dict['NAME'], stdout=io.StringIO())
+        first.refresh_from_db()
+        self.assertEqual(first.description, 'My author description')
+        self.assertEqual(self.exam.task_types.get(display_order=1).pk, first.pk)
+
+    def test_adoption_refuses_existing_tasks_and_rolls_back(self):
+        from apps.recsys.models import AnswerSchema
+        first = TaskType.objects.create(subject=self.subject, exam_version=self.exam,
+            name='Existing', display_order=1,
+            answer_schema=AnswerSchema.objects.create(name='single', config={'rows': 1, 'cols': 1}))
+        Task.objects.create(subject=self.subject, exam_version=self.exam, type=first,
+            title='Authored question', slug='authored-question', correct_answer={'value': 1})
+        with self.assertRaises(CommandError):
+            call_command('prepare_physics_oge_2027', adopt_existing_first_type=True, apply=True,
+                expect_database=connection.settings_dict['NAME'], stdout=io.StringIO())
+        self.assertEqual(self.exam.task_types.count(), 1)
+        first.refresh_from_db()
+        self.assertEqual(first.scoring_scheme, 'binary')
+
+    def test_final_update_imports_draft_and_repeats_without_overwriting(self):
+        self.prepare()
+        out = io.StringIO()
+        call_command('update_physics_oge_2027_final', stdout=out)
+        self.assertFalse(Task.objects.filter(slug='fipi-phys-oge-2027-demo-17-lever').exists())
+        options = {'apply': True, 'expect_database': connection.settings_dict['NAME'], 'stdout': io.StringIO()}
+        call_command('update_physics_oge_2027_final', **options)
+        task = Task.objects.get(slug='fipi-phys-oge-2027-demo-17-lever')
+        self.assertEqual(task.status, 'draft')
+        self.assertEqual(task.get_max_score(), 3)
+        self.assertEqual(task.placements.get().status, 'draft')
+        self.assertIn('0,35', task.reference_solution)
+        self.assertIn('(3,5 ± 0,3)', task.assessment_criteria)
+        self.assertFalse(self.exam.task_types.get(display_order=16).allowed_tags.filter(slug__startswith='phys-oge-topic-4-').exists())
+        call_command('update_physics_oge_2027_final', **options)
+        self.assertEqual(Task.objects.filter(slug=task.slug).count(), 1)
+        self.prepare()
+        task.reference_solution = 'Author solution'
+        task.save()
+        with self.assertRaises(CommandError):
+            call_command('update_physics_oge_2027_final', **options)
+        task.refresh_from_db()
+        self.assertEqual(task.reference_solution, 'Author solution')
+
+    def test_final_update_transitions_legacy_fingerprint_and_preserves_points(self):
+        self.prepare()
+        from pathlib import Path
+        from django.conf import settings
+        from apps.recsys.management.commands.update_physics_oge_2027_final import LEGACY_FINGERPRINT, LEGACY_SOURCE
+        from apps.recsys.management.commands.prepare_physics_oge_2027 import type_description, exam_start_info
+        self.exam.refresh_from_db()
+        info = dict(self.exam.publication_info)
+        info.update(physics_oge_preparation=LEGACY_FINGERPRINT, source_document=LEGACY_SOURCE)
+        self.exam.publication_info = info
+        self.exam.start_info = exam_start_info(approved=False)
+        self.exam.save()
+        source = self.exam.sources.get()
+        source.description = LEGACY_SOURCE
+        source.save()
+        data = json.loads((Path(settings.BASE_DIR) / 'scripts/data/physics_oge_2027.json').read_text(encoding='utf-8'))
+        for item in data['types']:
+            if item['number'] == 16:
+                item['sections'] = [1, 2, 3, 4]
+            TaskType.objects.filter(exam_version=self.exam, display_order=item['number']).update(description=type_description(item, approved=False))
+        t16 = self.exam.task_types.get(display_order=16)
+        t16.required_tags.add(TaskTag.objects.get(slug='phys-oge-section-4'))
+        t16.allowed_tags.add(*TaskTag.objects.filter(slug__startswith='phys-oge-topic-4-'))
+        before = list(self.exam.task_types.values_list('pk', 'scoring_scheme', 'max_score'))
+        call_command('update_physics_oge_2027_final', apply=True, expect_database=connection.settings_dict['NAME'], stdout=io.StringIO())
+        self.exam.refresh_from_db()
+        self.assertEqual(self.exam.publication_info['document_status'], 'approved')
+        self.assertNotEqual(self.exam.publication_info['physics_oge_preparation'], LEGACY_FINGERPRINT)
+        self.assertEqual(list(self.exam.task_types.values_list('pk', 'scoring_scheme', 'max_score')), before)
+        self.prepare()
+
+    def test_final_update_requires_database_and_refuses_published_catalog(self):
+        self.prepare()
+        with self.assertRaises(CommandError):
+            call_command('update_physics_oge_2027_final', apply=True, stdout=io.StringIO())
+        ExamVersion.objects.filter(pk=self.exam.pk).update(published_at=timezone.now())
+        with self.assertRaises(CommandError):
+            call_command('update_physics_oge_2027_final', apply=True, expect_database=connection.settings_dict['NAME'], stdout=io.StringIO())
+        self.assertFalse(Task.objects.exists())
+
     def test_schema_cleanup_previews_and_keeps_schemas_used_elsewhere(self):
         self.prepare()
         from apps.recsys.models import AnswerSchema
