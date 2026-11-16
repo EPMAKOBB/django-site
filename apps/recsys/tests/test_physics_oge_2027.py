@@ -81,6 +81,37 @@ class OgeGradingTests(SimpleTestCase):
 
 
 class PhysicsPreparationTests(TestCase):
+    def test_demo_import_preview_idempotency_and_author_content_protection(self):
+        self.prepare()
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT current_user,current_database()')
+            role,database=cursor.fetchone()
+        options={'expect_user':role,'expect_database':database,'stdout':io.StringIO()}
+        call_command('import_physics_oge_2027_demo',**options)
+        self.assertFalse(Task.objects.exists())
+        call_command('import_physics_oge_2027_demo',apply=True,publish_tasks=True,**options)
+        self.assertEqual(self.exam.tasks.filter(status='published').count(),22)
+        ids=list(self.exam.tasks.order_by('pk').values_list('pk',flat=True))
+        call_command('import_physics_oge_2027_demo',apply=True,publish_tasks=True,**options)
+        self.assertEqual(list(self.exam.tasks.order_by('pk').values_list('pk',flat=True)),ids)
+        expected=['345','41','2','7254','2','2,5','3,6','250','2','12,5','246','12','21','13','2','12']
+        for number,key in enumerate(expected,1):
+            task=self.exam.tasks.get(type__display_order=number)
+            self.assertEqual(''.join(task.correct_answer),key)
+        task=self.exam.tasks.get(type__display_order=18)
+        self.assertIn('20-метровую',task.description)
+        self.assertIn('figure-18.png',task.description)
+        task.description='Edited by author';task.save()
+        with self.assertRaises(CommandError):
+            call_command('import_physics_oge_2027_demo',apply=True,publish_tasks=True,**options)
+        task.refresh_from_db();self.assertEqual(task.description,'Edited by author')
+
+    def test_demo_import_requires_database_and_role(self):
+        self.prepare()
+        with self.assertRaises(CommandError):
+            call_command('import_physics_oge_2027_demo',apply=True,stdout=io.StringIO())
+        self.assertFalse(Task.objects.exists())
+
     def test_adopts_only_unused_first_type_and_preserves_author_labels(self):
         first = TaskType.objects.create(subject=self.subject, exam_version=self.exam,
             name='My first type', slug='type-1', description='My author description',

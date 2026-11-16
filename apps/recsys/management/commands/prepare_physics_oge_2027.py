@@ -147,7 +147,8 @@ class Command(BaseCommand):
             matching(SkillGroupItem, {'group': group, 'skill': skill}, {'label': title, 'order': order})
         source, _ = matching(Source, {'slug': 'fipi-phys-oge-2027'},
             {'name': 'ФИПИ — Физика ОГЭ 2027', 'exam_version': exam, 'description': data['source_document']})
-        variant, _ = matching(SourceVariant, {'source': source, 'label': 'Демоверсия 2027'}, {'slug': 'demo-2027'})
+        variant, _ = SourceVariant.objects.get_or_create(source=source, slug='demo-2027',
+            defaults={'label': 'Демоверсия ОГЭ 2027'})
         exam.exam_kind, exam.year, exam.status, exam.is_default = 'oge', 2027, 'draft', False
         exam.start_info = exam_start_info()
         exam.publication_info = {**exam.publication_info, 'physics_oge_preparation': fingerprint,
