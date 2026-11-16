@@ -128,6 +128,10 @@ def match_blueprint(pools):
 
 def validate_rollover(exam):
     plan, errors = placement_plan(exam)
+    warnings = []
+    type_rows = []
+    published_ids = {}
+    can_build_variant = False
     if not exam.year or not exam.exam_kind:
         errors.append("Заполните вид экзамена и год.")
     if not exam.publication_info.get("requirements_checked") or not exam.publication_info.get("source_document") or not exam.publication_info.get("scale_checked"):
@@ -147,9 +151,15 @@ def validate_rollover(exam):
         if not task_type.required_tags.exists():
             errors.append(f"{task_type.name}: укажите учебные темы в требованиях типа.")
         bank = Task.objects.filter(pk__in=plan[task_type.pk], status=Task.Status.PUBLISHED)
-        for tag in task_type.required_tags.all():
-            if not bank.filter(tags=tag).exists():
-                errors.append(f"{task_type.name}: нет опубликованных задач для темы {tag.name}.")
+        published_ids[task_type.pk] = list(bank.values_list('pk', flat=True))
+        required = list(task_type.required_tags.all())
+        covered = set(bank.values_list('tags__pk', flat=True))
+        missing = [tag.name for tag in required if tag.pk not in covered]
+        for name in missing:
+            warnings.append(f"{task_type.name}: пока нет опубликованных задач для темы {name}.")
+        type_rows.append({'id': task_type.pk, 'name': task_type.name,
+                          'count': len(published_ids[task_type.pk]),
+                          'requirements': [tag.name for tag in required], 'missing_topics': missing})
     if exam.copied_from_id:
         covered = set(exam.type_transitions.values_list("source_type_id", flat=True))
         for old in exam.copied_from.task_types.exclude(pk__in=[pk for pk in covered if pk]):
@@ -160,6 +170,7 @@ def validate_rollover(exam):
     else:
         pools = []
         primary_max = 0
+        valid_structure = True
         for item in blueprint.items.select_related("task_type"):
             try:
                 item.full_clean()
@@ -167,11 +178,13 @@ def validate_rollover(exam):
                     raise ValidationError("Количество задач и максимальный балл должны быть положительными.")
             except ValidationError as exc:
                 errors.extend(exc.messages)
+                valid_structure = False
             primary_max += item.count * (item.score_override or item.task_type.max_score)
-            ids = list(Task.objects.filter(pk__in=plan[item.task_type_id], status=Task.Status.PUBLISHED).values_list("pk", flat=True))
+            ids = published_ids.get(item.task_type_id, [])
             pools.append((item.task_type_id, item.count, ids))
         try:
             match_blueprint(pools)
+            can_build_variant = valid_structure
         except ValidationError as exc:
             errors.extend(exc.messages)
         scale = ExamScoreScale.objects.filter(exam_version=exam, is_active=True).first()
@@ -182,9 +195,10 @@ def validate_rollover(exam):
                     raise ValidationError("Максимум шкалы не совпадает с суммой баллов структуры экзамена.")
             except ValidationError as exc:
                 errors.extend(exc.messages)
-    return {"errors": errors, "types": {key: sorted(value) for key, value in plan.items()}, "ready": not errors,
-            "type_rows": [{"id": row.pk, "name": row.name, "count": len(plan[row.pk]),
-                           "requirements": list(row.required_tags.values_list("name", flat=True))} for row in exam.task_types.all()]}
+    return {"errors": errors, "warnings": warnings, "coverage_complete": not warnings,
+            "can_build_variant": can_build_variant,
+            "types": {key: sorted(value) for key, value in plan.items()}, "ready": not errors,
+            "type_rows": type_rows}
 
 
 @transaction.atomic

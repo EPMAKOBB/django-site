@@ -3,9 +3,14 @@
 <p>{{ exam }}</p>
 {% if exam.published_at %}<p>Опубликовано: {{ exam.published_at }}. Изменения содержания требуют новой редакции.</p>{% endif %}
 {% if report.errors %}<ul class="errorlist">{% for error in report.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-<p>Перед публикацией проверьте соответствия типов, структуру, критерии и документ-основание. Старая шкала баллов копируется отключённой; включайте её только после проверки.</p>
-<table><thead><tr><th>Новый тип</th><th>Подходящих задач</th><th>Учебные темы</th></tr></thead><tbody>
-{% for row in report.type_rows %}<tr><td><a href="{% url 'admin:recsys_tasktype_change' row.id %}">{{ row.name }}</a></td><td>{{ row.count }}</td><td>{{ row.requirements|join:", " }}</td></tr>{% endfor %}
+<p>Для публикации нужны проверенные соответствия типов, структура, критерии и документ-основание. Опубликованных задач должно хватать хотя бы на один полный вариант без повторов. Покрытие всех тем можно дополнять после публикации. Старая шкала баллов копируется отключённой; включайте её только после проверки.</p>
+{% if report.can_build_variant %}<p>Опубликованных задач хватает для сборки полного варианта.</p>{% endif %}
+{% if report.warnings %}
+<ul class="messagelist"><li class="warning">Банк пока не покрывает все обязательные темы. Это не мешает публикации экзамена, но ограничивает разнообразие тренировок и вариантов.</li></ul>
+<details><summary>Темы без опубликованных задач: {{ report.warnings|length }}</summary><ul>{% for warning in report.warnings %}<li>{{ warning }}</li>{% endfor %}</ul></details>
+{% else %}<p>Опубликованные задачи покрывают все обязательные темы типов.</p>{% endif %}
+<table><thead><tr><th>Новый тип</th><th>Опубликованных задач</th><th>Учебные темы</th><th>Пока нет задач по темам</th></tr></thead><tbody>
+{% for row in report.type_rows %}<tr><td><a href="{% url 'admin:recsys_tasktype_change' row.id %}">{{ row.name }}</a></td><td>{{ row.count }}</td><td>{{ row.requirements|join:", " }}</td><td>{{ row.missing_topics|join:", "|default:"—" }}</td></tr>{% endfor %}
 </tbody></table>
 <form method="post">{% csrf_token %}
 {% if not exam.published_at %}{{ form.as_p }}

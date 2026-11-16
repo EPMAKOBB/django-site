@@ -4,6 +4,7 @@ from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
+from django.db import transaction
 
 from .models import ExamVersion, ExamProgressSnapshot, TaskPlacement, TaskTypeTransition
 from .service_utils.exam_rollover import create_next_year, publish_exam, archive_exam, validate_rollover
@@ -104,13 +105,23 @@ class ExamYearAdminMixin:
                 if request.POST.get("action") == "archive":
                     archive_exam(exam)
                 elif request.POST.get("action") == "publish" and form.is_valid():
-                    exam.publication_info = {key: value for key, value in form.cleaned_data.items() if key != "make_default"}
-                    exam.save(update_fields=["publication_info", "updated_at"])
-                    publish_exam(exam, make_default=form.cleaned_data["make_default"])
+                    with transaction.atomic():
+                        # Use the same lock order as publish_exam.
+                        type(exam.subject).objects.select_for_update().get(pk=exam.subject_id)
+                        exam = ExamVersion.objects.select_for_update().get(pk=exam.pk)
+                        exam.publication_info = {
+                            **exam.publication_info,
+                            **{key: value for key, value in form.cleaned_data.items() if key != "make_default"},
+                        }
+                        exam.save(update_fields=["publication_info", "updated_at"])
+                        publish_exam(exam, make_default=form.cleaned_data["make_default"])
                 else:
                     raise ValidationError("Заполните подтверждение методической проверки.")
             except ValidationError as exc:
+                exam.refresh_from_db()
+                report = validate_rollover(exam)
                 report["errors"] = exc.messages
+                report["ready"] = False
             else:
                 self.log_change(request, exam, "Изменена доступность годовой версии")
                 messages.success(request, "Версия экзамена обновлена.")

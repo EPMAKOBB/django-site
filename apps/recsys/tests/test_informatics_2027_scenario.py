@@ -106,8 +106,9 @@ class Informatics2027ScenarioTests(TestCase):
         self.assertEqual(progress.previous_year_evidence, 0)
         report = validate_rollover(target)
         self.assertFalse(report["ready"])
-        self.assertTrue(any("Замена цифр" in error for error in report["errors"]))
+        self.assertTrue(any("Замена цифр" in warning for warning in report["warnings"]))
         self.assertTrue(any("тип 23" in error for error in report["errors"]))
+        self.assertFalse(report["can_build_variant"])
         with self.assertRaises(ValidationError):
             publish_exam(target)
         target.refresh_from_db()
