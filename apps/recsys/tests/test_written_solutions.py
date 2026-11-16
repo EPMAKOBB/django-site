@@ -1,4 +1,4 @@
-﻿import io
+import io
 import tempfile
 from unittest.mock import patch
 
@@ -229,4 +229,3 @@ class WrittenSolutionTests(TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             self.solution.delete()
         self.assertFalse(storage.exists(name))
-
