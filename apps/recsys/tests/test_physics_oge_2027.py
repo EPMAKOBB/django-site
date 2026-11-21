@@ -81,6 +81,34 @@ class OgeGradingTests(SimpleTestCase):
 
 
 class PhysicsPreparationTests(TestCase):
+    def test_2026_import_is_atomic_idempotent_and_preserves_existing_tasks(self):
+        self.prepare()
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT current_user,current_database()')
+            role,database=cursor.fetchone()
+        options={'expect_user':role,'expect_database':database,'stdout':io.StringIO()}
+        call_command('import_physics_oge_2027_demo',apply=True,publish_tasks=True,**options)
+        before=list(self.exam.tasks.order_by('pk').values('pk','description','correct_answer','status'))
+        call_command('import_physics_oge_2026_demo',**options)
+        self.assertEqual(self.exam.tasks.count(),22)
+        call_command('import_physics_oge_2026_demo',apply=True,publish_tasks=True,**options)
+        imported=self.exam.tasks.filter(source__slug='fipi-phys-oge-2026')
+        self.assertEqual(imported.count(),21)
+        self.assertFalse(imported.filter(type__display_order=17).exists())
+        self.assertEqual(list(self.exam.tasks.filter(pk__in=[r['pk'] for r in before]).order_by('pk').values('pk','description','correct_answer','status')),before)
+        ids=list(imported.order_by('pk').values_list('pk',flat=True))
+        call_command('import_physics_oge_2026_demo',apply=True,publish_tasks=True,**options)
+        self.assertEqual(list(imported.order_by('pk').values_list('pk',flat=True)),ids)
+        self.assertTrue(all(t.default_payload['source_year']==2026 and t.status=='published' for t in imported))
+        task=imported.get(type__display_order=18)
+        self.assertIn('5730',task.description)
+        self.assertIn('11 460',task.reference_solution)
+        self.assertTrue(task.assessment_criteria)
+        task.description='Author edit';task.save()
+        with self.assertRaises(CommandError):
+            call_command('import_physics_oge_2026_demo',apply=True,publish_tasks=True,**options)
+        task.refresh_from_db();self.assertEqual(task.description,'Author edit')
+
     def test_demo_import_preview_idempotency_and_author_content_protection(self):
         self.prepare()
         with connection.cursor() as cursor:

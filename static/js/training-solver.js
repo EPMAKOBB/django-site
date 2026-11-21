@@ -34,11 +34,22 @@
   const submissionKeys = new Map();
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[char]));
   const format = value => typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—');
+  let backgroundNotice = false;
   const say = (text, error = false) => {
+    backgroundNotice = false;
     notice.hidden = !text || !error;
     notice.textContent = error ? text : '';
     status.textContent = error ? '' : text;
     status.dataset.kind = 'info';
+  };
+  const backgroundError = error => {
+    // Do not replace an answer-saving or other user-action error.
+    if (!notice.hidden && !backgroundNotice) return;
+    say(error.message, true);
+    backgroundNotice = true;
+  };
+  const backgroundRecovered = () => {
+    if (backgroundNotice) say('');
   };
   const current = () => work?.tasks_progress.find(t => t.variant_task_id === currentId);
   const latest = task => task.attempts?.at(-1);
@@ -58,16 +69,39 @@
   }
   async function focusTask() {
     if (currentId && work && !blocked() && !document.hidden) {
-      try { await request(`${base}tasks/${currentId}/focus/`, {}); } catch(error) { say(error.message, true); }
+      try { await request(`${base}tasks/${currentId}/focus/`, {}); } catch(error) { backgroundError(error); }
     }
   }
   async function request(url, data) {
-    const response = await fetch(url, data === undefined ? {credentials:'same-origin'} : {
-      method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json', 'X-CSRFToken':root.dataset.csrf, 'X-Training-Revision':String(work?.training_revision ?? 0)}, body:JSON.stringify(data),
-    });
-    const payload = await response.json();
+    const method = data === undefined ? 'GET' : 'POST';
+    let response, payload;
+    try {
+      response = await fetch(url, data === undefined ? {credentials:'same-origin', headers:{Accept:'application/json'}} : {
+        method, credentials:'same-origin', headers:{Accept:'application/json', 'Content-Type':'application/json', 'X-CSRFToken':root.dataset.csrf, 'X-Training-Revision':String(work?.training_revision ?? 0)}, body:JSON.stringify(data),
+      });
+      const contentType = response.headers.get('Content-Type') || '';
+      if (!/\bapplication\/(?:[\w.-]+\+)?json\b/i.test(contentType)) throw new Error('unexpected-content-type');
+      payload = await response.json();
+    } catch (cause) {
+      // Keep answers, CSRF tokens and HTML response bodies out of diagnostics.
+      console.error('[training] Request failed', {
+        timestamp:new Date().toISOString(), attemptId, method,
+        path:new URL(url, window.location.href).pathname,
+        status:response?.status ?? null,
+        contentType:response?.headers.get('Content-Type') ?? null,
+        redirected:response?.redirected ?? false,
+        responsePath:response ? new URL(response.url || url, window.location.href).pathname : null,
+        reason:response ? 'invalid-json-response' : 'network-error',
+      });
+      const message = response?.status === 401 || response?.status === 403 || (response?.redirected && response.ok)
+        ? 'Не удалось подтвердить доступ. Обновите страницу; возможно, потребуется войти заново.'
+        : 'Не удалось связаться с сервером или получить корректный ответ. Повторите попытку через некоторое время.';
+      const error = new Error(message);
+      error.status = response?.status;
+      throw error;
+    }
     if (!response.ok) {
-      const error = new Error(typeof payload.detail === 'string' ? payload.detail : Object.values(payload).flat().join(' '));
+      const error = new Error(typeof payload?.detail === 'string' ? payload.detail : Object.values(payload || {}).flat().join(' ') || 'Не удалось выполнить запрос. Повторите попытку.');
       error.status = response.status;
       if (response.status === 409) {
         clearTimeout(saveTimer);
@@ -330,13 +364,13 @@
   document.addEventListener('visibilitychange', () => {
     if (!work) return;
     if (document.hidden) { if (!blocked()) request(base + 'pause/', {}).catch(() => {}); }
-    else refreshState().then(focusTask).catch(error => say(error.message, true));
+    else refreshState().then(focusTask).catch(backgroundError);
   });
   window.addEventListener('pagehide', () => {
     if (work && !blocked()) fetch(base + 'pause/', {method:'POST', keepalive:true, credentials:'same-origin', headers:{'Content-Type':'application/json', 'X-CSRFToken':root.dataset.csrf, 'X-Training-Revision':String(work.training_revision)}, body:'{}'}).catch(() => {});
   });
   setInterval(() => {
-    if (work && !document.hidden) refreshState().then(() => { if (!blocked() && currentId) return request(base + 'heartbeat/', {}); }).catch(error => say(error.message, true));
+    if (work && !document.hidden) refreshState().then(() => { if (!blocked() && currentId) return request(base + 'heartbeat/', {}); }).then(backgroundRecovered).catch(backgroundError);
   }, 30000);
   async function load() {
     try {
@@ -362,6 +396,6 @@
       focusTask();
     } catch(error) { say(error.message, true); body.textContent = 'Не удалось загрузить тренировку. Обновите страницу.'; footer.hidden = true; }
   }
-  window.addEventListener('focus', () => { if (work) refreshState().then(focusTask).catch(error => say(error.message, true)); });
+  window.addEventListener('focus', () => { if (work) refreshState().then(focusTask).catch(backgroundError); });
   load();
 })();
